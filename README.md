@@ -6,7 +6,7 @@
 
 编辑 · 编译 · 预览 · AI 助手 — 一体化工作流，无需浏览器
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue)
+![Version](https://img.shields.io/badge/version-1.0.1-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey)
 ![Electron](https://img.shields.io/badge/Electron-33-black)
 ![Vue](https://img.shields.io/badge/Vue-3-green)

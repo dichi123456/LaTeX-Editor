@@ -5,6 +5,7 @@ import * as path from 'path'
 
 import { detectTexLive, getEnginePath } from './texlive'
 import { compileDocument, cancelCompile, isCompiling, cleanAuxFiles, runBibtex } from './compiler'
+import { synctexForward, synctexBackward } from './synctex'
 import { loadConfig, saveConfig } from './config'
 import { TOOLS, executeTool, setWorkspace, setTexlivePath, getToolPermission, type ToolCall, type ToolResult } from './tools'
 import {
@@ -185,6 +186,16 @@ ipcMain.handle('run-bibtex', async (_event, mainPath: string, texlivePath: strin
   return runBibtex(mainPath, texlivePath, (message, type) => {
     mainWindow?.webContents.send('compile-progress', { message, type })
   })
+})
+
+// SyncTeX 正向：源码行 → PDF 位置
+ipcMain.handle('synctex-forward', async (_event, texPath: string, line: number, pdfPath: string, texlivePath: string | null) => {
+  return synctexForward(texPath, line, pdfPath, texlivePath)
+})
+
+// SyncTeX 反向：PDF 坐标 → 源码行
+ipcMain.handle('synctex-backward', async (_event, page: number, x: number, y: number, pdfPath: string, texlivePath: string | null) => {
+  return synctexBackward(page, x, y, pdfPath, texlivePath)
 })
 
 // 文件

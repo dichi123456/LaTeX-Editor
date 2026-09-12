@@ -140,6 +140,9 @@ export const useCompileStore = defineStore('compile', () => {
         duration
       }
       await window.electronAPI.notifyCompileDone(compileResult.success)
+      if (compileResult.success && compileResult.pdfPath) {
+        pdfReloadToken.value++
+      }
       return compileResult.success
     } catch (err: any) {
       lastResult.value = {
@@ -168,6 +171,8 @@ export const useCompileStore = defineStore('compile', () => {
   // ===== PDF 标签页管理 =====
   const pdfTabs: Ref<PdfTab[]> = ref([])
   const activePdfTabId: Ref<string | null> = ref(null)
+  // 每次编译成功后自增，用于触发 PDF 预览强制刷新
+  const pdfReloadToken: Ref<number> = ref(0)
 
   const activePdfTab = computed(() =>
     pdfTabs.value.find((t) => t.id === activePdfTabId.value) || null
@@ -226,6 +231,7 @@ export const useCompileStore = defineStore('compile', () => {
     pdfTabs,
     activePdfTabId,
     activePdfTab,
+    pdfReloadToken,
     detectTexLive,
     compile,
     appendLiveLog,

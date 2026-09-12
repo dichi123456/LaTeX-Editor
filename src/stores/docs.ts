@@ -20,6 +20,9 @@ export const useDocStore = defineStore('doc', () => {
   const mainTexPath: Ref<string | null> = ref(null)
   const recentFiles: Ref<string[]> = ref([])
   const recentWorkspaces: Ref<string[]> = ref([])
+  // 状态栏光标位置（1-based）
+  const cursorLine: Ref<number> = ref(1)
+  const cursorCol: Ref<number> = ref(1)
 
   const activeTab = computed(() =>
     tabs.value.find((t) => t.id === activeTabId.value) || null
@@ -175,9 +178,12 @@ export const useDocStore = defineStore('doc', () => {
     recentFiles,
     recentWorkspaces,
     hasDirty,
+    cursorLine,
+    cursorCol,
     newTab,
     openFile,
     closeTab,
+    moveTab,
     saveTab,
     saveTabAs,
     updateContent,

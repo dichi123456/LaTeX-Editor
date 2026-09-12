@@ -1,5 +1,8 @@
 import { ipcRenderer, contextBridge } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
+import type { DirEntry } from './file'
+import type { CompileOptions, CompileResult } from './compiler'
+import type { AppConfig } from './config'
 
 // 自定义 API
 const api = {
@@ -40,6 +43,19 @@ const api = {
   cleanAuxFiles: (mainPath: string): Promise<string[]> => ipcRenderer.invoke('clean-aux', mainPath),
   runBibtex: (mainPath: string, texlivePath: string | null): Promise<{ success: boolean; log: string }> =>
     ipcRenderer.invoke('run-bibtex', mainPath, texlivePath),
+  synctexForward: (texPath: string, line: number, pdfPath: string, texlivePath: string | null): Promise<{
+    success: boolean
+    page: number | null
+    x: number | null
+    y: number | null
+    error?: string
+  }> => ipcRenderer.invoke('synctex-forward', texPath, line, pdfPath, texlivePath),
+  synctexBackward: (page: number, x: number, y: number, pdfPath: string, texlivePath: string | null): Promise<{
+    success: boolean
+    line: number | null
+    file: string | null
+    error?: string
+  }> => ipcRenderer.invoke('synctex-backward', page, x, y, pdfPath, texlivePath),
 
   // 配置
   loadConfig: (): Promise<AppConfig> => ipcRenderer.invoke('load-config'),

@@ -126,8 +126,8 @@ function shortPath(path: string): string {
               <div class="tip-body">
                 <div class="tip-title">SyncTeX 同步</div>
                 <div class="tip-desc">
-                  编辑器 <kbd>Ctrl+Click</kbd> → 跳转 PDF<br />
-                  PDF <kbd>Ctrl+Click</kbd> → 跳转源码
+                  编辑器 <kbd>双击</kbd> 或 <kbd>Ctrl+Click</kbd> → 跳转 PDF<br />
+                  PDF <kbd>双击</kbd> 或 <kbd>Ctrl+Click</kbd> → 跳转源码
                 </div>
               </div>
             </div>

@@ -1,15 +1,16 @@
 <script setup lang="ts">
+import type { PropType } from 'vue'
 import type { DirEntry } from '../types'
 
 defineProps({
-  entry: { type: Object as () => DirEntry, required: true },
+  entry: { type: Object as PropType<DirEntry>, required: true },
   depth: { type: Number, default: 0 },
-  expandedSet: { type: Object as () => Set<string>, required: true },
-  selectedPath: { type: String, default: null },
-  renaming: { type: String, default: null },
+  expandedSet: { type: Object as PropType<Set<string>>, required: true },
+  selectedPath: { type: String as PropType<string | null>, default: null },
+  renaming: { type: String as PropType<string | null>, default: null },
   renameValue: { type: String, default: '' },
-  isMain: { type: Function as (e: DirEntry) => boolean, required: true },
-  iconFor: { type: Function as (e: DirEntry) => string, required: true }
+  isMain: { type: Function as PropType<(e: DirEntry) => boolean>, required: true },
+  iconFor: { type: Function as PropType<(e: DirEntry) => string>, required: true }
 })
 
 const emit = defineEmits<{

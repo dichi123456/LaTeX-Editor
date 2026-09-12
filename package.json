@@ -1,6 +1,6 @@
 {
   "name": "latex-editor",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "本地 LaTeX 编辑器 — Windows 桌面应用（编辑·编译·预览）",
   "main": "./out/main/main.js",
   "author": "LaTeX Editor",

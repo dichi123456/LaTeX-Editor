@@ -28,15 +28,32 @@ const pagesRef = ref<HTMLElement | null>(null)
 const currentPage = ref(1)
 const totalPages = ref(0)
 const scale = ref(1.15)
-const fitMode = ref<'width' | 'custom'>('width')
+const fitMode = ref<'width' | 'page' | 'custom'>('width')
+const rotation = ref(0)
 const loading = ref(false)
 const error = ref('')
 const hasPdf = ref(false)
+
+// 大纲导航
+interface PdfOutlineItem {
+  title: string
+  page: number | null
+  children: PdfOutlineItem[]
+}
+const outline = ref<PdfOutlineItem[]>([])
+const showOutline = ref(false)
+
+// 页码跳转输入
+const pageInput = ref<string>('')
 
 let pdfDoc: any = null
 let pageCanvases: HTMLCanvasElement[] = []
 let scrollObserver: IntersectionObserver | null = null
 let pdfjs: any = null
+// 当前已加载的 PDF 路径（用于避免重复加载）
+let loadedPath: string | null = null
+// pdfReloadToken 刚强制刷新过，activePdfTabId watch 跳过一次
+let skipNextTabLoad = false
 
 async function loadPdfjs() {
   if (pdfjs) return pdfjs
@@ -91,11 +108,15 @@ async function loadPdf(path: string) {
     totalPages.value = doc.numPages
     currentPage.value = 1
     hasPdf.value = true
+    rotation.value = 0
+    pageInput.value = '1'
+    loadedPath = path
 
     await nextTick()
     await new Promise((r) => setTimeout(r, 80))
     await renderAllPages()
     setupScrollTracking()
+    await loadOutline()
   } catch (err: any) {
     console.error('[PdfViewer] loadPdf error:', err)
     error.value = `无法加载 PDF：${err?.message || err}`
@@ -141,7 +162,7 @@ async function renderPageToCanvas(pageNum: number) {
   if (!canvas) return
   try {
     const page = await pdfDoc.getPage(pageNum)
-    const viewport = page.getViewport({ scale: scale.value })
+    const viewport = page.getViewport({ scale: scale.value, rotation: rotation.value })
     const dpr = window.devicePixelRatio || 1
     canvas.width = Math.floor(viewport.width * dpr)
     canvas.height = Math.floor(viewport.height * dpr)
@@ -162,9 +183,24 @@ async function fitWidth() {
   fitMode.value = 'width'
   try {
     const page = await pdfDoc.getPage(1)
-    const unscaled = page.getViewport({ scale: 1 })
+    const unscaled = page.getViewport({ scale: 1, rotation: rotation.value })
     const avail = containerRef.value.clientWidth - 24
     if (avail > 0) scale.value = avail / unscaled.width
+  } catch { /* ignore */ }
+  for (let i = 1; i <= totalPages.value; i++) await renderPageToCanvas(i)
+}
+
+async function fitPage() {
+  if (!pdfDoc || !containerRef.value) return
+  fitMode.value = 'page'
+  try {
+    const page = await pdfDoc.getPage(1)
+    const unscaled = page.getViewport({ scale: 1, rotation: rotation.value })
+    const availW = containerRef.value.clientWidth - 24
+    const availH = containerRef.value.clientHeight - 24
+    if (availW > 0 && availH > 0) {
+      scale.value = Math.min(availW / unscaled.width, availH / unscaled.height)
+    }
   } catch { /* ignore */ }
   for (let i = 1; i <= totalPages.value; i++) await renderPageToCanvas(i)
 }
@@ -172,6 +208,66 @@ async function fitWidth() {
 function zoomIn() { fitMode.value = 'custom'; scale.value = Math.min(4, scale.value + 0.15); rerenderAll() }
 function zoomOut() { fitMode.value = 'custom'; scale.value = Math.max(0.3, scale.value - 0.15); rerenderAll() }
 async function rerenderAll() { for (let i = 1; i <= totalPages.value; i++) await renderPageToCanvas(i) }
+
+function rotateLeft() {
+  rotation.value = (rotation.value - 90 + 360) % 360
+  rerenderAll()
+}
+function rotateRight() {
+  rotation.value = (rotation.value + 90) % 360
+  rerenderAll()
+}
+
+// 页码跳转
+function goToPageInput() {
+  const n = parseInt(pageInput.value, 10)
+  if (n >= 1 && n <= totalPages.value) {
+    scrollToPage(n)
+  } else {
+    pageInput.value = String(currentPage.value)
+  }
+}
+
+// ===== PDF 大纲（目录）=====
+async function loadOutline() {
+  outline.value = []
+  if (!pdfDoc) return
+  try {
+    const raw = await pdfDoc.getOutline()
+    if (!raw || raw.length === 0) return
+
+    const resolveDest = async (dest: any): Promise<number | null> => {
+      try {
+        let d = dest
+        if (typeof d === 'string') d = await pdfDoc.getDestination(d)
+        if (!Array.isArray(d) || !d[0]) return null
+        const idx = await pdfDoc.getPageIndex(d[0])
+        return idx + 1
+      } catch {
+        return null
+      }
+    }
+
+    const build = async (items: any[], depth = 0): Promise<PdfOutlineItem[]> => {
+      if (depth > 6) return []
+      const result: PdfOutlineItem[] = []
+      for (const item of items) {
+        const page = await resolveDest(item.dest)
+        const children = item.items ? await build(item.items, depth + 1) : []
+        result.push({ title: item.title?.trim() || '(无标题)', page, children })
+      }
+      return result
+    }
+
+    outline.value = await build(raw)
+  } catch (err) {
+    console.warn('加载 PDF 大纲失败:', err)
+  }
+}
+
+function outlineClick(item: PdfOutlineItem) {
+  if (item.page) scrollToPage(item.page)
+}
 
 function setupScrollTracking() {
   if (scrollObserver) scrollObserver.disconnect()
@@ -181,6 +277,7 @@ function setupScrollTracking() {
       for (const entry of entries) {
         if (entry.isIntersecting) {
           currentPage.value = parseInt((entry.target as HTMLElement).dataset.page || '1', 10)
+          pageInput.value = String(currentPage.value)
         }
       }
     },
@@ -192,7 +289,11 @@ function setupScrollTracking() {
 function scrollToPage(pageNum: number) {
   if (!pagesRef.value || !containerRef.value) return
   const wrapper = pagesRef.value.querySelector(`[data-page="${pageNum}"]`) as HTMLElement
-  if (wrapper) containerRef.value.scrollTo({ top: wrapper.offsetTop - 12, behavior: 'smooth' })
+  if (wrapper) {
+    containerRef.value.scrollTo({ top: wrapper.offsetTop - 12, behavior: 'smooth' })
+    currentPage.value = pageNum
+    pageInput.value = String(pageNum)
+  }
 }
 
 function prevPage() { if (currentPage.value > 1) scrollToPage(currentPage.value - 1) }
@@ -218,7 +319,17 @@ function onSyncTexGotoPdf(e: Event) {
 }
 
 function onContainerClick(e: MouseEvent) {
+  // Ctrl+Click / Ctrl+Meta+Click 反向同步
   if (!e.ctrlKey && !e.metaKey) return
+  triggerInverseSearch(e)
+}
+
+function onContainerDblClick(e: MouseEvent) {
+  // 双击反向同步（无需按 Ctrl）
+  triggerInverseSearch(e)
+}
+
+function triggerInverseSearch(e: MouseEvent) {
   if (!pdfDoc) return
   const target = e.target as HTMLElement
   const wrapper = target.closest('.pdf-page-wrapper') as HTMLElement
@@ -229,12 +340,14 @@ function onContainerClick(e: MouseEvent) {
   const rect = canvas.getBoundingClientRect()
   const clickX = e.clientX - rect.left
   const clickY = e.clientY - rect.top
-  pdfDoc.getPage(pageNum).then((page: any) => {
-    const viewport = page.getViewport({ scale: scale.value })
-    window.dispatchEvent(new CustomEvent('synctex-backward', {
-      detail: { page: pageNum, x: clickX / scale.value, y: (viewport.height - clickY) / scale.value }
-    }))
-  })
+  // synctex edit 的坐标：x 从左，y 从页面顶部算起（pt）
+  window.dispatchEvent(new CustomEvent('synctex-backward', {
+    detail: {
+      page: pageNum,
+      x: clickX / scale.value,
+      y: clickY / scale.value
+    }
+  }))
 }
 
 function onWheel(e: WheelEvent) {
@@ -274,27 +387,54 @@ function onPdfDragEnd() {
 }
 
 // ===== 标签页联动 =====
-// 编译成功后自动打开 PDF 标签
+// 编译成功后：打开/激活 PDF 标签并强制刷新内容
 watch(
-  () => compileStore.lastResult,
-  (result) => {
-    if (result?.pdfPath && result.success) {
-      compileStore.openPdfTab(result.pdfPath)
+  () => compileStore.pdfReloadToken,
+  async (token) => {
+    if (!token) return
+    const path = compileStore.lastResult?.pdfPath
+    if (!path || !compileStore.lastResult?.success) return
+
+    const keepPage = currentPage.value
+    const existing = compileStore.pdfTabs.find((t) => t.path === path)
+    if (existing) {
+      // 仅当 id 变化时 activePdfTabId watch 才会触发，此时跳过其加载
+      if (compileStore.activePdfTabId !== existing.id) {
+        skipNextTabLoad = true
+        compileStore.activePdfTabId = existing.id
+      }
+    } else {
+      skipNextTabLoad = true
+      compileStore.openPdfTab(path)
     }
-  },
-  { deep: true }
+
+    await nextTick()
+    await loadPdf(path)
+    if (keepPage > 1 && keepPage <= totalPages.value) {
+      await nextTick()
+      await new Promise((r) => setTimeout(r, 100))
+      scrollToPage(keepPage)
+    }
+  }
 )
 
 // 切换标签时加载对应 PDF
 watch(
   () => compileStore.activePdfTabId,
   async () => {
+    if (skipNextTabLoad) {
+      skipNextTabLoad = false
+      return
+    }
     const tab = compileStore.activePdfTab
     if (tab) {
+      // 同路径已加载则跳过
+      if (loadedPath === tab.path && hasPdf.value) return
       await nextTick()
       await loadPdf(tab.path)
     } else {
       hasPdf.value = false
+      loadedPath = null
       if (pdfDoc) { try { pdfDoc.destroy() } catch {} ; pdfDoc = null }
       if (pagesRef.value) pagesRef.value.innerHTML = ''
     }
@@ -367,9 +507,30 @@ onUnmounted(() => {
 
       <span class="toolbar-sep"></span>
 
+      <!-- 大纲 -->
+      <button
+        class="pdf-tool-btn"
+        :class="{ active: showOutline }"
+        title="PDF 目录 / 大纲"
+        :disabled="!hasPdf || outline.length === 0"
+        @click="showOutline = !showOutline"
+      >目录</button>
+
+      <span class="toolbar-sep"></span>
+
       <div class="pdf-toolbar-group">
         <button title="上一页" @click="prevPage" :disabled="currentPage <= 1 || !hasPdf">↑</button>
-        <span class="page-info">{{ hasPdf ? currentPage + ' / ' + totalPages : '— / —' }}</span>
+        <input
+          class="page-input"
+          type="text"
+          inputmode="numeric"
+          v-model="pageInput"
+          :disabled="!hasPdf"
+          title="输入页码后回车跳转"
+          @keyup.enter="goToPageInput"
+          @blur="goToPageInput"
+        />
+        <span class="page-total">/ {{ hasPdf ? totalPages : '—' }}</span>
         <button title="下一页" @click="nextPage" :disabled="currentPage >= totalPages || !hasPdf">↓</button>
       </div>
       <div class="pdf-toolbar-group">
@@ -377,6 +538,11 @@ onUnmounted(() => {
         <span class="zoom-info">{{ Math.round(scale * 100) }}%</span>
         <button title="放大 (Ctrl+滚轮)" @click="zoomIn" :disabled="!hasPdf">+</button>
         <button title="适应宽度" :class="{ active: fitMode === 'width' }" @click="fitWidth" :disabled="!hasPdf">宽</button>
+        <button title="适应页面" :class="{ active: fitMode === 'page' }" @click="fitPage" :disabled="!hasPdf">页</button>
+      </div>
+      <div class="pdf-toolbar-group">
+        <button title="逆时针旋转 90°" @click="rotateLeft" :disabled="!hasPdf">↺</button>
+        <button title="顺时针旋转 90°" @click="rotateRight" :disabled="!hasPdf">↻</button>
       </div>
       <div class="pdf-toolbar-group">
         <button title="外部打开" @click="openExternal" :disabled="!hasPdf">外部</button>
@@ -384,15 +550,60 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- PDF 内容区 -->
-    <div ref="containerRef" class="pdf-scroll-container" @click="onContainerClick" @wheel="onWheel">
-      <div v-if="loading" class="pdf-status">正在加载 PDF…</div>
-      <div v-else-if="error" class="pdf-status error">{{ error }}</div>
-      <div v-else-if="!hasPdf" class="pdf-status empty">
-        <p>尚未编译生成 PDF</p>
-        <p class="hint">点击上方「编译」按钮生成预览</p>
+    <!-- 主体：大纲侧栏 + PDF 内容 -->
+    <div class="pdf-main">
+      <!-- 大纲侧栏 -->
+      <aside v-if="showOutline && outline.length > 0" class="pdf-outline-panel">
+        <div class="outline-header">目录</div>
+        <div class="outline-tree">
+          <template v-for="(item, idx) in outline" :key="idx">
+            <button
+              class="outline-row"
+              :class="`depth-${Math.min(item.children.length ? 0 : 1, 2)}`"
+              :title="item.page ? `第 ${item.page} 页` : '无页码'"
+              @click="outlineClick(item)"
+            >
+              <span class="outline-label truncate">{{ item.title }}</span>
+              <span v-if="item.page" class="outline-page">{{ item.page }}</span>
+            </button>
+            <template v-if="item.children.length">
+              <button
+                v-for="(c, ci) in item.children"
+                :key="`${idx}-${ci}`"
+                class="outline-row depth-1"
+                :title="c.page ? `第 ${c.page} 页` : '无页码'"
+                @click="outlineClick(c)"
+              >
+                <span class="outline-label truncate">{{ c.title }}</span>
+                <span v-if="c.page" class="outline-page">{{ c.page }}</span>
+              </button>
+              <template v-if="item.children.some((gc) => gc.children.length)">
+                <button
+                  v-for="(gc, gci) in item.children.flatMap((c) => c.children)"
+                  :key="`${idx}-g${gci}`"
+                  class="outline-row depth-2"
+                  :title="gc.page ? `第 ${gc.page} 页` : '无页码'"
+                  @click="outlineClick(gc)"
+                >
+                  <span class="outline-label truncate">{{ gc.title }}</span>
+                  <span v-if="gc.page" class="outline-page">{{ gc.page }}</span>
+                </button>
+              </template>
+            </template>
+          </template>
+        </div>
+      </aside>
+
+      <!-- PDF 内容区 -->
+      <div ref="containerRef" class="pdf-scroll-container" @click="onContainerClick" @dblclick="onContainerDblClick" @wheel="onWheel">
+        <div v-if="loading" class="pdf-status">正在加载 PDF…</div>
+        <div v-else-if="error" class="pdf-status error">{{ error }}</div>
+        <div v-else-if="!hasPdf" class="pdf-status empty">
+          <p>尚未编译生成 PDF</p>
+          <p class="hint">点击上方「编译」按钮生成预览</p>
+        </div>
+        <div ref="pagesRef" class="pdf-pages"></div>
       </div>
-      <div ref="pagesRef" class="pdf-pages"></div>
     </div>
   </div>
 </template>
@@ -568,8 +779,86 @@ onUnmounted(() => {
   padding: 0 6px;
 }
 .pdf-toolbar button.active { background: var(--accent-light); color: var(--accent); }
-.page-info { font-size: 12px; color: var(--text-secondary); min-width: 56px; text-align: center; }
+.pdf-tool-btn {
+  font-size: 12px;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.pdf-tool-btn:hover:not(:disabled) { background: var(--bg-hover); }
+.pdf-tool-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.pdf-tool-btn.active { background: var(--accent-light); color: var(--accent); border-color: var(--accent); }
+.page-input {
+  width: 40px;
+  height: 22px;
+  text-align: center;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  outline: none;
+}
+.page-input:focus { border-color: var(--accent); }
+.page-input:disabled { opacity: 0.5; }
+.page-total { font-size: 12px; color: var(--text-secondary); min-width: 32px; }
 .zoom-info { font-size: 12px; color: var(--text-secondary); min-width: 36px; text-align: center; }
+
+/* 主体：大纲 + 内容 */
+.pdf-main {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.pdf-outline-panel {
+  width: 200px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border);
+  background: var(--bg-secondary);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.outline-header {
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.outline-tree {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+.outline-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 12px;
+  font-size: 12px;
+  color: var(--text-primary);
+  background: transparent;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+}
+.outline-row:hover { background: var(--bg-hover); }
+.outline-row.depth-1 { padding-left: 24px; }
+.outline-row.depth-2 { padding-left: 36px; color: var(--text-secondary); }
+.outline-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.outline-page {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
 
 /* 内容区 */
 .pdf-scroll-container {
@@ -578,6 +867,8 @@ onUnmounted(() => {
   overflow-x: hidden;
   padding: 12px;
   scroll-behavior: smooth;
+  min-width: 0;
+  cursor: default;
 }
 .pdf-pages {
   display: flex;
@@ -586,12 +877,15 @@ onUnmounted(() => {
   gap: 12px;
   min-height: 100px;
 }
-.pdf-page-wrapper { position: relative; flex-shrink: 0; line-height: 0; }
+.pdf-page-wrapper { position: relative; flex-shrink: 0; line-height: 0; cursor: default; }
 .pdf-page-canvas {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   background: #fff;
   display: block;
   max-width: 100%;
+  pointer-events: auto;
+  user-select: none;
+  -webkit-user-select: none;
 }
 .pdf-status { margin-top: 40px; color: var(--text-secondary); text-align: center; font-size: 13px; }
 .pdf-status.error { color: var(--error); }

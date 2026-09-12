@@ -15,7 +15,7 @@ import CommandPalette from './components/CommandPalette.vue'
 import AiPanel from './components/AiPanel.vue'
 import { useAiStore } from './stores/ai'
 import { scanProjectBibs, bibScanner } from './utils/bibtex'
-import { loadSyncTex, forwardSearch, inverseSearch, type SyncTexData } from './utils/synctex'
+import { scanProjectImages } from './utils/images'
 import type { CompileMode } from './stores/compile'
 
 const docStore = useDocStore()
@@ -41,10 +41,15 @@ const editorWidth = ref(50)
 const panelHeight = ref(200)
 const showCommandPalette = ref(false)
 const showSearch = ref(false)
-let syncTexData: SyncTexData | null = null
+const openFileMenu = ref(false)
+const openRecentMenu = ref(false)
+// 最近一次编译成功的 PDF 路径（供 SyncTeX 使用）
+let lastPdfPath: string | null = null
 
 let resizeCleanup: (() => void) | null = null
 let autoCompileTimer: ReturnType<typeof setTimeout> | null = null
+let autoSaveTimer: ReturnType<typeof setInterval> | null = null
+let titleCleanup: (() => void) | null = null
 
 onMounted(async () => {
   await configStore.load()
@@ -74,22 +79,34 @@ onMounted(async () => {
     }
   })
 
+  const offRequestCompile = () => {
+    window.addEventListener('request-compile', onRequestCompile)
+  }
+  offRequestCompile()
+
   resizeCleanup = () => {
     offMenu()
     offProgress()
     offFileChanged()
+    window.removeEventListener('request-compile', onRequestCompile)
   }
+
+  // 自动保存定时器
+  setupAutoSave()
+  // 窗口标题跟随文件名
+  setupWindowTitle()
 
   document.addEventListener('dragover', onDragOver)
   document.addEventListener('drop', onDrop)
   window.addEventListener('keydown', onGlobalKeydown)
+  document.addEventListener('click', onOutsideMenuClick)
 
   // SyncTeX 正向/反向同步事件
-  window.addEventListener('synctex-forward', onSyncTexForward as EventListener)
-  window.addEventListener('synctex-backward', onSyncTexBackward as EventListener)
+  window.addEventListener('synctex-forward', onSyncTexForward as unknown as EventListener)
+  window.addEventListener('synctex-backward', onSyncTexBackward as unknown as EventListener)
 
   // 发送到墨灵
-  window.addEventListener('send-to-moling', onSendToMoling as EventListener)
+  window.addEventListener('send-to-moling', onSendToMoling as unknown as EventListener)
 })
 
 onUnmounted(() => {
@@ -97,11 +114,84 @@ onUnmounted(() => {
   document.removeEventListener('dragover', onDragOver)
   document.removeEventListener('drop', onDrop)
   window.removeEventListener('keydown', onGlobalKeydown)
-  window.removeEventListener('synctex-forward', onSyncTexForward as EventListener)
-  window.removeEventListener('synctex-backward', onSyncTexBackward as EventListener)
-  window.removeEventListener('send-to-moling', onSendToMoling as EventListener)
+  document.removeEventListener('click', onOutsideMenuClick)
+  window.removeEventListener('synctex-forward', onSyncTexForward as unknown as EventListener)
+  window.removeEventListener('synctex-backward', onSyncTexBackward as unknown as EventListener)
+  window.removeEventListener('send-to-moling', onSendToMoling as unknown as EventListener)
   if (autoCompileTimer) clearTimeout(autoCompileTimer)
+  if (autoSaveTimer) clearInterval(autoSaveTimer)
+  titleCleanup?.()
 })
+
+function closeFileMenu() {
+  openFileMenu.value = false
+  openRecentMenu.value = false
+}
+
+function toggleFileMenu() {
+  openFileMenu.value = !openFileMenu.value
+  openRecentMenu.value = false
+}
+
+function onOutsideMenuClick(e: MouseEvent) {
+  const target = e.target as HTMLElement
+  if (!target.closest('.menu-bar') && !target.closest('.menu-dropdown')) {
+    closeFileMenu()
+  }
+}
+
+function runFileAction(action: string) {
+  closeFileMenu()
+  switch (action) {
+    case 'new-file': newFile(); break
+    case 'open-file': openFile(); break
+    case 'open-folder': openFolder(); break
+    case 'save': save(); break
+    case 'save-as': saveAs(); break
+    case 'open-pdf': openPdfExternal(); break
+    case 'clean': cleanAux(); break
+    case 'settings': configStore.showSettings = true; break
+    case 'command': showCommandPalette.value = true; break
+  }
+}
+
+async function openRecentFile(path: string) {
+  closeFileMenu()
+  await docStore.openFile(path)
+}
+
+function onRequestCompile() {
+  compileDoc()
+}
+
+function setupAutoSave() {
+  if (autoSaveTimer) clearInterval(autoSaveTimer)
+  const enabled = configStore.config?.autoSave !== false
+  const intervalSec = configStore.config?.autoSaveInterval || 30
+  if (!enabled) return
+  autoSaveTimer = setInterval(async () => {
+    if (!docStore.hasDirty) return
+    const tab = docStore.activeTab
+    if (!tab?.path) return // 未保存过路径的跳过，避免弹另存为
+    await docStore.saveTab(tab.id)
+  }, Math.max(5, intervalSec) * 1000)
+}
+
+// 配置变化时重建自动保存定时器
+watch(
+  () => [configStore.config?.autoSave, configStore.config?.autoSaveInterval],
+  () => setupAutoSave()
+)
+
+function setupWindowTitle() {
+  const update = () => {
+    const tab = docStore.activeTab
+    const name = tab ? `${tab.isDirty ? '● ' : ''}${tab.name}` : 'LaTeX编辑器'
+    window.electronAPI.setTitle(`${name} — LaTeX编辑器`)
+  }
+  watch(() => [docStore.activeTabId, docStore.activeTab?.isDirty, docStore.activeTab?.name], update, { immediate: true })
+  titleCleanup = () => { /* watcher 自动随组件卸载清理 */ }
+}
 
 function onGlobalKeydown(e: KeyboardEvent) {
   if (e.ctrlKey && e.shiftKey && e.key === 'P') {
@@ -189,6 +279,12 @@ async function openFolder() {
         compileStore.appendLiveLog(`[BibTeX] 已扫描到 ${count} 个引用键\n`)
       }
     })
+    // 自动扫描项目中的图片文件
+    scanProjectImages(path).then((imgs) => {
+      if (imgs.length > 0) {
+        compileStore.appendLiveLog(`[图片] 已扫描到 ${imgs.length} 个图片文件\n`)
+      }
+    })
   }
 }
 
@@ -252,51 +348,64 @@ async function compileDoc(mode: CompileMode = 'quick') {
   await compileStore.compile(mainPath, cfg?.engine || 'xelatex', extraArgs, cfg?.timeout || 120, mode)
 
   if (compileStore.lastResult?.success && mainPath) {
-    loadSyncTexForDoc(mainPath)
+    lastPdfPath = compileStore.lastResult.pdfPath
+    if (lastPdfPath) {
+      compileStore.appendLiveLog('[SyncTeX] 已就绪（双击编辑器/PDF 可双向跳转）\n')
+    }
   }
 }
 
-async function loadSyncTexForDoc(texPath: string) {
-  const synctexPath = texPath.replace(/\.tex$/i, '.synctex.gz')
-  const plainPath = texPath.replace(/\.tex$/i, '.synctex')
-  syncTexData = (await loadSyncTex(synctexPath)) || (await loadSyncTex(plainPath))
-  if (syncTexData) {
-    compileStore.appendLiveLog('[SyncTeX] 已加载同步数据\n')
-  }
-}
-
-// 正向同步：编辑器 Ctrl+Click → 跳转 PDF
+// 正向同步：编辑器 双击/Ctrl+Click/右键 → 跳转 PDF（走官方 synctex CLI）
 async function onSyncTexForward(e: CustomEvent) {
   const { line } = e.detail
-  if (!syncTexData) {
-    // 尝试加载
-    const mainPath = docStore.mainTexPath || docStore.activeTab?.path
-    if (mainPath) await loadSyncTexForDoc(mainPath)
-    if (!syncTexData) return
+  if (!line) return
+
+  const texPath = docStore.activeTab?.path || docStore.mainTexPath
+  const pdfPath = lastPdfPath || compileStore.lastResult?.pdfPath
+  if (!texPath || !/\.tex$/i.test(texPath)) {
+    compileStore.appendLiveLog('[SyncTeX] 请先打开一个 .tex 文件\n')
+    return
   }
-  const point = forwardSearch(syncTexData, line, docStore.activeTab?.path || undefined)
-  if (point) {
+  if (!pdfPath) {
+    compileStore.appendLiveLog('[SyncTeX] 请先编译生成 PDF\n')
+    return
+  }
+
+  const tl = compileStore.texLivePath
+  const result = await window.electronAPI.synctexForward(texPath, line, pdfPath, tl)
+  if (result.success && result.page) {
     window.dispatchEvent(
       new CustomEvent('synctex-goto-pdf', {
-        detail: { page: point.page, x: point.x, y: point.y }
+        detail: { page: result.page, x: result.x, y: result.y }
       })
     )
+  } else {
+    compileStore.appendLiveLog(`[SyncTeX] 正向同步失败：${result.error || '未找到对应位置'}（第 ${line} 行）\n`)
   }
 }
 
-// 反向同步：PDF Ctrl+Click → 跳转编辑器
+// 反向同步：PDF 双击/Ctrl+Click → 跳转编辑器（走官方 synctex CLI）
 async function onSyncTexBackward(e: CustomEvent) {
   const { page, x, y } = e.detail
-  if (!syncTexData) return
-  const result = inverseSearch(syncTexData, page, x, y)
-  if (result) {
-    // 如果跳转目标文件不同，先打开它
-    if (result.file && docStore.activeTab?.path && !result.file.includes(docStore.activeTab.name)) {
-      // 尝试打开目标文件
-      try {
-        await docStore.openFile(result.file)
-      } catch {
-        // ignore
+  if (!page) return
+
+  const pdfPath = lastPdfPath || compileStore.lastResult?.pdfPath || compileStore.activePdfTab?.path
+  if (!pdfPath) {
+    compileStore.appendLiveLog('[SyncTeX] 未找到 PDF 路径\n')
+    return
+  }
+
+  const tl = compileStore.texLivePath
+  const result = await window.electronAPI.synctexBackward(page, x, y, pdfPath, tl)
+  if (result.success && result.line != null) {
+    // 如果目标文件不同，先打开
+    if (result.file && docStore.activeTab?.path) {
+      const activeName = docStore.activeTab.name
+      const targetName = result.file.split(/[\\/]/).pop() || ''
+      if (targetName && targetName !== activeName) {
+        try {
+          await docStore.openFile(result.file)
+        } catch { /* ignore */ }
       }
     }
     window.dispatchEvent(
@@ -304,6 +413,8 @@ async function onSyncTexBackward(e: CustomEvent) {
         detail: { line: result.line, file: result.file }
       })
     )
+  } else {
+    compileStore.appendLiveLog(`[SyncTeX] 反向同步失败：${result.error || '未匹配到源码行'}（第 ${page} 页）\n`)
   }
 }
 
@@ -436,7 +547,14 @@ function windowMinimize() { window.electronAPI.windowMinimize() }
 async function windowToggleMaximize() {
   isMaximized.value = await window.electronAPI.windowToggleMaximize()
 }
-function windowClose() { window.electronAPI.windowClose() }
+function windowClose() {
+  if (docStore.hasDirty) {
+    const names = docStore.tabs.filter((t) => t.isDirty).map((t) => t.name).join('、')
+    const ok = confirm(`以下文件有未保存的更改：\n${names}\n\n确定退出？未保存内容将丢失。`)
+    if (!ok) return
+  }
+  window.electronAPI.windowClose()
+}
 function onTitlebarDblclick(e: MouseEvent) {
   // 只在双击工具栏空白区域时触发最大化，按钮上双击不触发
   const target = e.target as HTMLElement
@@ -455,17 +573,83 @@ function editorAction(action: string) {
     <!-- 顶部工具栏（无边框标题栏） -->
     <header v-if="!distractionFree" class="toolbar" @dblclick="onTitlebarDblclick">
       <div class="toolbar-left drag-region">
-        <span class="app-title">LaTeX编辑器</span>
-        <div class="toolbar-actions">
-          <button title="新建 (Ctrl+N)" @click="newFile">新建</button>
-          <button title="打开文件 (Ctrl+O)" @click="openFile">打开</button>
-          <button title="打开文件夹 (Ctrl+K)" @click="openFolder">文件夹</button>
-          <span class="divider"></span>
-          <button title="保存 (Ctrl+S)" @click="save">保存</button>
-          <button title="外部打开 PDF" @click="openPdfExternal">外部 PDF</button>
-          <span class="divider"></span>
-          <button title="命令面板 (Ctrl+Shift+P)" @click="showCommandPalette = true">命令</button>
-          <button title="设置 (Ctrl+,)" @click="configStore.showSettings = true">设置</button>
+        <!-- VS Code 风格菜单栏 -->
+        <div class="menu-bar">
+          <div class="menu-item-wrap">
+            <button
+              class="menu-btn"
+              :class="{ open: openFileMenu }"
+              @click.stop="toggleFileMenu()"
+            >文件</button>
+            <div v-if="openFileMenu" class="menu-dropdown" @click.stop>
+              <button class="menu-entry" @click="runFileAction('new-file')">
+                <span>新建文件</span><span class="menu-key">Ctrl+N</span>
+              </button>
+              <button class="menu-entry" @click="runFileAction('open-file')">
+                <span>打开文件…</span><span class="menu-key">Ctrl+O</span>
+              </button>
+              <button class="menu-entry" @click="runFileAction('open-folder')">
+                <span>打开文件夹…</span><span class="menu-key">Ctrl+K</span>
+              </button>
+
+              <div class="menu-sep"></div>
+
+              <!-- 打开最近的文件 -->
+              <div class="menu-item-wrap nested">
+                <button
+                  class="menu-entry has-sub"
+                  @click="openRecentMenu = !openRecentMenu"
+                  @mouseenter="openRecentMenu = true"
+                >
+                  <span>打开最近的文件</span><span class="menu-arrow">▸</span>
+                </button>
+                <div v-if="openRecentMenu" class="menu-dropdown submenu">
+                  <template v-if="docStore.recentFiles.length">
+                    <button
+                      v-for="rf in docStore.recentFiles.slice(0, 12)"
+                      :key="rf"
+                      class="menu-entry"
+                      :title="rf"
+                      @click="openRecentFile(rf)"
+                    >
+                      <span class="truncate">{{ rf.split(/[\\/]/).pop() }}</span>
+                    </button>
+                  </template>
+                  <div v-else class="menu-empty">暂无最近文件</div>
+                </div>
+              </div>
+
+              <div class="menu-sep"></div>
+
+              <button class="menu-entry" @click="runFileAction('save')">
+                <span>保存</span><span class="menu-key">Ctrl+S</span>
+              </button>
+              <button class="menu-entry" @click="runFileAction('save-as')">
+                <span>另存为…</span><span class="menu-key">Ctrl+Shift+S</span>
+              </button>
+
+              <div class="menu-sep"></div>
+
+              <button class="menu-entry" @click="runFileAction('open-pdf')">
+                <span>外部打开 PDF</span><span class="menu-key">F7</span>
+              </button>
+              <button class="menu-entry" @click="runFileAction('clean')">
+                <span>清理辅助文件</span><span class="menu-key">Ctrl+Shift+D</span>
+              </button>
+
+              <div class="menu-sep"></div>
+
+              <button class="menu-entry" @click="runFileAction('settings')">
+                <span>设置</span><span class="menu-key">Ctrl+,</span>
+              </button>
+              <button class="menu-entry" @click="runFileAction('command')">
+                <span>命令面板</span><span class="menu-key">Ctrl+Shift+P</span>
+              </button>
+            </div>
+          </div>
+
+          <button class="menu-btn" title="命令面板 (Ctrl+Shift+P)" @click="showCommandPalette = true">命令</button>
+          <button class="menu-btn" title="设置 (Ctrl+,)" @click="configStore.showSettings = true">设置</button>
         </div>
       </div>
       <div class="toolbar-right">
@@ -720,12 +904,104 @@ function editorAction(action: string) {
   gap: 12px;
   min-width: 0;
 }
-.app-title {
-  font-weight: 600;
+
+/* VS Code 风格菜单栏 */
+.menu-bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.menu-item-wrap {
+  position: relative;
+}
+.menu-btn {
   font-size: 13px;
-  color: var(--text-secondary);
+  padding: 4px 10px;
+  white-space: nowrap;
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+.menu-btn:hover,
+.menu-btn.open {
+  background: var(--bg-hover);
+}
+.menu-dropdown {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  min-width: 220px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  padding: 4px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.menu-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  width: 100%;
+  padding: 6px 12px;
+  font-size: 13px;
+  color: var(--text-primary);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  text-align: left;
+}
+.menu-entry:hover {
+  background: var(--accent);
+  color: #fff;
+}
+.menu-entry:hover .menu-key,
+.menu-entry:hover .menu-arrow {
+  color: rgba(255, 255, 255, 0.85);
+}
+.menu-key {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+.menu-arrow {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+.menu-sep {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 8px;
+}
+.menu-entry.has-sub {
+  justify-content: space-between;
+}
+.menu-dropdown.submenu {
+  position: absolute;
+  top: 0;
+  left: 100%;
+  min-width: 240px;
+  margin-left: 2px;
+}
+.menu-empty {
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+.menu-entry .truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
+
 .toolbar-actions {
   display: flex;
   align-items: center;

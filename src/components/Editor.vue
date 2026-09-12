@@ -10,7 +10,7 @@ import {
   ViewUpdate
 } from '@codemirror/view'
 import { EditorState, Compartment } from '@codemirror/state'
-import { undo, redo } from '@codemirror/commands'
+import { undo, redo, toggleComment } from '@codemirror/commands'
 import {
   defaultKeymap,
   history,
@@ -24,8 +24,11 @@ import {
   bracketMatching,
   foldGutter,
   foldKeymap,
-  indentUnit
+  indentUnit,
+  foldService,
+  foldable
 } from '@codemirror/language'
+import { EditorSelection } from '@codemirror/state'
 import {
   closeBrackets,
   closeBracketsKeymap,
@@ -60,6 +63,8 @@ let allMatches: Array<{ from: number; to: number }> = []
 
 // 右键菜单
 const ctxMenu = ref({ show: false, x: 0, y: 0 })
+// 中文输入法组合期间禁用补全
+let imeComposing = false
 
 const editorRef = ref<HTMLElement | null>(null)
 let view: EditorView | null = null
@@ -159,6 +164,99 @@ const latexLanguage = StreamLanguage.define({
   }
 })
 
+// LaTeX 语义折叠：按 \begin{}/\end{} 环境与 \section 等命令折叠
+const latexFoldService = foldService.of((state, lineStart, lineEnd) => {
+  const line = state.doc.lineAt(lineStart)
+  const text = line.text
+
+  // \begin{env} → 折叠到匹配的 \end{env}
+  const beginMatch = text.match(/\\begin\{([^}]+)\}/)
+  if (beginMatch) {
+    const env = beginMatch[1]
+    let depth = 0
+    for (let i = line.number; i <= state.doc.lines; i++) {
+      const l = state.doc.line(i)
+      if (l.text.includes(`\\begin{${env}}`)) depth++
+      if (l.text.includes(`\\end{${env}}`)) {
+        depth--
+        if (depth === 0 && i > line.number) {
+          return { from: line.to, to: l.from }
+        }
+      }
+    }
+    return null
+  }
+
+  // \section{...} 等标题 → 折叠到下一个同级或更高级标题
+  const secMatch = text.match(/\\(chapter|section|subsection|subsubsection|paragraph)\*?\{/)
+  if (secMatch) {
+    const cmd = secMatch[1]
+    const levels: Record<string, number> = {
+      chapter: 1, section: 2, subsection: 3, subsubsection: 4, paragraph: 5
+    }
+    const myLevel = levels[cmd]
+    for (let i = line.number + 1; i <= state.doc.lines; i++) {
+      const l = state.doc.line(i)
+      const m = l.text.match(/\\(chapter|section|subsection|subsubsection|paragraph)\*?\{/)
+      if (m && levels[m[1]] <= myLevel) {
+        return { from: line.to, to: l.from }
+      }
+    }
+    // 折到文档末尾
+    const last = state.doc.line(state.doc.lines)
+    return { from: line.to, to: last.to }
+  }
+
+  return null
+})
+
+// 智能缩进：\begin{} 后自动缩进；\end{} 自动回退；普通换行保持缩进
+function latexSmartIndent(view: EditorView): boolean {
+  const state = view.state
+  const sel = state.selection.main
+  const line = state.doc.lineAt(sel.head)
+  const indentUnit = '  '
+  const curIndent = line.text.match(/^\s*/)?.[0] || ''
+
+  // 光标不在行尾时不打断
+  if (sel.head < line.to) return false
+
+  // 行尾是 \begin{...}：换行后多缩进一级
+  if (/\\begin\{[^}]+\}\s*$/.test(line.text)) {
+    const newIndent = curIndent + indentUnit
+    const insert = '\n' + newIndent
+    view.dispatch({
+      changes: { from: sel.head, to: sel.head, insert },
+      selection: { anchor: sel.head + insert.length },
+      scrollIntoView: true
+    })
+    return true
+  }
+
+  // 当前行是 \end{...} 且缩进多于上级：先自动回退一级
+  if (/^\s*\\end\{/.test(line.text) && curIndent.length >= indentUnit.length) {
+    const dedented = line.text.slice(indentUnit.length)
+    view.dispatch({
+      changes: { from: line.from, to: line.to, insert: dedented },
+      selection: { anchor: line.from + Math.max(0, sel.head - line.from - indentUnit.length) }
+    })
+    return true
+  }
+
+  // 普通换行：保持当前缩进
+  if (curIndent && line.text.trim()) {
+    const insert = '\n' + curIndent
+    view.dispatch({
+      changes: { from: sel.head, to: sel.head, insert },
+      selection: { anchor: sel.head + insert.length },
+      scrollIntoView: true
+    })
+    return true
+  }
+
+  return false
+}
+
 function getExtensions() {
   const cfg = configStore.config
   const showLN = cfg?.showLineNumbers !== false
@@ -167,7 +265,7 @@ function getExtensions() {
     lineNoCompartment.of(showLN ? lineNumbers() : []),
     highlightActiveLineGutter(),
     history(),
-    foldGutter(),
+    foldGutter({ openText: '▾', closedText: '▸' }),
     dropCursor(),
     EditorState.allowMultipleSelections.of(true),
     EditorView.editable.of(true),
@@ -176,7 +274,13 @@ function getExtensions() {
     bracketMatching(),
     closeBrackets(),
     autocompletion({
-      override: [latexCompletions],
+      override: [
+        (context: import('@codemirror/autocomplete').CompletionContext) => {
+          // 输入法组合期间不触发补全
+          if (imeComposing) return null
+          return latexCompletions(context)
+        }
+      ],
       activateOnTyping: true,
       maxRenderedOptions: 30
     }),
@@ -185,6 +289,7 @@ function getExtensions() {
     search({ top: true }),
     new LanguageSupport(latexLanguage),
     syntaxHighlighting(highlightStyle),
+    latexFoldService,
     keymap.of([
       ...closeBracketsKeymap,
       ...defaultKeymap,
@@ -199,17 +304,65 @@ function getExtensions() {
           window.dispatchEvent(new CustomEvent('request-compile'))
           return true
         }
+      },
+      {
+        key: 'Mod-/',
+        run: toggleComment,
+        preventDefault: true
+      },
+      {
+        key: 'Enter',
+        run: (v) => latexSmartIndent(v)
       }
     ]),
     themeCompartment.of([]),
-    // Ctrl+Click 正向 SyncTeX
+    // Ctrl+Click / 双击 正向 SyncTeX；Alt+Click 添加多光标
     EditorView.domEventHandlers({
       mousedown(event: MouseEvent, view: EditorView) {
-        if (!event.ctrlKey && !event.metaKey) return false
+        // Alt+Click：添加多光标（不拦截 Ctrl+Click 的 SyncTeX）
+        if (event.altKey && !event.ctrlKey && !event.metaKey) {
+          const pos = view.posAtCoords({ x: event.clientX, y: event.clientY })
+          if (pos == null) return false
+          event.preventDefault()
+          view.dispatch({
+            selection: EditorSelection.create(
+              [...view.state.selection.ranges, EditorSelection.cursor(pos)],
+              view.state.selection.ranges.length
+            )
+          })
+          return true
+        }
+        // Ctrl+Click 正向 SyncTeX
+        if (event.ctrlKey || event.metaKey) {
+          const pos = view.posAtCoords({ x: event.clientX, y: event.clientY })
+          if (pos == null) return false
+          // 点在折叠栏上不触发同步
+          const gutter = (event.target as HTMLElement).closest('.cm-foldGutter')
+          if (gutter) return false
+          const line = view.state.doc.lineAt(pos).number
+          window.dispatchEvent(new CustomEvent('synctex-forward', { detail: { line } }))
+          return true
+        }
+        return false
+      },
+      // 双击正向 SyncTeX（无需按 Ctrl）
+      dblclick(event: MouseEvent, view: EditorView) {
+        const gutter = (event.target as HTMLElement).closest('.cm-foldGutter')
+        if (gutter) return false
         const pos = view.posAtCoords({ x: event.clientX, y: event.clientY })
         if (pos == null) return false
         const line = view.state.doc.lineAt(pos).number
         window.dispatchEvent(new CustomEvent('synctex-forward', { detail: { line } }))
+        return true
+      },
+      // Ctrl+滚轮缩放字号
+      wheel(event: WheelEvent, view: EditorView) {
+        if (!event.ctrlKey && !event.metaKey) return false
+        event.preventDefault()
+        const delta = event.deltaY > 0 ? -1 : 1
+        const cur = configStore.config?.fontSize || 14
+        const next = Math.min(32, Math.max(10, cur + delta))
+        if (next !== cur) configStore.save({ fontSize: next })
         return true
       }
     }),
@@ -220,13 +373,16 @@ function getExtensions() {
           docStore.updateContent(tab.id, update.state.doc.toString())
         }
       }
-      // 保存光标位置
+      // 保存光标位置 + 更新状态栏 Ln/Col
       if (update.selectionSet || update.docChanged) {
         const tabId = currentTabId
+        const sel = update.state.selection.main
         if (tabId) {
-          const sel = update.state.selection.main
           cursorPositions.set(tabId, { anchor: sel.anchor, head: sel.head })
         }
+        const line = update.state.doc.lineAt(sel.head)
+        docStore.cursorLine = line.number
+        docStore.cursorCol = sel.head - line.from + 1
       }
     }),
     EditorView.lineWrapping,
@@ -261,6 +417,33 @@ function getExtensions() {
       '.cm-activeLineGutter': {
         backgroundColor: 'var(--bg-hover)',
         color: 'var(--text-secondary)'
+      },
+      '.cm-foldGutter': {
+        width: '18px'
+      },
+      '.cm-foldGutter .cm-foldGutterElement': {
+        padding: '0',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        cursor: 'pointer',
+        color: 'var(--text-tertiary)',
+        fontSize: '11px',
+        lineHeight: '1',
+        width: '18px'
+      },
+      '.cm-foldGutter .cm-foldGutterElement:hover': {
+        color: 'var(--accent)'
+      },
+      '.cm-foldGutter .cm-foldPlaceholder': {
+        margin: '0 2px',
+        padding: '0 4px',
+        borderRadius: '3px',
+        border: '1px solid var(--border)',
+        background: 'var(--bg-hover)',
+        color: 'var(--text-secondary)',
+        fontSize: '11px',
+        fontFamily: 'inherit'
       },
       '.cm-activeLine': {
         backgroundColor: 'var(--bg-hover)'
@@ -338,6 +521,21 @@ function createEditor() {
     parent: editorRef.value
   })
   currentTabId = tab?.id || null
+
+  // IME 事件：组合开始/结束时切换标志
+  const content = editorRef.value.querySelector('.cm-content')
+  if (content) {
+    content.addEventListener('compositionstart', () => { imeComposing = true })
+    content.addEventListener('compositionend', () => { imeComposing = false })
+  }
+
+  // 初始化状态栏光标
+  if (view) {
+    const sel = view.state.selection.main
+    const line = view.state.doc.lineAt(sel.head)
+    docStore.cursorLine = line.number
+    docStore.cursorCol = sel.head - line.from + 1
+  }
 }
 
 function destroyEditor() {
@@ -615,11 +813,28 @@ function onApplyEdit(e: Event) {
 // ===== 右键菜单 =====
 function onEditorContextMenu(e: MouseEvent) {
   e.preventDefault()
+  // 记录右键时的光标行，供「跳转到 PDF」使用
+  if (view) {
+    const pos = view.posAtCoords({ x: e.clientX, y: e.clientY })
+    if (pos != null) {
+      ctxMenuLine = view.state.doc.lineAt(pos).number
+    }
+  }
   ctxMenu.value = { show: true, x: e.clientX, y: e.clientY }
 }
 
+let ctxMenuLine: number | null = null
+
 function closeCtxMenu() {
   ctxMenu.value.show = false
+}
+
+function ctxJumpToPdf() {
+  const line = ctxMenuLine
+  closeCtxMenu()
+  if (line != null) {
+    window.dispatchEvent(new CustomEvent('synctex-forward', { detail: { line } }))
+  }
 }
 
 function getSelectedText(): string {
@@ -709,7 +924,6 @@ function onGlobalClick(e: Event) {
 
 onMounted(() => {
   createEditor()
-  window.addEventListener('request-compile', () => {})
   window.addEventListener('jump-to-line', onJump)
   window.addEventListener('editor-action', onEditorAction)
   window.addEventListener('insert-text', onInsertText)
@@ -793,6 +1007,10 @@ onUnmounted(() => {
         <button class="ctx-item" @click="ctxSelectAll">
           <span class="ctx-icon">⬚</span> 全选
           <span class="ctx-key">Ctrl+A</span>
+        </button>
+        <button class="ctx-item" @click="ctxJumpToPdf">
+          <span class="ctx-icon">📄</span> 跳转到 PDF
+          <span class="ctx-key">双击</span>
         </button>
         <button class="ctx-item" @click="ctxFormatLatex">
           <span class="ctx-icon">✨</span> 格式化选区

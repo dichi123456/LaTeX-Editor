@@ -33,6 +33,19 @@ interface Window {
     isCompiling: () => Promise<boolean>
     cleanAuxFiles: (mainPath: string) => Promise<string[]>
     runBibtex: (mainPath: string, texlivePath: string | null) => Promise<{ success: boolean; log: string }>
+    synctexForward: (texPath: string, line: number, pdfPath: string, texlivePath: string | null) => Promise<{
+      success: boolean
+      page: number | null
+      x: number | null
+      y: number | null
+      error?: string
+    }>
+    synctexBackward: (page: number, x: number, y: number, pdfPath: string, texlivePath: string | null) => Promise<{
+      success: boolean
+      line: number | null
+      file: string | null
+      error?: string
+    }>
 
     // 配置
     loadConfig: () => Promise<AppConfig>
@@ -66,6 +79,8 @@ interface Window {
       permissionMode?: string
     }) => Promise<{ success: boolean; content?: string; error?: string; reasoning?: string }>
     onAiStream: (cb: (data: { type: string; text?: string; toolName?: string; args?: string; result?: string; success?: boolean }) => void) => () => void
+    onFileChanged: (cb: (data: { path: string }) => void) => () => void
+    notifyCompileDone: (success: boolean) => Promise<void>
 
     // 事件
     onCompileProgress: (cb: (data: { message: string; type: string }) => void) => () => void
@@ -86,6 +101,7 @@ interface CompileOptions {
   engine: string
   extraArgs?: string[]
   timeout?: number
+  texlivePath?: string | null
 }
 
 interface CompileResult {

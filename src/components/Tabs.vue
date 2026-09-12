@@ -19,6 +19,18 @@ function close(e: MouseEvent, id: string) {
   docStore.closeTab(id)
 }
 
+// 中键关闭标签
+function onMouseDown(e: MouseEvent, id: string) {
+  if (e.button === 1) {
+    e.preventDefault()
+    const tab = docStore.tabs.find((t) => t.id === id)
+    if (tab?.isDirty) {
+      if (!confirm(`「${tab.name}」有未保存的更改，确定关闭？`)) return
+    }
+    docStore.closeTab(id)
+  }
+}
+
 function onDragStart(e: DragEvent, id: string) {
   dragId.value = id
   e.dataTransfer?.setData('text/plain', id)
@@ -62,6 +74,7 @@ function onDragEnd() {
         }"
         draggable="true"
         @click="activate(tab.id)"
+        @mousedown="onMouseDown($event, tab.id)"
         @dragstart="onDragStart($event, tab.id)"
         @dragover="onDragOver($event, tab.id)"
         @drop="onDrop($event, tab.id)"

@@ -1,6 +1,6 @@
 // 墨灵 AI 工具定义与执行器（参考 DeepSeek Harness 设计）
 import { readFileSync, writeFileSync, readdirSync, existsSync } from 'fs'
-import { join, basename, dirname, extname } from 'path'
+import { join, basename, dirname, extname, relative } from 'path'
 
 export interface ToolDefinition {
   type: 'function'
@@ -340,13 +340,15 @@ function getFileIcon(name: string): string {
 }
 
 function execSearch(id: string, query: string, fileExt?: string): ToolResult {
-  if (!workspaceRoot || !existsSync(workspaceRoot)) {
+  const ws = workspaceRoot
+  if (!ws || !existsSync(ws)) {
     return { toolCallId: id, name: 'search_project', result: '错误: 未设置工作区目录', success: false }
   }
   if (!query) {
     return { toolCallId: id, name: 'search_project', result: '错误: 缺少 query 参数', success: false }
   }
 
+  const rootPath: string = ws
   const results: string[] = []
   const ext = fileExt?.startsWith('.') ? fileExt : fileExt ? `.${fileExt}` : null
 
@@ -365,7 +367,7 @@ function execSearch(id: string, query: string, fileExt?: string): ToolResult {
             const lines = content.split('\n')
             for (let i = 0; i < lines.length; i++) {
               if (lines[i].toLowerCase().includes(query.toLowerCase())) {
-                const relativePath = full.replace(workspaceRoot, '').replace(/^[\\/]/, '')
+                const relativePath = relative(rootPath, full)
                 results.push(`${relativePath}:${i + 1}: ${lines[i].trim().slice(0, 150)}`)
                 if (results.length >= 80) return
               }
@@ -376,7 +378,7 @@ function execSearch(id: string, query: string, fileExt?: string): ToolResult {
     } catch { /* skip */ }
   }
 
-  walk(workspaceRoot)
+  walk(rootPath)
   return {
     toolCallId: id,
     name: 'search_project',

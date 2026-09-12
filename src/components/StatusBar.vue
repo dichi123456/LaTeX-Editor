@@ -41,6 +41,7 @@ const compileStatus = computed(() => {
       <span v-if="!tab" class="status-item dim">无打开文件</span>
     </div>
     <div class="status-right">
+      <span class="status-item dim">行 {{ docStore.cursorLine }}, 列 {{ docStore.cursorCol }}</span>
       <span class="status-item dim">{{ tab?.encoding || 'utf-8' }}</span>
       <span class="status-item dim">{{ configStore.config?.engine || 'xelatex' }}</span>
       <span class="status-item dim">{{ lineCount }} 行</span>

@@ -1,6 +1,7 @@
 // LaTeX 自动补全数据源与逻辑
-import type { Completion, CompletionContext, CompletionResult } from '@codemirror/autocomplete'
+import { snippetCompletion, type Completion, type CompletionContext, type CompletionResult } from '@codemirror/autocomplete'
 import { bibScanner } from './bibtex'
+import { getProjectImages } from './images'
 
 // 常用 LaTeX 命令
 const COMMON_COMMANDS: Completion[] = [
@@ -167,13 +168,34 @@ const MATH_SYMBOLS: Completion[] = [
 
 // 中文常用快捷
 const CN_SHORTCUTS: Completion[] = [
-  { label: '\\chinesearticle', snippet: '\\documentclass[UTF8,a4paper,12pt]{ctexart}\n\\usepackage{ctex}\n\\setCJKmainfont{SimSun}\n\\setCJKsansfont{Microsoft YaHei}\n\\parindent = 2em\n\n\\title{$1}\n\\author{$2}\n\\date{\\today}\n\n\\begin{document}\n\\maketitle\n\n$0\n\n\\end{document}', info: '中文文章模板' },
-  { label: '\\beginfigure', snippet: '\\begin{figure}[htbp]\n  \\centering\n  \\includegraphics[width=0.8\\textwidth]{$1}\n  \\caption{$2}\n  \\label{fig:$3}\n\\end{figure}', info: '图片环境' },
-  { label: '\\begintable', snippet: '\\begin{table}[htbp]\n  \\centering\n  \\caption{$1}\n  \\label{tab:$2}\n  \\begin{tabular}{l c r}\n    \\hline\n    $0\n    \\\\\n    \\hline\n  \\end{tabular}\n\\end{table}', info: '表格环境' },
-  { label: '\\beginalign', snippet: '\\begin{align}\n  $1\n  \\label{eq:$2}\n\\end{align}', info: '对齐公式环境' },
-  { label: '\\beginitemize', snippet: '\\begin{itemize}\n  \\item $1\n\\end{itemize}', info: '无序列表' },
-  { label: '\\beginenumerate', snippet: '\\begin{enumerate}\n  \\item $1\n\\end{enumerate}', info: '有序列表' },
-  { label: '\\beginframe', snippet: '\\begin{frame}{$1}\n  $0\n\\end{frame}', info: 'Beamer 帧' }
+  snippetCompletion(
+    '\\documentclass[UTF8,a4paper,12pt]{ctexart}\n\\usepackage{ctex}\n\\setCJKmainfont{SimSun}\n\\setCJKsansfont{Microsoft YaHei}\n\\parindent = 2em\n\n\\title{$1}\n\\author{$2}\n\\date{\\today}\n\n\\begin{document}\n\\maketitle\n\n$0\n\n\\end{document}',
+    { label: '\\chinesearticle', info: '中文文章模板' }
+  ),
+  snippetCompletion(
+    '\\begin{figure}[htbp]\n  \\centering\n  \\includegraphics[width=0.8\\textwidth]{$1}\n  \\caption{$2}\n  \\label{fig:$3}\n\\end{figure}',
+    { label: '\\beginfigure', info: '图片环境' }
+  ),
+  snippetCompletion(
+    '\\begin{table}[htbp]\n  \\centering\n  \\caption{$1}\n  \\label{tab:$2}\n  \\begin{tabular}{l c r}\n    \\hline\n    $0\n    \\\\\n    \\hline\n  \\end{tabular}\n\\end{table}',
+    { label: '\\begintable', info: '表格环境' }
+  ),
+  snippetCompletion(
+    '\\begin{align}\n  $1\n  \\label{eq:$2}\n\\end{align}',
+    { label: '\\beginalign', info: '对齐公式环境' }
+  ),
+  snippetCompletion(
+    '\\begin{itemize}\n  \\item $1\n\\end{itemize}',
+    { label: '\\beginitemize', info: '无序列表' }
+  ),
+  snippetCompletion(
+    '\\begin{enumerate}\n  \\item $1\n\\end{enumerate}',
+    { label: '\\beginenumerate', info: '有序列表' }
+  ),
+  snippetCompletion(
+    '\\begin{frame}{$1}\n  $0\n\\end{frame}',
+    { label: '\\beginframe', info: 'Beamer 帧' }
+  )
 ]
 
 /**
@@ -237,14 +259,16 @@ export function latexCompletions(context: CompletionContext): CompletionResult |
     }
   }
 
-  // 4. \includegraphics{} 图片补全
+  // 4. \includegraphics{} 图片补全 — 项目扫描 + 文档内已有引用
   const imgMatch = textBefore.match(/\\includegraphics(?:\[[^\]]*\])?\{([^}]*)$/)
   if (imgMatch) {
-    // 这里只能给出常见路径提示，实际项目图片由前端注入更好
-    const images = extractImageRefs(state.doc.toString())
+    const prefix = imgMatch[1]
+    const docImgs = extractImageRefs(state.doc.toString())
+    const projImgs = getProjectImages()
+    const all = [...new Set([...projImgs, ...docImgs])]
     return {
-      from: pos - imgMatch[1].length,
-      options: images.map((i) => ({ label: i, type: 'file', info: '图片' })),
+      from: pos - prefix.length,
+      options: all.map((i) => ({ label: i, type: 'file', info: '图片', apply: i })),
       validFor: /^[\w./\\-]*$/
     }
   }
