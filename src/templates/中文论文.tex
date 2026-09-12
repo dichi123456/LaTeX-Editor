@@ -1,0 +1,78 @@
+\documentclass[UTF8,a4paper,12pt]{ctexart}
+\usepackage{ctex}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{hyperref}
+\usepackage[margin=2.5cm]{geometry}
+
+% 中文字体（按需注释/取消注释）
+\setCJKmainfont{SimSun}
+\setCJKsansfont{Microsoft YaHei}
+\setCJKmonofont{FangSong}
+
+\parindent = 2em
+\linespread{1.3}
+
+\title{中文课程论文题目}
+\author{作者姓名}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+这里是摘要内容。简要介绍研究背景、方法与主要结论。
+\end{abstract}
+
+\section{引言}
+
+这里写引言内容。中文段落首行自动缩进两字符。
+
+\section{相关工作}
+
+相关工作综述……
+
+\section{方法}
+
+\subsection{问题描述}
+
+考虑如下优化问题：
+\begin{equation}
+  \min_{x} f(x) \quad \text{s.t.} \quad g(x) \leq 0
+  \label{eq:opt}
+\end{equation}
+
+式~\eqref{eq:opt} 中，$f$ 为目标函数。
+
+\subsection{算法设计}
+
+\begin{enumerate}
+  \item 第一步……
+  \item 第二步……
+\end{enumerate}
+
+\section{实验}
+
+\begin{table}[htbp]
+  \centering
+  \caption{实验结果对比}
+  \label{tab:results}
+  \begin{tabular}{lcc}
+    \hline
+    方法 & 准确率 & 运行时间(s) \\
+    \hline
+    基线 & 85.2\% & 1.2 \\
+    本文 & \textbf{91.6\%} & 1.5 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+\section{结论}
+
+总结全文工作与未来方向。
+
+% 参考文献（需要单独的 .bib 文件配合 BibTeX/biblatex）
+% \bibliographystyle{gbt7714-numerical}
+% \bibliography{references}
+
+\end{document}

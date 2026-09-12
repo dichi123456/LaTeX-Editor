@@ -1,0 +1,418 @@
+<script setup lang="ts">
+import { ref, onMounted } from 'vue'
+import { useDocStore } from '../stores/docs'
+
+const docStore = useDocStore()
+const emit = defineEmits<{
+  (e: 'new-file'): void
+  (e: 'open-file'): void
+  (e: 'open-folder'): void
+}>()
+
+const recentFiles = ref<string[]>([])
+const recentWorkspaces = ref<string[]>([])
+
+onMounted(async () => {
+  await docStore.loadRecent()
+  recentFiles.value = docStore.recentFiles
+  recentWorkspaces.value = docStore.recentWorkspaces
+})
+
+async function openRecentFile(path: string) {
+  await docStore.openFile(path)
+}
+
+async function openRecentWorkspace(path: string) {
+  await docStore.openProjectFolder(path)
+}
+
+function shortName(path: string): string {
+  return path.split(/[\\/]/).pop() || path
+}
+
+function shortPath(path: string): string {
+  const parts = path.split(/[\\/]/)
+  if (parts.length <= 3) return path
+  return '…\\' + parts.slice(-3).join('\\')
+}
+</script>
+
+<template>
+  <div class="welcome">
+    <div class="welcome-container">
+      <!-- 左侧：启动 + 最近 -->
+      <div class="welcome-main">
+        <div class="welcome-header">
+          <h1 class="welcome-title">LaTeX 编辑器</h1>
+          <p class="welcome-subtitle">编辑 · 编译 · 预览 — 本地一体化工作流</p>
+        </div>
+
+        <!-- 启动 -->
+        <section class="welcome-section">
+          <h2 class="section-title">启动</h2>
+          <div class="action-list">
+            <button class="action-link" @click="emit('new-file')">
+              <span class="action-icon">📄</span>
+              <span class="action-text">新建文档</span>
+              <span class="action-key">Ctrl+N</span>
+            </button>
+            <button class="action-link" @click="emit('open-file')">
+              <span class="action-icon">📂</span>
+              <span class="action-text">打开文件…</span>
+              <span class="action-key">Ctrl+O</span>
+            </button>
+            <button class="action-link" @click="emit('open-folder')">
+              <span class="action-icon">📁</span>
+              <span class="action-text">打开文件夹…</span>
+              <span class="action-key">Ctrl+K</span>
+            </button>
+          </div>
+        </section>
+
+        <!-- 最近 -->
+        <section class="welcome-section" v-if="recentWorkspaces.length > 0 || recentFiles.length > 0">
+          <h2 class="section-title">最近</h2>
+
+          <!-- 工作区 -->
+          <div v-if="recentWorkspaces.length > 0" class="recent-group">
+            <div
+              v-for="path in recentWorkspaces.slice(0, 5)"
+              :key="'ws-' + path"
+              class="recent-row"
+              @click="openRecentWorkspace(path)"
+              :title="path"
+            >
+              <span class="recent-badge ws">工作区</span>
+              <span class="recent-name">{{ shortName(path) }}</span>
+              <span class="recent-path">{{ shortPath(path) }}</span>
+            </div>
+          </div>
+
+          <!-- 文件 -->
+          <div v-if="recentFiles.length > 0" class="recent-group">
+            <div
+              v-for="path in recentFiles.slice(0, 6)"
+              :key="'file-' + path"
+              class="recent-row"
+              @click="openRecentFile(path)"
+              :title="path"
+            >
+              <span class="recent-badge file">文件</span>
+              <span class="recent-name">{{ shortName(path) }}</span>
+              <span class="recent-path">{{ shortPath(path) }}</span>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- 右侧：演练 / 提示 -->
+      <div class="welcome-side">
+        <section class="welcome-section">
+          <h2 class="section-title">演练</h2>
+          <div class="tip-list">
+            <div class="tip-item">
+              <span class="tip-icon">⌨️</span>
+              <div class="tip-body">
+                <div class="tip-title">快捷键速查</div>
+                <div class="tip-desc">
+                  <kbd>F5</kbd> 编译 ·
+                  <kbd>Ctrl+S</kbd> 保存 ·
+                  <kbd>Ctrl+Shift+P</kbd> 命令面板
+                </div>
+              </div>
+            </div>
+            <div class="tip-item">
+              <span class="tip-icon">🔄</span>
+              <div class="tip-body">
+                <div class="tip-title">SyncTeX 同步</div>
+                <div class="tip-desc">
+                  编辑器 <kbd>Ctrl+Click</kbd> → 跳转 PDF<br />
+                  PDF <kbd>Ctrl+Click</kbd> → 跳转源码
+                </div>
+              </div>
+            </div>
+            <div class="tip-item">
+              <span class="tip-icon">📚</span>
+              <div class="tip-body">
+                <div class="tip-title">BibTeX 引用</div>
+                <div class="tip-desc">
+                  打开工作区后自动扫描 .bib 文件，<br />
+                  <kbd>\cite{}</kbd> 内自动补全引用键
+                </div>
+              </div>
+            </div>
+            <div class="tip-item">
+              <span class="tip-icon">⚙️</span>
+              <div class="tip-body">
+                <div class="tip-title">TeX Live 配置</div>
+                <div class="tip-desc">
+                  需要本机安装 TeX Live 2024。<br />
+                  未检测到时可在设置中手动指定路径。
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="welcome-section">
+          <h2 class="section-title">内置模板</h2>
+          <div class="template-list">
+            <span class="template-tag">中文论文</span>
+            <span class="template-tag">实验报告</span>
+            <span class="template-tag">中文简历</span>
+            <span class="template-tag">Beamer 幻灯片</span>
+            <span class="template-tag">英文论文</span>
+          </div>
+          <p class="template-hint">新建文档时可从模板开始</p>
+        </section>
+      </div>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.welcome {
+  flex: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  background: var(--bg-primary);
+  overflow: auto;
+  padding: 48px 32px 32px;
+}
+
+.welcome-container {
+  display: flex;
+  gap: 64px;
+  max-width: 900px;
+  width: 100%;
+}
+
+.welcome-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.welcome-side {
+  width: 300px;
+  flex-shrink: 0;
+}
+
+.welcome-header {
+  margin-bottom: 36px;
+}
+
+.welcome-title {
+  font-size: 32px;
+  font-weight: 300;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+  letter-spacing: -0.5px;
+}
+
+.welcome-subtitle {
+  font-size: 14px;
+  color: var(--text-tertiary);
+}
+
+.welcome-section {
+  margin-bottom: 32px;
+}
+
+.section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* 启动动作列表 */
+.action-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.action-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  text-align: left;
+  width: 100%;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.action-link:hover {
+  background: var(--bg-hover);
+}
+
+.action-icon {
+  font-size: 16px;
+  width: 20px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.action-text {
+  flex: 1;
+  font-size: 13px;
+  color: var(--accent);
+  font-weight: 400;
+}
+
+.action-link:hover .action-text {
+  text-decoration: underline;
+}
+
+.action-key {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  flex-shrink: 0;
+}
+
+/* 最近列表 */
+.recent-group {
+  margin-bottom: 8px;
+}
+
+.recent-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.1s;
+  font-size: 13px;
+}
+.recent-row:hover {
+  background: var(--bg-hover);
+}
+
+.recent-badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-weight: 600;
+  flex-shrink: 0;
+  letter-spacing: 0.3px;
+}
+.recent-badge.ws {
+  background: var(--accent-light);
+  color: var(--accent);
+}
+.recent-badge.file {
+  background: var(--bg-active);
+  color: var(--text-secondary);
+}
+
+.recent-name {
+  color: var(--accent);
+  font-weight: 400;
+  flex-shrink: 0;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.recent-row:hover .recent-name {
+  text-decoration: underline;
+}
+
+.recent-path {
+  color: var(--text-tertiary);
+  font-size: 12px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+}
+
+/* 右侧提示 */
+.tip-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.tip-item {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.tip-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.tip-body {
+  min-width: 0;
+}
+
+.tip-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 3px;
+}
+
+.tip-desc {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  line-height: 1.6;
+}
+
+.tip-desc kbd {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 1px 5px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+}
+
+/* 模板标签 */
+.template-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.template-tag {
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+
+.template-hint {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+/* 响应式 */
+@media (max-width: 760px) {
+  .welcome-container {
+    flex-direction: column;
+    gap: 24px;
+  }
+  .welcome-side {
+    width: 100%;
+  }
+}
+</style>

@@ -1,0 +1,80 @@
+\documentclass[UTF8,a4paper,12pt]{ctexart}
+\usepackage{ctex}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage[margin=2.5cm]{geometry}
+
+\setCJKmainfont{SimSun}
+\setCJKsansfont{Microsoft YaHei}
+
+\newtheorem{theorem}{定理}[section]
+\newtheorem{lemma}{引理}[section]
+\newtheorem{definition}{定义}[section]
+
+\parindent = 2em
+\linespread{1.4}
+
+\title{英文/中文混排论文标题\\{\normalsize An English Subtitle Optional}}
+\author{作者甲 \and 作者乙}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+本文研究……问题。We propose a novel method that…… 实验表明，所提方法在……数据集上取得了显著提升。
+
+\textbf{关键词：} 深度学习；自然语言处理；中文排版
+\end{abstract}
+
+\section{Introduction}
+
+研究背景与动机……
+
+\section{相关工作}
+
+\subsection{国外研究}
+
+Overleaf~\cite{overleaf2024} 和 TeXstudio~\cite{texstudio} 是常用的 LaTeX 工具。
+
+\subsection{国内研究}
+
+中文文献引用示例……
+
+\section{方法}
+
+\begin{definition}[凸函数]
+  设 $f: \mathbb{R}^n \to \mathbb{R}$，若对任意 $\mathbf{x}, \mathbf{y}$ 和 $\lambda \in [0,1]$，有
+  \[
+    f(\lambda \mathbf{x} + (1-\lambda)\mathbf{y})
+    \leq \lambda f(\mathbf{x}) + (1-\lambda) f(\mathbf{y}),
+  \]
+  则称 $f$ 为凸函数。
+\end{definition}
+
+\begin{theorem}[极小值定理]
+  设 $f$ 是紧集 $S$ 上的连续凸函数，则 $f$ 在 $S$ 上达到最小值。
+\end{theorem}
+
+\begin{proof}
+  由 $f$ 在紧集上的连续性，$f$ 有界且能达到上下确界。凸性保证了最小值点的存在性。证明完毕。
+\end{proof}
+
+\section{实验}
+
+实验设置与结果对比……
+
+\section{结论}
+
+总结与展望……
+
+\begin{thebibliography}{9}
+\bibitem{overleaf2024}
+Overleaf Documentation, 2024.
+
+\bibitem{texstudio}
+TeXstudio Team. TeXstudio: A LaTeX editor. 2024.
+\end{thebibliography}
+
+\end{document}

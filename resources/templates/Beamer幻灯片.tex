@@ -1,0 +1,86 @@
+\documentclass[UTF8,aspectratio=169,10pt]{ctexbeamer}
+\usepackage{ctex}
+\usetheme{Madrid}
+\usecolortheme{default}
+
+\setCJKmainfont{SimSun}
+\setCJKsansfont{Microsoft YaHei}
+
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{listings}
+
+\title{报告题目}
+\subtitle{副标题（可选）}
+\author{作者姓名}
+\institute{单位名称}
+\date{\today}
+
+\begin{document}
+
+\begin{frame}
+  \titlepage
+\end{frame}
+
+\begin{frame}{目录}
+  \tableofcontents
+\end{frame}
+
+\section{第一部分}
+
+\begin{frame}{要点一}
+  \begin{itemize}
+    \item 第一个要点说明
+    \item 第二个要点说明
+    \item 第三个要点说明
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{公式示例}
+  \begin{equation}
+    E = mc^2
+  \end{equation}
+
+  \begin{align}
+    \nabla \cdot \mathbf{E} &= \frac{\rho}{\varepsilon_0} \\
+    \nabla \cdot \mathbf{B} &= 0
+  \end{align}
+\end{frame}
+
+\begin{frame}{双栏布局}
+  \begin{columns}
+    \column{0.48\textwidth}
+      \textbf{左侧内容}
+      \begin{itemize}
+        \item 要点 A
+        \item 要点 B
+      \end{itemize}
+
+    \column{0.48\textwidth}
+      \textbf{右侧内容}
+      \begin{itemize}
+        \item 要点 C
+        \item 要点 D
+      \end{itemize}
+  \end{columns}
+\end{frame}
+
+\section{第二部分}
+
+\begin{frame}{小结}
+  \begin{block}{总结}
+    本次报告的主要结论……
+  \end{block}
+
+  \begin{alertblock}{注意}
+    需要关注的问题……
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}
+  \centering
+  {\Huge 谢谢聆听！} \\[1em]
+  {\large 欢迎提问}
+\end{frame}
+
+\end{document}
