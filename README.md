@@ -1,52 +1,121 @@
-# LaTeX编辑器
+<div align="center">
 
-本地 LaTeX 文档**编辑 · 编译 · 预览**一体化 Windows 桌面应用。
+# LaTeX 编辑器
 
-基于 Electron + Vue 3 + CodeMirror 6 + PDF.js，调用本机 TeX Live 2024 进行编译，不内置 TeX 发行版。
+**本地 · 轻量 · AI 驱动的 Windows LaTeX 桌面编辑器**
+
+编辑 · 编译 · 预览 · AI 助手 — 一体化工作流，无需浏览器
+
+![Version](https://img.shields.io/badge/version-1.0.0-blue)
+![Platform](https://img.shields.io/badge/platform-Windows-lightgrey)
+![Electron](https://img.shields.io/badge/Electron-33-black)
+![Vue](https://img.shields.io/badge/Vue-3-green)
+![License](https://img.shields.io/badge/license-MIT-green)
+
+</div>
+
+---
+
+## 为什么选择 LaTeX 编辑器？
+
+对比 Overleaf、TeXstudio 等主流工具，本编辑器在以下方面提供了独特价值：
+
+| 特性 | 本编辑器 | Overleaf | TeXstudio |
+|------|---------|----------|-----------|
+| **完全本地运行** | ✅ 数据不出本机 | ❌ 云端存储 | ✅ |
+| **无需注册/联网** | ✅ 开箱即用 | ❌ 需账号+网络 | ✅ |
+| **AI 助手集成** | ✅ 内置「墨灵」 | ⚠️ 付费功能 | ❌ |
+| **AI 可读写项目文件** | ✅ Agent 模式 | ❌ | ❌ |
+| **中文开箱优化** | ✅ ctex + 系统字体 | ⚠️ 需手动配置 | ⚠️ |
+| **安装包体积** | ~96 MB | — | ~80 MB |
+| **内存占用** | < 200 MB | 浏览器标签页 | ~300 MB |
+| **SyncTeX 同步** | ✅ | ✅ | ✅ |
+| **免费开源** | ✅ MIT | ❌ 部分收费 | ✅ |
+
+### 核心优势
+
+- **真正本地**：所有文件、编译、AI 对话均在本机完成，适合涉密论文和离线场景
+- **AI 深度集成**：内置「墨灵」AI 助手，可直接读取、修改项目文件，编译验证，而非仅聊天
+- **中文友好**：默认 XeLaTeX + ctex 宏集 + Windows 系统字体，中文论文开箱即用
+- **极简界面**：四区域面板化布局（工作区 / 编辑器 / PDF 预览 / AI），可自由拖拽调整、互换位置
+
+---
+
+## 界面预览
+
+![主界面](docs/screenshot-main.png)
+
+---
 
 ## 功能特性
 
-- **代码编辑**：LaTeX 语法高亮、行号、括号匹配、自动补全（命令 / 环境 / 引用 / 标签 / 宏包）
-- **一键编译**：F5 调用 XeLaTeX / pdfLaTeX / LuaLaTeX / latexmk，实时日志
-- **错误定位**：编译错误按行高亮，点击跳转到源码对应行，中文友好错误解释
-- **PDF 预览**：内嵌 PDF.js，缩放 / 翻页 / 适应宽度 / 适应页面，外部打开 / 导出
-- **文件管理**：多标签页、文件树、新建 / 重命名 / 删除、最近文件
-- **中文模板**：内置中文论文、实验报告、中文简历、Beamer 幻灯片、英文论文模板
-- **TeX Live 检测**：自动检测 PATH 与常见安装路径，支持手动指定
-- **深色 / 浅色主题**，设置持久化到用户目录
+### 编辑器
+- CodeMirror 6 驱动，LaTeX 语法高亮、行号、代码折叠
+- 智能补全：命令、环境、`\cite{}` 引用键、`\ref{}` 标签
+- 查找替换：正则、区分大小写、匹配计数、双向导航
+- 多标签页，支持拖拽排序
 
-## 环境要求
+### 编译
+- 一键编译（F5），支持 XeLaTeX / pdfLaTeX / LuaLaTeX / latexmk
+- 三种编译模式：快速编译、完整编译（bibtex 四次流程）、从头编译
+- TeX Live 自动检测，未找到时引导手动配置
+- 编译日志面板：错误/警告过滤、点击跳转源码行
+
+### PDF 预览
+- 内嵌 PDF.js，垂直连续滚动，Ctrl+滚轮缩放
+- SyncTeX 正反向同步：编辑器 Ctrl+Click → 跳转 PDF，反之亦然
+- 多 PDF 标签页，支持从文件树直接打开
+
+### 墨灵 AI 助手
+- 对接 DeepSeek / OpenAI / Moonshot 等兼容 API
+- **Agent 模式**：AI 可自主读写项目文件、搜索内容、编译文档
+- **局部编辑**：`replace_text` 精准替换，无需重写整个文件
+- **行号定位**：选中文本自动附带行号，AI 直接定位不重读全文
+- **实时刷新**：AI 修改文件后编辑器立即更新
+- 支持中断生成、多模型切换、Markdown/LaTeX 渲染
+
+### 其他
+- 深色/浅色/跟随系统主题
+- 命令面板（Ctrl+Shift+P）
+- 大纲导航、BibTeX 引用扫描
+- 5 套内置中文模板（论文/实验报告/简历/Beamer/英文论文）
+- 无边框窗口，自定义标题栏
+
+---
+
+## 快速开始
+
+### 下载安装
+
+从 [Releases](../../releases) 下载最新版本：
+
+- **安装版**：`LaTeX Editor Setup x.x.x.exe` — 双击安装
+- **便携版**：`LaTeX-Editor-x.x.x-win.zip` — 解压即用
+
+### 环境要求
 
 | 组件 | 要求 |
 |------|------|
-| 操作系统 | Windows 10 / 11（x64） |
-| TeX 发行版 | **TeX Live 2024**（或 2022/2023、MiKTeX），需包含 `xelatex` |
-| Node.js | 18+（仅开发构建需要） |
+| 操作系统 | Windows 10 / 11 (x64) |
+| TeX 发行版 | **TeX Live 2024**（或 2022/2023、MiKTeX） |
+| AI 功能 | 可选，需自备 DeepSeek / OpenAI 等 API Key |
 
-## 快速开始（开发）
+### 配置 TeX Live
 
-```powershell
-# 1. 安装依赖
-pnpm install
+启动后右上角会显示 TeX Live 检测状态：
 
-# 2. 开发模式（热更新）
-pnpm dev
+- **TeX Live ✓**：已自动检测到
+- **TeX Live ✗**：点击「设置」→ 手动指定路径，如 `C:\texlive\2024\bin\windows`
 
-# 3. 生产构建
-pnpm build
+### 配置墨灵 AI（可选）
 
-# 4. 打包 Windows 安装包 / 便携版
-pnpm build:win
-```
+设置 → 墨灵 AI 助手：
+1. 填入 API 地址（如 `https://api.deepseek.com/v1`）
+2. 填入 API Key
+3. 点击「获取模型」→ 勾选要启用的模型
+4. 保存设置
 
-> 也可使用 `npm run dev` / `npm run build`（需先安装 pnpm 或改用 npm）。
-
-## 打包产物
-
-`pnpm build:win` 后在 `release/` 目录生成：
-
-- **NSIS 安装包**（`.exe`）：支持选择安装路径、创建桌面/开始菜单快捷方式
-- **绿色便携版**（`.zip`）：解压即用
+---
 
 ## 快捷键
 
@@ -58,52 +127,68 @@ pnpm build:win
 | `Ctrl+N` | 新建文件 |
 | `Ctrl+K` | 打开文件夹 |
 | `Ctrl+B` | 切换文件树 |
-| `Ctrl+J` | 切换编译日志 |
+| `Ctrl+J` | 切换底部面板 |
+| `Ctrl+F` | 查找 |
+| `Ctrl+H` | 替换 |
+| `Ctrl+Shift+P` | 命令面板 |
 | `Ctrl+,` | 设置 |
-| `F11` | 专注模式（全屏编辑） |
-| `Ctrl+F` / `Ctrl+H` | 查找 / 替换（编辑器内） |
+| `F11` | 全屏编辑 |
+| `Ctrl+Click` | SyncTeX 同步跳转 |
 
-## TeX Live 配置
+---
 
-1. 安装 [TeX Live 2024](https://tug.org/texlive/)
-2. 启动应用后自动检测；若未检测到，在 **设置 → 编译 → TeX Live 路径** 中手动指定，例如：
-   ```
-   C:\texlive\2024\bin\windows
-   ```
-3. 留空则使用系统 `PATH` 中的编译器
+## 开发
 
-## 项目结构
+```bash
+# 克隆仓库
+git clone https://github.com/dichi123456/LaTeX-Editor.git
+cd LaTeX-Editor
 
+# 安装依赖
+pnpm install
+
+# 开发模式
+pnpm dev
+
+# 构建
+pnpm build
+
+# 打包 (exe + zip + 文件夹)
+pnpm build:win
 ```
-latex-editor/
-├── electron/              # Electron 主进程
-│   ├── main.ts            # 窗口、菜单、IPC
-│   ├── preload.ts         # contextBridge 暴露 API
-│   ├── compiler.ts        # xelatex 等编译调用与日志解析
-│   ├── texlive.ts         # TeX Live 路径检测
-│   ├── config.ts          # 用户配置持久化
-│   └── file.ts            # 文件读写 / 目录 / 最近文件
-├── src/                   # Vue 渲染进程
-│   ├── components/        # 编辑器、预览、文件树、日志等
-│   ├── stores/            # Pinia（文档 / 编译 / 配置）
-│   ├── utils/             # LaTeX 补全
-│   ├── templates/         # 内置中文模板
-│   └── App.vue
-├── electron.vite.config.ts
-└── package.json
-```
+
+### 技术栈
+
+| 层级 | 技术 |
+|------|------|
+| 桌面框架 | Electron 33 |
+| 前端框架 | Vue 3 + TypeScript |
+| 代码编辑器 | CodeMirror 6 |
+| PDF 预览 | PDF.js |
+| 状态管理 | Pinia |
+| 构建工具 | electron-vite |
+
+---
 
 ## 常见问题
 
-**Q: 提示「未检测到 TeX Live」？**  
-确认已安装 TeX Live，且 `xelatex` 在 PATH 中，或在设置中手动指定 `bin\windows` 路径。
+**Q: 编译报「未找到 xelatex」？**
+确认已安装 TeX Live，且 `xelatex` 在 PATH 中，或在设置中手动指定 bin 目录。
 
-**Q: 编译中文文档乱码 / 字体错误？**  
-默认模板使用 XeLaTeX + `ctex`，并指定 Windows 系统字体（宋体/雅黑/仿宋）。请确认系统已安装这些字体，或在导言区修改 `\setCJKmainfont`。
+**Q: 中文编译乱码？**
+默认使用 XeLaTeX + ctex，需确保系统安装了宋体/雅黑/仿宋。可在导言区修改 `\setCJKmainfont`。
 
-**Q: PDF 预览空白？**  
-先确认编译成功（日志面板显示「编译成功」）。若仍空白，尝试「外部 PDF」按钮用系统阅读器打开。
+**Q: 墨灵修改文件后编辑器没更新？**
+v1.0.0 已修复，AI 修改后编辑器实时刷新。
+
+---
 
 ## 许可证
 
-MIT
+[MIT](LICENSE)
+
+---
+
+<div align="center">
+  <sub>Built with ❤️ for LaTeX writers</sub>
+</div>
