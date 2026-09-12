@@ -291,12 +291,6 @@ onUnmounted(() => {
 
     <div ref="chatBodyRef" class="ai-body">
       <div v-if="aiStore.messages.length === 0 && !hasStreaming" class="ai-empty">
-        <div class="empty-logo">
-          <svg width="36" height="36" viewBox="0 0 16 16" fill="none">
-            <rect x="1" y="1" width="14" height="14" rx="3" fill="#2563EB"/>
-            <path d="M5.5 4.5v7h1.8V8.8h1.4c1.5 0 2.5-.9 2.5-2.2S10.2 4.5 8.7 4.5H5.5zm1.8 1.5h1.3c.6 0 1 .3 1 .9s-.4.9-1 .9H7.3V6z" fill="#fff"/>
-          </svg>
-        </div>
         <p>与墨灵对话，辅助 LaTeX 写作</p>
         <p class="ai-hint">
           点击顶部 ⓘ 分析编译错误<br />
@@ -584,10 +578,6 @@ export default {
   padding: 40px 16px;
   font-size: 12px;
   line-height: 1.8;
-}
-.empty-logo {
-  margin-bottom: 12px;
-  opacity: 0.6;
 }
 .ai-hint {
   margin-top: 8px;

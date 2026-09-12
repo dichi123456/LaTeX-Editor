@@ -17,6 +17,7 @@ import { useAiStore } from './stores/ai'
 import { scanProjectBibs, bibScanner } from './utils/bibtex'
 import { scanProjectImages } from './utils/images'
 import type { CompileMode } from './stores/compile'
+import logoUrl from './assets/logo.svg'
 
 const docStore = useDocStore()
 const compileStore = useCompileStore()
@@ -186,8 +187,8 @@ watch(
 function setupWindowTitle() {
   const update = () => {
     const tab = docStore.activeTab
-    const name = tab ? `${tab.isDirty ? '● ' : ''}${tab.name}` : 'LaTeX编辑器'
-    window.electronAPI.setTitle(`${name} — LaTeX编辑器`)
+    const name = tab ? `${tab.isDirty ? '● ' : ''}${tab.name}` : '墨灵TeX'
+    window.electronAPI.setTitle(`${name} — 墨灵TeX`)
   }
   watch(() => [docStore.activeTabId, docStore.activeTab?.isDirty, docStore.activeTab?.name], update, { immediate: true })
   titleCleanup = () => { /* watcher 自动随组件卸载清理 */ }
@@ -575,6 +576,7 @@ function editorAction(action: string) {
       <div class="toolbar-left drag-region">
         <!-- VS Code 风格菜单栏 -->
         <div class="menu-bar">
+          <img class="app-logo" :src="logoUrl" alt="墨灵TeX" draggable="false" />
           <div class="menu-item-wrap">
             <button
               class="menu-btn"
@@ -667,9 +669,12 @@ function editorAction(action: string) {
           title="墨灵 AI 助手"
           @click="showAi = !showAi"
         >
+          <!-- 聊天框图标 -->
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <rect x="1" y="1" width="14" height="14" rx="3" fill="#2563EB"/>
-            <path d="M5.5 4.5v7h1.8V8.8h1.4c1.5 0 2.5-.9 2.5-2.2S10.2 4.5 8.7 4.5H5.5zm1.8 1.5h1.3c.6 0 1 .3 1 .9s-.4.9-1 .9H7.3V6z" fill="#fff"/>
+            <path d="M2.5 3.5A1.5 1.5 0 0 1 4 2h8a1.5 1.5 0 0 1 1.5 1.5v6A1.5 1.5 0 0 1 12 11H6.5L3.5 13.5V11H4a1.5 1.5 0 0 1-1.5-1.5v-6z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+            <circle cx="5.5" cy="6.5" r="0.7" fill="currentColor"/>
+            <circle cx="8" cy="6.5" r="0.7" fill="currentColor"/>
+            <circle cx="10.5" cy="6.5" r="0.7" fill="currentColor"/>
           </svg>
         </button>
         <button
@@ -910,6 +915,16 @@ function editorAction(action: string) {
   display: flex;
   align-items: center;
   gap: 2px;
+}
+.app-logo {
+  width: 22px;
+  height: 22px;
+  margin-right: 6px;
+  border-radius: 5px;
+  flex-shrink: 0;
+  -webkit-user-select: none;
+  user-select: none;
+  pointer-events: none;
 }
 .menu-item-wrap {
   position: relative;

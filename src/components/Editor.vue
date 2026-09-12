@@ -1019,8 +1019,10 @@ onUnmounted(() => {
         <button class="ctx-item highlight" @click="ctxSendToMoling">
           <span class="ctx-icon">
             <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-              <rect x="1" y="1" width="14" height="14" rx="3" fill="#2563EB"/>
-              <path d="M5.5 4.5v7h1.8V8.8h1.4c1.5 0 2.5-.9 2.5-2.2S10.2 4.5 8.7 4.5H5.5zm1.8 1.5h1.3c.6 0 1 .3 1 .9s-.4.9-1 .9H7.3V6z" fill="#fff"/>
+              <path d="M2.5 3.5A1.5 1.5 0 0 1 4 2h8a1.5 1.5 0 0 1 1.5 1.5v6A1.5 1.5 0 0 1 12 11H6.5L3.5 13.5V11H4a1.5 1.5 0 0 1-1.5-1.5v-6z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+              <circle cx="5.5" cy="6.5" r="0.7" fill="currentColor"/>
+              <circle cx="8" cy="6.5" r="0.7" fill="currentColor"/>
+              <circle cx="10.5" cy="6.5" r="0.7" fill="currentColor"/>
             </svg>
           </span>
           发送到墨灵

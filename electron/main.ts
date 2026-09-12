@@ -34,8 +34,9 @@ function createWindow(): void {
     show: false,
     frame: false,
     autoHideMenuBar: true,
-    title: 'LaTeX编辑器',
-    backgroundColor: '#FAFAFA',
+    title: '墨灵TeX',
+    backgroundColor: '#0f172a',
+    icon: join(__dirname, '../../resources/icon.png'),
     webPreferences: {
       preload: join(__dirname, '../preload/preload.js'),
       sandbox: false,
@@ -145,8 +146,8 @@ function buildMenu(): void {
           click: () => {
             dialog.showMessageBox({
               type: 'info',
-              title: '关于 LaTeX编辑器',
-              message: 'LaTeX编辑器 v1.0.0',
+              title: '关于 墨灵TeX',
+              message: '墨灵TeX v1.0.1',
               detail:
                 '本地 LaTeX 文档编辑、编译、预览一体化工具。\n依赖本机 TeX Live 2024。\n\n快捷键：\nF5 编译 | Ctrl+S 保存 | Ctrl+O 打开\nCtrl+B 文件树 | Ctrl+J 日志 | F11 专注模式'
             })

@@ -3,7 +3,7 @@
   "version": "1.0.1",
   "description": "本地 LaTeX 编辑器 — Windows 桌面应用（编辑·编译·预览）",
   "main": "./out/main/main.js",
-  "author": "LaTeX Editor",
+  "author": "墨灵TeX",
   "license": "MIT",
   "scripts": {
     "dev": "electron-vite dev",
@@ -44,7 +44,7 @@
   },
   "build": {
     "appId": "com.latex.editor",
-    "productName": "LaTeX编辑器",
+    "productName": "墨灵TeX",
     "directories": {
       "output": "release"
     },
@@ -70,7 +70,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "LaTeX编辑器",
+      "shortcutName": "墨灵TeX",
       "installerLanguages": ["zh_CN"],
       "language": "2052",
       "unicode": true

@@ -6,6 +6,11 @@ declare module '*.vue' {
   export default component
 }
 
+declare module '*.svg' {
+  const src: string
+  export default src
+}
+
 interface Window {
   electronAPI: {
     // 文件
