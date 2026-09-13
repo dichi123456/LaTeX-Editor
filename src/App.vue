@@ -161,8 +161,19 @@ async function onCheckUpdate() {
   try {
     const result = await window.electronAPI.checkUpdate()
     if (result.success && result.hasUpdate) {
-      const ok = confirm(`发现新版本 v${result.latest}（当前 v${result.current}）\n\n是否前往 GitHub 下载？`)
-      if (ok && result.url) {
+      const buttons = result.downloadUrl ? ['下载并安装', '前往网页', '稍后'] : ['前往网页', '稍后']
+      const choice = confirm(`发现新版本 v${result.latest}（当前 v${result.current}）\n\n点击「确定」在应用内下载并安装，点击「取消」前往 GitHub 页面。`)
+      if (choice && result.downloadUrl) {
+        const ok = confirm(`将下载安装包并自动启动安装程序，安装完成后当前应用会退出。\n\n确认下载？`)
+        if (ok) {
+          alert('正在下载更新包，请稍候…')
+          const dl = await window.electronAPI.downloadUpdate(result.downloadUrl)
+          if (!dl.success) {
+            alert(`下载失败：${dl.error}`)
+          }
+          // 成功时应用会自动退出并启动安装器
+        }
+      } else if (result.url) {
         window.electronAPI.openExternal(result.url)
       }
     } else if (result.success) {

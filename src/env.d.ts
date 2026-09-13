@@ -64,7 +64,8 @@ interface Window {
     exportPdf: (srcPath: string) => Promise<string | null>
     showNotification: (title: string, body: string) => Promise<void>
     setTitle: (title: string) => Promise<void>
-    checkUpdate: () => Promise<{ success: boolean; current: string; latest?: string; hasUpdate?: boolean; url?: string; error?: string }>
+    checkUpdate: () => Promise<{ success: boolean; current: string; latest?: string; hasUpdate?: boolean; url?: string; downloadUrl?: string | null; error?: string }>
+    downloadUpdate: (url: string) => Promise<{ success: boolean; path?: string; error?: string }>
     showAbout: () => Promise<void>
     windowMinimize: () => Promise<void>
     windowMaximize: () => Promise<void>

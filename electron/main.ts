@@ -368,7 +368,6 @@ ipcMain.handle('check-update', async () => {
             'User-Agent': 'MoLingTeX-Updater',
             'Accept': 'application/vnd.github+json'
           },
-          // Windows 上 Node 常见证书链不全，跳过严格校验（仅用于版本检查）
           rejectUnauthorized: false
         },
         (res: any) => {
@@ -384,16 +383,94 @@ ipcMain.handle('check-update', async () => {
     })
     const latest = String(data.tag_name || '').replace(/^v/, '')
     const hasUpdate = latest && latest !== current
+    // 找 exe 安装包下载地址
+    const assets = Array.isArray(data.assets) ? data.assets : []
+    const exeAsset = assets.find((a: any) => /\.exe$/i.test(a.name || ''))
     return {
       success: true,
       current,
       latest,
       hasUpdate,
       url: data.html_url || 'https://github.com/dichi123456/LaTeX-Editor/releases/latest',
+      downloadUrl: exeAsset?.browser_download_url || null,
       body: String(data.body || '').slice(0, 500)
     }
   } catch (err: any) {
     return { success: false, error: err?.message || '网络请求失败', current }
+  }
+})
+
+// 下载更新包并启动安装
+let downloading = false
+ipcMain.handle('download-update', async (_event, downloadUrl: string) => {
+  if (downloading) return { success: false, error: '正在下载中，请稍候' }
+  if (!downloadUrl || !downloadUrl.startsWith('https://')) {
+    return { success: false, error: '无效的下载地址' }
+  }
+  downloading = true
+  const fs = require('fs')
+  const os = require('os')
+  const path = require('path')
+  const { spawn } = require('child_process')
+  const tmpDir = os.tmpdir()
+  const fileName = path.basename(downloadUrl) || 'MoLingTeX-Setup.exe'
+  const savePath = path.join(tmpDir, fileName)
+
+  try {
+    const https = require('https')
+    await new Promise<void>((resolve, reject) => {
+      const file = fs.createWriteStream(savePath)
+      const req = https.get(
+        downloadUrl,
+        { rejectUnauthorized: false, headers: { 'User-Agent': 'MoLingTeX-Updater' } },
+        (res: any) => {
+          // GitHub 可能 302 重定向到 objects.githubusercontent.com
+          if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+            file.close()
+            try { fs.unlinkSync(savePath) } catch { /* ignore */ }
+            https.get(
+              res.headers.location,
+              { rejectUnauthorized: false },
+              (res2: any) => {
+                if (res2.statusCode !== 200) {
+                  reject(new Error(`下载失败 HTTP ${res2.statusCode}`))
+                  return
+                }
+                const file2 = fs.createWriteStream(savePath)
+                res2.pipe(file2)
+                file2.on('finish', () => { file2.close(); resolve() })
+                file2.on('error', reject)
+              }
+            ).on('error', reject)
+            return
+          }
+          if (res.statusCode !== 200) {
+            reject(new Error(`下载失败 HTTP ${res.statusCode}`))
+            return
+          }
+          res.pipe(file)
+          file.on('finish', () => { file.close(); resolve() })
+          file.on('error', reject)
+        }
+      )
+      req.on('error', reject)
+      req.setTimeout(120000, () => { req.destroy(); reject(new Error('下载超时')) })
+    })
+
+    // 下载完成，启动安装器并退出当前应用
+    const child = spawn(savePath, [], {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: false
+    })
+    child.unref()
+    setTimeout(() => { app.quit() }, 500)
+    return { success: true, path: savePath }
+  } catch (err: any) {
+    try { fs.unlinkSync(savePath) } catch { /* ignore */ }
+    return { success: false, error: err?.message || '下载失败' }
+  } finally {
+    downloading = false
   }
 })
 
