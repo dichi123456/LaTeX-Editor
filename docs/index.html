@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LaTeX 编辑器 — 本地 · 轻量 · AI 驱动</title>
+<style>
+  :root {
+    --blue: #2563EB; --blue-glow: rgba(37,99,235,.25);
+    --blue-dark: #1d4ed8; --blue-light: #dbeafe;
+    --dark: #0f172a; --dark2: #1e293b;
+    --g500: #64748b; --g400: #94a3b8; --g300: #cbd5e1; --g100: #f1f5f9;
+    --white: #fff; --green: #10b981; --amber: #f59e0b; --red: #ef4444;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html { scroll-behavior:smooth; }
+  body { font-family:-apple-system,"PingFang SC","Microsoft YaHei","Segoe UI",sans-serif; color:var(--dark); background:var(--white); overflow-x:hidden; }
+
+  /* ========== 动画工具 ========== */
+  .fade-up { opacity:0; transform:translateY(40px); transition:opacity .7s cubic-bezier(.16,1,.3,1), transform .7s cubic-bezier(.16,1,.3,1); }
+  .fade-up.visible { opacity:1; transform:translateY(0); }
+  .fade-up.d1 { transition-delay:.1s; } .fade-up.d2 { transition-delay:.2s; } .fade-up.d3 { transition-delay:.3s; }
+  .fade-up.d4 { transition-delay:.4s; } .fade-up.d5 { transition-delay:.5s; } .fade-up.d6 { transition-delay:.6s; }
+
+  /* ========== 导航 ========== */
+  nav { position:fixed; top:0; width:100%; z-index:100; background:rgba(15,23,42,.75); backdrop-filter:blur(16px) saturate(180%); border-bottom:1px solid rgba(255,255,255,.06); transition:background .3s; }
+  .nav-inner { max-width:1100px; margin:0 auto; display:flex; align-items:center; justify-content:space-between; height:60px; padding:0 24px; }
+  .logo { display:flex; align-items:center; gap:10px; font-weight:700; font-size:18px; color:#fff; text-decoration:none; }
+  .logo-icon { width:32px; height:32px; background:linear-gradient(135deg,var(--blue),#7c3aed); border-radius:8px; display:flex; align-items:center; justify-content:center; color:#fff; font-size:16px; font-weight:800; }
+  .nav-links { display:flex; gap:28px; list-style:none; }
+  .nav-links a { text-decoration:none; color:var(--g400); font-size:14px; transition:color .2s; }
+  .nav-links a:hover { color:#fff; }
+  .nav-cta { background:var(--blue); color:#fff; padding:8px 20px; border-radius:8px; text-decoration:none; font-size:14px; font-weight:500; transition:all .2s; }
+  .nav-cta:hover { background:var(--blue-dark); box-shadow:0 0 20px var(--blue-glow); }
+
+  /* ========== Hero ========== */
+  .hero { position:relative; min-height:100vh; display:flex; align-items:center; justify-content:center; text-align:center; padding:100px 24px 60px; background:var(--dark); overflow:hidden; }
+  .hero::before { content:''; position:absolute; inset:0; background:radial-gradient(ellipse 80% 50% at 50% -20%, rgba(37,99,235,.2), transparent), radial-gradient(ellipse 60% 40% at 80% 100%, rgba(124,58,237,.12), transparent); pointer-events:none; }
+  .hero-grid { position:absolute; inset:0; background-image:linear-gradient(rgba(255,255,255,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.03) 1px,transparent 1px); background-size:60px 60px; mask-image:radial-gradient(ellipse 70% 60% at 50% 40%,black,transparent); pointer-events:none; }
+  .hero-content { position:relative; z-index:1; max-width:700px; }
+  .hero-badge { display:inline-flex; align-items:center; gap:6px; background:rgba(37,99,235,.15); border:1px solid rgba(37,99,235,.3); color:#93bbfc; padding:6px 16px; border-radius:20px; font-size:13px; margin-bottom:28px; }
+  .hero-badge .dot { width:6px; height:6px; background:var(--green); border-radius:50%; animation:pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.4;} }
+  .hero h1 { font-size:56px; font-weight:800; color:#fff; line-height:1.15; margin-bottom:20px; letter-spacing:-1px; }
+  .hero h1 .gradient { background:linear-gradient(135deg,#60a5fa,#a78bfa,#f472b6); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+  .hero p { font-size:18px; color:var(--g400); line-height:1.8; margin-bottom:40px; max-width:520px; margin-left:auto; margin-right:auto; }
+  .hero-buttons { display:flex; gap:14px; justify-content:center; flex-wrap:wrap; margin-bottom:40px; }
+  .btn-glow { background:linear-gradient(135deg,var(--blue),#7c3aed); color:#fff; padding:14px 36px; border-radius:12px; text-decoration:none; font-size:16px; font-weight:600; transition:all .3s; position:relative; overflow:hidden; }
+  .btn-glow::after { content:''; position:absolute; inset:0; background:linear-gradient(135deg,transparent,rgba(255,255,255,.15)); opacity:0; transition:opacity .3s; }
+  .btn-glow:hover { transform:translateY(-2px); box-shadow:0 8px 32px rgba(37,99,235,.4); }
+  .btn-glow:hover::after { opacity:1; }
+  .btn-ghost { background:transparent; color:#fff; padding:14px 36px; border-radius:12px; text-decoration:none; font-size:16px; font-weight:500; border:1px solid rgba(255,255,255,.2); transition:all .3s; }
+  .btn-ghost:hover { border-color:rgba(255,255,255,.5); background:rgba(255,255,255,.05); }
+  .hero-stats { display:flex; gap:40px; justify-content:center; }
+  .stat { text-align:center; }
+  .stat-num { font-size:28px; font-weight:700; color:#fff; }
+  .stat-label { font-size:12px; color:var(--g500); margin-top:2px; }
+
+  /* ========== 截图 ========== */
+  .screenshot { padding:80px 24px; background:var(--dark); }
+  .shot-wrap { max-width:1000px; margin:0 auto; border-radius:12px; overflow:hidden; box-shadow:0 24px 80px rgba(0,0,0,.5),0 0 0 1px rgba(255,255,255,.08); }
+  .shot-wrap img { width:100%; display:block; }
+
+  /* ========== Features ========== */
+  .features { padding:100px 24px; background:var(--g100); }
+  .section-head { text-align:center; margin-bottom:60px; }
+  .section-tag { display:inline-block; background:var(--blue-light); color:var(--blue); padding:4px 14px; border-radius:20px; font-size:13px; font-weight:600; margin-bottom:16px; }
+  .section-title { font-size:36px; font-weight:800; color:var(--dark); margin-bottom:12px; }
+  .section-sub { color:var(--g500); font-size:16px; max-width:500px; margin:0 auto; }
+  .features-grid { max-width:1060px; margin:0 auto; display:grid; grid-template-columns:repeat(3,1fr); gap:20px; }
+  .f-card { background:var(--white); border-radius:16px; padding:32px 28px; border:1px solid var(--g300); transition:all .3s; position:relative; overflow:hidden; }
+  .f-card::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; background:linear-gradient(90deg,var(--blue),#7c3aed); opacity:0; transition:opacity .3s; }
+  .f-card:hover { border-color:var(--blue); box-shadow:0 12px 40px rgba(37,99,235,.12); transform:translateY(-4px); }
+  .f-card:hover::before { opacity:1; }
+  .f-icon { width:48px; height:48px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:24px; margin-bottom:20px; }
+  .f-icon.blue { background:var(--blue-light); } .f-icon.purple { background:#ede9fe; }
+  .f-icon.green { background:#d1fae5; } .f-icon.amber { background:#fef3c7; }
+  .f-icon.rose { background:#ffe4e6; } .f-icon.cyan { background:#cffafe; }
+  .f-card h3 { font-size:17px; font-weight:700; margin-bottom:10px; color:var(--dark); }
+  .f-card p { font-size:14px; color:var(--g500); line-height:1.7; }
+  .f-card ul { margin-top:12px; padding-left:0; list-style:none; }
+  .f-card li { font-size:13px; color:var(--g500); padding:3px 0; padding-left:18px; position:relative; }
+  .f-card li::before { content:'✓'; position:absolute; left:0; color:var(--green); font-weight:700; }
+
+  /* ========== AI Section ========== */
+  .ai-section { padding:100px 24px; background:var(--dark); position:relative; overflow:hidden; }
+  .ai-section::before { content:''; position:absolute; inset:0; background:radial-gradient(ellipse 60% 50% at 20% 50%, rgba(37,99,235,.1), transparent); }
+  .ai-inner { max-width:1000px; margin:0 auto; display:grid; grid-template-columns:1fr 1fr; gap:60px; align-items:center; position:relative; z-index:1; }
+  .ai-content h2 { font-size:32px; font-weight:800; color:#fff; margin-bottom:16px; }
+  .ai-content p { color:var(--g400); font-size:15px; line-height:1.8; margin-bottom:24px; }
+  .ai-features { list-style:none; }
+  .ai-features li { display:flex; gap:12px; align-items:flex-start; padding:10px 0; color:var(--g300); font-size:14px; }
+  .ai-features li .icon { width:28px; height:28px; background:rgba(37,99,235,.2); border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:14px; flex-shrink:0; }
+  .ai-demo { background:var(--dark2); border-radius:16px; border:1px solid rgba(255,255,255,.08); overflow:hidden; }
+  .ai-demo-header { padding:10px 16px; border-bottom:1px solid rgba(255,255,255,.06); display:flex; align-items:center; gap:8px; }
+  .ai-demo-dot { width:10px; height:10px; border-radius:50%; }
+  .ai-demo-body { padding:20px; font-family:monospace; font-size:12px; line-height:1.8; color:var(--g400); min-height:280px; }
+  .ai-line { opacity:0; animation:typing .5s forwards; }
+  .ai-line:nth-child(1){animation-delay:.2s} .ai-line:nth-child(2){animation-delay:.6s}
+  .ai-line:nth-child(3){animation-delay:1.2s} .ai-line:nth-child(4){animation-delay:1.6s}
+  .ai-line:nth-child(5){animation-delay:2.2s} .ai-line:nth-child(6){animation-delay:2.8s}
+  .ai-line:nth-child(7){animation-delay:3.4s} .ai-line:nth-child(8){animation-delay:4s}
+  @keyframes typing { from{opacity:0;transform:translateX(-8px)} to{opacity:1;transform:translateX(0)} }
+  .ai-cmd { color:#60a5fa; } .ai-ok { color:var(--green); } .ai-err { color:var(--red); }
+  .ai-comment { color:var(--g500); font-style:italic; }
+
+  /* ========== Compare ========== */
+  .compare { padding:100px 24px; }
+  .compare-table { max-width:800px; margin:0 auto; border-collapse:separate; border-spacing:0; width:100%; font-size:14px; border-radius:12px; overflow:hidden; border:1px solid var(--g300); }
+  .compare-table th, .compare-table td { padding:14px 16px; text-align:center; border-bottom:1px solid var(--g100); }
+  .compare-table th { font-weight:700; color:var(--dark); background:var(--g100); font-size:13px; }
+  .compare-table td:first-child { text-align:left; font-weight:500; color:var(--dark2); }
+  .compare-table .hl { background:linear-gradient(135deg,rgba(37,99,235,.08),rgba(124,58,237,.05)); font-weight:600; }
+  .compare-table .yes { color:var(--green); font-size:18px; }
+  .compare-table .no { color:var(--red); font-size:16px; }
+  .compare-table tr:last-child td { border-bottom:none; }
+
+  /* ========== Download ========== */
+  .download { padding:100px 24px; background:linear-gradient(135deg,var(--dark) 0%,#1a1040 100%); text-align:center; position:relative; overflow:hidden; }
+  .download::before { content:''; position:absolute; inset:0; background:radial-gradient(ellipse 50% 50% at 50% 0%, rgba(37,99,235,.15), transparent); }
+  .download > * { position:relative; z-index:1; }
+  .download h2 { font-size:36px; font-weight:800; color:#fff; margin-bottom:12px; }
+  .download > p { color:var(--g400); font-size:16px; margin-bottom:40px; }
+  .dl-cards { display:flex; gap:20px; justify-content:center; flex-wrap:wrap; max-width:520px; margin:0 auto; }
+  .dl-card { background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.1); border-radius:16px; padding:32px 28px; text-decoration:none; color:#fff; transition:all .3s; min-width:220px; }
+  .dl-card:hover { background:rgba(255,255,255,.1); border-color:var(--blue); transform:translateY(-4px); box-shadow:0 12px 40px rgba(37,99,235,.2); }
+  .dl-icon { font-size:36px; margin-bottom:14px; }
+  .dl-name { font-size:18px; font-weight:700; margin-bottom:4px; }
+  .dl-size { font-size:13px; color:var(--g400); }
+  .dl-note { margin-top:28px; font-size:13px; color:var(--g500); }
+  .dl-note a { color:#93bbfc; }
+
+  /* ========== FAQ ========== */
+  .faq { padding:100px 24px; background:var(--g100); }
+  .faq-list { max-width:680px; margin:0 auto; }
+  .faq-item { background:var(--white); border:1px solid var(--g300); border-radius:12px; margin-bottom:10px; overflow:hidden; transition:box-shadow .2s; }
+  .faq-item:hover { box-shadow:0 4px 16px rgba(0,0,0,.06); }
+  .faq-q { padding:18px 22px; font-weight:600; font-size:15px; cursor:pointer; display:flex; justify-content:space-between; align-items:center; color:var(--dark); }
+  .faq-q::after { content:'+'; font-size:22px; color:var(--g400); transition:transform .3s; font-weight:300; }
+  .faq-item.open .faq-q::after { transform:rotate(45deg); }
+  .faq-a { max-height:0; overflow:hidden; transition:max-height .35s ease; padding:0 22px; color:var(--g500); font-size:14px; line-height:1.8; }
+  .faq-item.open .faq-a { max-height:200px; padding:0 22px 18px; }
+
+  /* ========== Footer ========== */
+  footer { padding:40px 24px; text-align:center; color:var(--g500); font-size:13px; background:var(--dark); }
+  footer a { color:#93bbfc; text-decoration:none; }
+
+  @media(max-width:768px) {
+    .hero h1 { font-size:36px; }
+    .features-grid { grid-template-columns:1fr; }
+    .ai-inner { grid-template-columns:1fr; }
+    .hero-stats { gap:24px; }
+    .nav-links { display:none; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <a class="logo" href="#"><div class="logo-icon">L</div>LaTeX 编辑器</a>
+    <ul class="nav-links">
+      <li><a href="#features">功能</a></li>
+      <li><a href="#ai">AI 助手</a></li>
+      <li><a href="#compare">对比</a></li>
+      <li><a href="#download">下载</a></li>
+    </ul>
+    <a class="nav-cta" href="#download">立即下载</a>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="hero-grid"></div>
+  <div class="hero-content">
+    <div class="hero-badge fade-up"><span class="dot"></span>v1.0.0 已发布 · 支持 Windows 10/11</div>
+    <h1 class="fade-up d1">本地 · 轻量 · <span class="gradient">AI 驱动</span><br>的 LaTeX 编辑器</h1>
+    <p class="fade-up d2">集编辑、编译、预览、AI 助手于一体的桌面应用。数据完全本地，无需联网，开箱即用。</p>
+    <div class="hero-buttons fade-up d3">
+      <a class="btn-glow" href="#download">⬇ 立即下载</a>
+      <a class="btn-ghost" href="https://github.com/dichi123456/LaTeX-Editor" target="_blank">GitHub ↗</a>
+    </div>
+    <div class="hero-stats fade-up d4">
+      <div class="stat"><div class="stat-num">96<span style="font-size:16px">MB</span></div><div class="stat-label">安装包体积</div></div>
+      <div class="stat"><div class="stat-num">&lt;200<span style="font-size:16px">MB</span></div><div class="stat-label">内存占用</div></div>
+      <div class="stat"><div class="stat-num">6</div><div class="stat-label">AI 工具能力</div></div>
+      <div class="stat"><div class="stat-num">5</div><div class="stat-label">内置中文模板</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- Screenshot -->
+<section class="screenshot">
+  <div class="shot-wrap fade-up">
+    <img src="../docs/screenshot-main.png" alt="主界面" onerror="this.parentElement.style.height='480px';this.parentElement.innerHTML='<div style=\'color:#475569;display:flex;align-items:center;justify-content:center;height:100%;font-size:16px\'>主界面预览</div>'">
+  </div>
+</section>
+
+<!-- Features -->
+<section class="features" id="features">
+  <div class="section-head fade-up">
+    <div class="section-tag">核心功能</div>
+    <h2 class="section-title">一个编辑器，覆盖全流程</h2>
+    <p class="section-sub">从写代码到出 PDF，从改错误到问 AI，所有操作在一个窗口完成</p>
+  </div>
+  <div class="features-grid">
+    <div class="f-card fade-up d1">
+      <div class="f-icon blue">⚡</div>
+      <h3>极速编译</h3>
+      <p>XeLaTeX 深度集成，TeX Live 自动检测。</p>
+      <ul><li>一键编译 F5</li><li>快速 / 完整 / 从头三种模式</li><li>bibtex 参考文献自动处理</li></ul>
+    </div>
+    <div class="f-card fade-up d2">
+      <div class="f-icon purple">📄</div>
+      <h3>PDF 实时预览</h3>
+      <p>PDF.js 渲染，垂直滚动，所见即所得。</p>
+      <ul><li>Ctrl+滚轮缩放</li><li>SyncTeX 双向同步跳转</li><li>多 PDF 标签页管理</li></ul>
+    </div>
+    <div class="f-card fade-up d3">
+      <div class="f-icon green">🎯</div>
+      <h3>智能编辑</h3>
+      <p>CodeMirror 6 驱动，专为 LaTeX 优化。</p>
+      <ul><li>命令 / 环境 / 引用键补全</li><li>BibTeX 扫描，cite 内选文献</li><li>查找替换：正则 / 计数 / 双向导航</li></ul>
+    </div>
+    <div class="f-card fade-up d4">
+      <div class="f-icon amber">🇨🇳</div>
+      <h3>中文开箱优化</h3>
+      <p>专为中文论文写作调优，零配置启动。</p>
+      <ul><li>ctex 宏集 + 系统字体预置</li><li>XeLaTeX 默认引擎</li><li>5 套中文模板即开即用</li></ul>
+    </div>
+    <div class="f-card fade-up d5">
+      <div class="f-icon rose">🎨</div>
+      <h3>现代界面</h3>
+      <p>面板化布局，自由定制你的工作区。</p>
+      <ul><li>深色 / 浅色 / 跟随系统</li><li>面板拖拽调整、互换位置</li><li>命令面板 Ctrl+Shift+P</li></ul>
+    </div>
+    <div class="f-card fade-up d6">
+      <div class="f-icon cyan">📂</div>
+      <h3>项目管理</h3>
+      <p>文件树、大纲、多标签，项目一目了然。</p>
+      <ul><li>工作区文件树 + 大纲导航</li><li>多标签拖拽排序</li><li>BibTeX 引用自动扫描</li></ul>
+    </div>
+  </div>
+</section>
+
+<!-- AI Section -->
+<section class="ai-section" id="ai">
+  <div class="ai-inner">
+    <div class="ai-content fade-up">
+      <div class="section-tag" style="background:rgba(37,99,235,.15);color:#93bbfc;">AI 助手</div>
+      <h2>墨灵 — 会写代码的 AI 伙伴</h2>
+      <p>不只是聊天。墨灵能直接读取、修改你的项目文件，编译验证，实时反馈。像 Copilot 一样理解你的文档。</p>
+      <ul class="ai-features">
+        <li><span class="icon">🔧</span><div><strong>Agent 模式</strong><br>AI 自主调用工具：读文件、写文件、搜索、编译</div></li>
+        <li><span class="icon">📍</span><div><strong>行号定位</strong><br>选中文本自动附带行号，精准定位不重读全文</div></li>
+        <li><span class="icon">✂️</span><div><strong>局部编辑</strong><br>replace_text 精准替换，无需重写整个文件</div></li>
+        <li><span class="icon">🔄</span><div><strong>实时刷新</strong><br>AI 修改文件后编辑器立即更新</div></li>
+        <li><span class="icon">⏹️</span><div><strong>随时中断</strong><br>思考过程中可一键停止</div></li>
+      </ul>
+    </div>
+    <div class="ai-demo fade-up d2">
+      <div class="ai-demo-header">
+        <div class="ai-demo-dot" style="background:#ef4444"></div>
+        <div class="ai-demo-dot" style="background:#f59e0b"></div>
+        <div class="ai-demo-dot" style="background:#10b981"></div>
+        <span style="color:var(--g500);font-size:12px;margin-left:8px">墨灵 · AI 助手</span>
+      </div>
+      <div class="ai-demo-body">
+        <div class="ai-line"><span class="ai-comment">// 用户选中文本发送</span></div>
+        <div class="ai-line"><span style="color:#fff">用户: 把这段标红，加粗关键词</span></div>
+        <div class="ai-line">&nbsp;</div>
+        <div class="ai-line"><span class="ai-cmd">→ read_file(chap04.tex)</span> <span class="ai-ok">✓ 行 45-62</span></div>
+        <div class="ai-line"><span class="ai-cmd">→ replace_text(find=..., replace=...)</span> <span class="ai-ok">✓ 第45行</span></div>
+        <div class="ai-line"><span class="ai-cmd">→ compile_document(chap04.tex)</span> <span class="ai-ok">✓ 编译成功</span></div>
+        <div class="ai-line">&nbsp;</div>
+        <div class="ai-line"><span style="color:#fff">墨灵: 已完成修改并通过编译验证。</span></div>
+        <div class="ai-line"><span style="color:#fff">编辑器中的内容已实时更新。</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Compare -->
+<section class="compare" id="compare">
+  <div class="section-head fade-up">
+    <div class="section-tag">横向对比</div>
+    <h2 class="section-title">为什么选择本地编辑器？</h2>
+  </div>
+  <table class="compare-table fade-up d1">
+    <thead>
+      <tr>
+        <th style="text-align:left">特性</th>
+        <th style="color:var(--blue)">本编辑器</th>
+        <th>Overleaf</th>
+        <th>TeXstudio</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>完全本地运行</td><td class="hl yes">●</td><td class="no">○</td><td class="yes">●</td></tr>
+      <tr><td>无需注册 / 联网</td><td class="hl yes">●</td><td class="no">○</td><td class="yes">●</td></tr>
+      <tr><td>AI 助手集成</td><td class="hl yes">●</td><td style="color:var(--amber)">◐ 付费</td><td class="no">○</td></tr>
+      <tr><td>AI 可读写项目文件</td><td class="hl yes">●</td><td class="no">○</td><td class="no">○</td></tr>
+      <tr><td>中文开箱优化</td><td class="hl yes">●</td><td style="color:var(--amber)">◐ 需配置</td><td style="color:var(--amber)">◐ 需配置</td></tr>
+      <tr><td>内存占用</td><td class="hl yes">&lt;200MB</td><td>浏览器标签</td><td>~300MB</td></tr>
+      <tr><td>免费开源</td><td class="hl yes">● MIT</td><td class="no">○ 部分收费</td><td class="yes">●</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- Download -->
+<section class="download" id="download">
+  <h2 class="fade-up">立即下载</h2>
+  <p class="fade-up d1">选择适合你的方式，几分钟内开始写作</p>
+  <div class="dl-cards fade-up d2">
+    <a class="dl-card" href="https://github.com/dichi123456/LaTeX-Editor/releases/download/v1.0.0/LaTeX.Setup.1.0.0.exe" target="_blank">
+      <div class="dl-icon">💾</div>
+      <div class="dl-name">安装版</div>
+      <div class="dl-size">96 MB · .exe 安装程序</div>
+    </a>
+    <a class="dl-card" href="https://github.com/dichi123456/LaTeX-Editor/releases/download/v1.0.0/LaTeX.-1.0.0-win.zip" target="_blank">
+      <div class="dl-icon">📦</div>
+      <div class="dl-name">便携版</div>
+      <div class="dl-size">134 MB · 解压即用</div>
+    </a>
+  </div>
+  <p class="dl-note fade-up d3">需要 <a href="https://tug.org/texlive/" target="_blank">TeX Live 2024</a> · <a href="https://github.com/dichi123456/LaTeX-Editor/releases" target="_blank">所有版本</a></p>
+</section>
+
+<!-- FAQ -->
+<section class="faq" id="faq">
+  <div class="section-head fade-up">
+    <div class="section-tag">常见问题</div>
+    <h2 class="section-title">你可能想知道</h2>
+  </div>
+  <div class="faq-list">
+    <div class="faq-item fade-up d1" onclick="this.classList.toggle('open')">
+      <div class="faq-q">需要安装 TeX Live 吗？</div>
+      <div class="faq-a">编译功能需要 TeX Live 2024（或其他版本）。编辑器自动检测安装路径，未找到时可在设置中手动指定。AI 对话功能不依赖 TeX Live。</div>
+    </div>
+    <div class="faq-item fade-up d2" onclick="this.classList.toggle('open')">
+      <div class="faq-q">墨灵 AI 需要付费吗？</div>
+      <div class="faq-a">墨灵本身免费，需要你自备 AI 服务 API Key（如 DeepSeek、OpenAI）。API 费用由服务商收取，编辑器不额外收费。</div>
+    </div>
+    <div class="faq-item fade-up d3" onclick="this.classList.toggle('open')">
+      <div class="faq-q">支持 macOS 和 Linux 吗？</div>
+      <div class="faq-a">目前仅支持 Windows 10/11。基于 Electron 框架，理论上可跨平台，但尚未针对其他系统测试。</div>
+    </div>
+    <div class="faq-item fade-up d4" onclick="this.classList.toggle('open')">
+      <div class="faq-q">数据会上传到云端吗？</div>
+      <div class="faq-a">不会。所有文件操作、编译、预览均在本地完成。仅当你主动使用墨灵 AI 时，对话内容发送给你配置的 AI 服务商。</div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <p>MIT License · Built with Electron + Vue 3 + CodeMirror 6 · <a href="https://github.com/dichi123456/LaTeX-Editor" target="_blank">GitHub</a></p>
+</footer>
+
+<script>
+  // 滚动动画
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); observer.unobserve(e.target); } });
+  }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+  document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
+
+  // 导航栏滚动变化
+  window.addEventListener('scroll', () => {
+    document.querySelector('nav').style.background = window.scrollY > 60 ? 'rgba(15,23,42,.95)' : 'rgba(15,23,42,.75)';
+  });
+</script>
+
+</body>
+</html>
