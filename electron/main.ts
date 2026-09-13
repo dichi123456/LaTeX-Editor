@@ -359,13 +359,29 @@ ipcMain.handle('set-title', async (_event, title: string) => {
 ipcMain.handle('check-update', async () => {
   const current = app.getVersion()
   try {
-    const resp = await fetch('https://api.github.com/repos/dichi123456/LaTeX-Editor/releases/latest', {
-      headers: { 'User-Agent': 'MoLingTeX-Updater' }
+    const https = require('https')
+    const data: any = await new Promise((resolve, reject) => {
+      const req = https.get(
+        'https://api.github.com/repos/dichi123456/LaTeX-Editor/releases/latest',
+        {
+          headers: {
+            'User-Agent': 'MoLingTeX-Updater',
+            'Accept': 'application/vnd.github+json'
+          },
+          // Windows 上 Node 常见证书链不全，跳过严格校验（仅用于版本检查）
+          rejectUnauthorized: false
+        },
+        (res: any) => {
+          let body = ''
+          res.on('data', (chunk: string) => { body += chunk })
+          res.on('end', () => {
+            try { resolve(JSON.parse(body)) } catch { reject(new Error('解析响应失败')) }
+          })
+        }
+      )
+      req.on('error', reject)
+      req.setTimeout(10000, () => { req.destroy(); reject(new Error('请求超时')) })
     })
-    if (!resp.ok) {
-      return { success: false, error: `GitHub API 返回 ${resp.status}`, current }
-    }
-    const data = await resp.json()
     const latest = String(data.tag_name || '').replace(/^v/, '')
     const hasUpdate = latest && latest !== current
     return {
