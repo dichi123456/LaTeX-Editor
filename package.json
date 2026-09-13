@@ -1,6 +1,6 @@
 {
   "name": "latex-editor",
-  "version": "1.0.1",
+  "version": "1.0.3",
   "description": "本地 LaTeX 编辑器 — Windows 桌面应用（编辑·编译·预览）",
   "main": "./out/main/main.js",
   "author": "墨灵TeX",
@@ -26,6 +26,7 @@
     "@codemirror/view": "^6.36.2",
     "@lezer/highlight": "^1.2.1",
     "codemirror": "^6.0.1",
+    "electron-updater": "^6.8.9",
     "pdfjs-dist": "^4.10.38",
     "pinia": "^2.3.0",
     "vue": "^3.5.13"
@@ -43,11 +44,19 @@
     "vue-tsc": "^2.2.0"
   },
   "build": {
-    "appId": "com.latex.editor",
+    "appId": "com.moling.tex",
     "productName": "墨灵TeX",
     "directories": {
       "output": "release"
     },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "dichi123456",
+        "repo": "LaTeX-Editor",
+        "releaseType": "release"
+      }
+    ],
     "files": [
       "out/**/*",
       "resources/**/*"
@@ -56,11 +65,15 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         },
         {
           "target": "zip",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "resources/icon.ico"
@@ -71,7 +84,9 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "墨灵TeX",
-      "installerLanguages": ["zh_CN"],
+      "installerLanguages": [
+        "zh_CN"
+      ],
       "language": "2052",
       "unicode": true
     }

@@ -6,12 +6,26 @@ import type { CompileMode } from '../stores/compile'
 const compileStore = useCompileStore()
 const compileDoc = inject<(mode?: CompileMode) => Promise<void>>('compileDoc', async () => {})
 
-// 编译下拉
+// 编译模式（记住上次选择）
 const showCompileMenu = ref(false)
+const compileMode = ref<CompileMode>('quick')
+const MODE_LABELS: Record<CompileMode, string> = {
+  quick: '快速编译',
+  full: '完整编译',
+  clean: '从头编译'
+}
+
 function runCompile(mode: CompileMode) {
+  compileMode.value = mode
   showCompileMenu.value = false
   compileDoc(mode)
 }
+
+function compileWithCurrent() {
+  if (compileStore.isCompiling) return
+  compileDoc(compileMode.value)
+}
+
 function toggleCompileMenu() {
   showCompileMenu.value = !showCompileMenu.value
 }
@@ -484,24 +498,38 @@ onUnmounted(() => {
 
     <!-- 工具栏：编译按钮在最左 -->
     <div class="pdf-toolbar">
-      <!-- 编译下拉 -->
+      <!-- 编译：主按钮直接编译，箭头改模式 -->
       <div class="compile-dropdown">
         <button
           class="compile-main-btn"
           :disabled="compileStore.isCompiling"
-          @click.stop="toggleCompileMenu"
+          @click.stop="compileWithCurrent"
         >
           <span v-if="compileStore.isCompiling" class="compile-spin">⟳</span>
           <span v-else class="compile-icon">▶</span>
-          {{ compileStore.isCompiling ? (compileStore.compileProgress || '…') : '编译' }}
-          <span class="dropdown-arrow">▾</span>
+          {{ compileStore.isCompiling ? (compileStore.compileProgress || '…') : MODE_LABELS[compileMode] }}
         </button>
+        <button
+          class="compile-arrow-btn"
+          :disabled="compileStore.isCompiling"
+          title="选择编译模式"
+          @click.stop="toggleCompileMenu"
+        >▾</button>
         <div v-if="showCompileMenu" class="compile-menu">
-          <button class="menu-item" @click="runCompile('quick')"><span class="menu-label">快速编译</span></button>
+          <button class="menu-item" @click="runCompile('quick')">
+            <span class="menu-check">{{ compileMode === 'quick' ? '✓' : '' }}</span>
+            <span class="menu-label">快速编译</span>
+          </button>
           <div class="menu-divider"></div>
-          <button class="menu-item" @click="runCompile('full')"><span class="menu-label">完整编译（bibtex）</span></button>
+          <button class="menu-item" @click="runCompile('full')">
+            <span class="menu-check">{{ compileMode === 'full' ? '✓' : '' }}</span>
+            <span class="menu-label">完整编译（bibtex）</span>
+          </button>
           <div class="menu-divider"></div>
-          <button class="menu-item" @click="runCompile('clean')"><span class="menu-label">从头编译（清理）</span></button>
+          <button class="menu-item" @click="runCompile('clean')">
+            <span class="menu-check">{{ compileMode === 'clean' ? '✓' : '' }}</span>
+            <span class="menu-label">从头编译（清理）</span>
+          </button>
         </div>
       </div>
 
@@ -721,43 +749,81 @@ onUnmounted(() => {
   margin: 0 2px;
 }
 
-/* 编译下拉 */
-.compile-dropdown { position: relative; flex-shrink: 0; }
+/* 编译：毛玻璃主按钮 + 箭头分体 */
+.compile-dropdown { position: relative; flex-shrink: 0; display: flex; }
 .compile-main-btn {
   display: flex;
   align-items: center;
   gap: 5px;
-  padding: 4px 12px;
-  background: var(--accent);
+  padding: 4px 10px;
+  background: rgba(37, 99, 235, 0.45);
+  backdrop-filter: blur(14px) saturate(1.6);
+  -webkit-backdrop-filter: blur(14px) saturate(1.6);
   color: #fff;
-  border: none;
-  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-right: none;
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background 0.15s, border-color 0.15s;
 }
-.compile-main-btn:hover:not(:disabled) { background: var(--accent-hover); }
+.compile-main-btn:hover:not(:disabled) {
+  background: rgba(37, 99, 235, 0.65);
+  border-color: rgba(255, 255, 255, 0.28);
+}
 .compile-main-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.compile-arrow-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 6px;
+  background: rgba(37, 99, 235, 0.45);
+  backdrop-filter: blur(14px) saturate(1.6);
+  -webkit-backdrop-filter: blur(14px) saturate(1.6);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  font-size: 10px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.compile-arrow-btn:hover:not(:disabled) {
+  background: rgba(37, 99, 235, 0.65);
+  border-color: rgba(255, 255, 255, 0.28);
+}
+.compile-arrow-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 .compile-icon { font-size: 10px; }
 .compile-spin { display: inline-block; animation: spin 1s linear infinite; font-size: 12px; }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-.dropdown-arrow { font-size: 9px; opacity: 0.8; margin-left: 2px; }
 .compile-menu {
   position: absolute;
   top: calc(100% + 4px);
   left: 0;
   z-index: 100;
-  background: var(--bg-primary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  background: rgba(30, 30, 46, 0.3);
+  backdrop-filter: blur(20px) saturate(1.6);
+  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
   box-shadow: var(--shadow-lg);
   min-width: 180px;
   overflow: hidden;
+  animation: menuPop 0.14s ease;
+}
+[data-theme="light"] .compile-menu {
+  background: rgba(255, 255, 255, 0.3);
+  border-color: rgba(0, 0, 0, 0.06);
+}
+@keyframes menuPop {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 .menu-item {
   display: flex;
   align-items: center;
+  gap: 6px;
   width: 100%;
   padding: 8px 14px;
   text-align: left;
@@ -767,6 +833,13 @@ onUnmounted(() => {
   transition: background 0.1s;
 }
 .menu-item:hover { background: var(--bg-hover); }
+.menu-check {
+  width: 14px;
+  flex-shrink: 0;
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 12px;
+}
 .menu-label { font-size: 13px; font-weight: 500; color: var(--text-primary); }
 .menu-divider { height: 1px; background: var(--border); margin: 0; }
 

@@ -105,6 +105,20 @@ async function detect() {
     local.value.texlivePath = compileStore.texLivePath || ''
   }
 }
+
+// 左侧导航
+const activeSection = ref('compile')
+const sections = [
+  { id: 'compile', label: '编译', icon: '⚙' },
+  { id: 'editor', label: '编辑器', icon: '✎' },
+  { id: 'appearance', label: '外观', icon: '◐' },
+  { id: 'ai', label: '墨灵 AI', icon: '💬' }
+]
+function scrollToSection(id: string) {
+  activeSection.value = id
+  const el = document.getElementById(`sec-${id}`)
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
 </script>
 
 <template>
@@ -116,8 +130,24 @@ async function detect() {
       </div>
 
       <div v-if="local" class="settings-body">
+        <!-- 左侧导航 -->
+        <nav class="settings-nav">
+          <button
+            v-for="s in sections"
+            :key="s.id"
+            class="nav-item"
+            :class="{ active: activeSection === s.id }"
+            @click="scrollToSection(s.id)"
+          >
+            <span class="nav-icon">{{ s.icon }}</span>
+            {{ s.label }}
+          </button>
+        </nav>
+
+        <!-- 右侧内容 -->
+        <div class="settings-content">
         <!-- 编译 -->
-        <section class="settings-section">
+        <section id="sec-compile" class="settings-section">
           <h3>编译</h3>
           <div class="setting-row">
             <label>编译引擎</label>
@@ -164,7 +194,7 @@ async function detect() {
         </section>
 
         <!-- 编辑器 -->
-        <section class="settings-section">
+        <section id="sec-editor" class="settings-section">
           <h3>编辑器</h3>
           <div class="setting-row">
             <label>字体大小</label>
@@ -193,7 +223,7 @@ async function detect() {
         </section>
 
         <!-- 外观 -->
-        <section class="settings-section">
+        <section id="sec-appearance" class="settings-section">
           <h3>外观</h3>
           <div class="setting-row">
             <label>主题</label>
@@ -207,7 +237,7 @@ async function detect() {
         </section>
 
         <!-- AI 助手 -->
-        <section class="settings-section">
+        <section id="sec-ai" class="settings-section">
           <h3>墨灵 AI 助手</h3>
           <div class="setting-row">
             <label>API 地址（OpenAI 兼容）</label>
@@ -254,17 +284,13 @@ async function detect() {
             <label>系统提示词</label>
             <textarea v-model="aiLocal.systemPrompt" rows="3" style="width:100%;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg-primary);color:var(--text-primary);resize:vertical;"></textarea>
           </div>
-          <div class="setting-row" style="display:flex;gap:12px;">
-            <div style="flex:1;">
-              <label>温度 ({{ aiLocal.temperature }})</label>
-              <input type="range" v-model.number="aiLocal.temperature" min="0" max="2" step="0.1" style="width:100%;" />
-            </div>
-            <div style="flex:1;">
-              <label>最大 Token</label>
-              <input type="number" v-model.number="aiLocal.maxTokens" min="256" max="32768" step="256" />
-            </div>
+          <div class="setting-row">
+            <label>温度 ({{ aiLocal.temperature }})</label>
+            <input type="range" v-model.number="aiLocal.temperature" min="0" max="2" step="0.1" style="width:100%;" />
+            <small style="display:block;margin-top:4px;color:var(--text-tertiary);font-size:11px;">输出长度由所选模型的上下文能力自动决定，无需手动限制</small>
           </div>
         </section>
+        </div><!-- /settings-content -->
       </div>
 
       <div class="settings-footer">
@@ -280,20 +306,39 @@ async function detect() {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
+  animation: fadeIn 0.15s ease;
 }
 .settings-modal {
-  background: var(--bg-primary);
-  border-radius: var(--radius);
+  background: rgba(30, 30, 46, 0.55);
+  backdrop-filter: blur(24px) saturate(1.6);
+  -webkit-backdrop-filter: blur(24px) saturate(1.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
   box-shadow: var(--shadow-lg);
   width: min(560px, 92vw);
   max-height: 86vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  animation: modalPop 0.18s ease;
+}
+[data-theme="light"] .settings-modal {
+  background: rgba(255, 255, 255, 0.55);
+  border-color: rgba(0, 0, 0, 0.06);
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes modalPop {
+  from { opacity: 0; transform: translateY(-8px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 .settings-header {
   display: flex;
@@ -316,7 +361,56 @@ async function detect() {
 .settings-body {
   flex: 1;
   overflow: auto;
+  display: flex;
+  min-height: 0;
+}
+.settings-nav {
+  width: 100px;
+  flex-shrink: 0;
+  padding: 12px 8px;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  max-height: 100%;
+}
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s, color 0.12s;
+}
+.nav-item:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.nav-item.active {
+  background: var(--accent-light);
+  color: var(--accent);
+  font-weight: 500;
+}
+.nav-icon {
+  font-size: 13px;
+  width: 16px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.settings-content {
+  flex: 1;
+  overflow: auto;
   padding: 16px 18px;
+  min-width: 0;
 }
 .settings-section {
   margin-bottom: 24px;

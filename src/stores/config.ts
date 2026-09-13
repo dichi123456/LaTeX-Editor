@@ -10,7 +10,7 @@ export const useConfigStore = defineStore('config', () => {
   let mediaListener: ((e: MediaQueryListEvent) => void) | null = null
 
   const resolvedTheme = computed<'light' | 'dark'>(() => {
-    const t = config.value?.theme || 'light'
+    const t = config.value?.theme || 'dark'
     if (t === 'system') {
       return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
     }

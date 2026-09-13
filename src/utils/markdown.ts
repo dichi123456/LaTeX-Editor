@@ -1,66 +1,78 @@
 // 轻量 Markdown + LaTeX 渲染器（无外部依赖）
+// 支持流式：未闭合代码块/公式也能安全渲染
 
 export function renderMarkdown(text: string): string {
   if (!text) return ''
 
-  let html = escapeHtml(text)
+  try {
+    let html = escapeHtml(text)
 
-  // 代码块 ```lang\n...\n```
-  html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_match, lang, code) => {
-    return `<pre class="md-code"><code>${code.trim()}</code></pre>`
-  })
+    // 未闭合代码块：流式中临时补全
+    const fenceCount = (html.match(/```/g) || []).length
+    if (fenceCount % 2 === 1) {
+      html += '\n```'
+    }
 
-  // 行内代码
-  html = html.replace(/`([^`\n]+)`/g, '<code class="md-inline-code">$1</code>')
+    // 代码块 ```lang\n...\n```
+    html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_match, lang, code) => {
+      return `<pre class="md-code"><code>${code.trim()}</code></pre>`
+    })
 
-  // 标题
-  html = html.replace(/^### (.+)$/gm, '<h4 class="md-h">$1</h4>')
-  html = html.replace(/^## (.+)$/gm, '<h3 class="md-h">$1</h3>')
-  html = html.replace(/^# (.+)$/gm, '<h2 class="md-h">$1</h2>')
+    // 行内代码
+    html = html.replace(/`([^`\n]+)`/g, '<code class="md-inline-code">$1</code>')
 
-  // 粗体
-  html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-  // 斜体
-  html = html.replace(/\*([^*\n]+)\*/g, '<em>$1</em>')
+    // 标题
+    html = html.replace(/^### (.+)$/gm, '<h4 class="md-h">$1</h4>')
+    html = html.replace(/^## (.+)$/gm, '<h3 class="md-h">$1</h3>')
+    html = html.replace(/^# (.+)$/gm, '<h2 class="md-h">$1</h2>')
 
-  // 无序列表
-  html = html.replace(/^[-*] (.+)$/gm, '<li class="md-li">$1</li>')
-  html = html.replace(/(<li class="md-li">.*<\/li>\n?)+/g, (match) => {
-    return `<ul class="md-ul">${match}</ul>`
-  })
+    // 粗体
+    html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    // 斜体
+    html = html.replace(/\*([^*\n]+)\*/g, '<em>$1</em>')
 
-  // 有序列表
-  html = html.replace(/^\d+\. (.+)$/gm, '<li class="md-li-ol">$1</li>')
+    // 无序列表
+    html = html.replace(/^[-*] (.+)$/gm, '<li class="md-li">$1</li>')
+    html = html.replace(/(<li class="md-li">.*<\/li>\n?)+/g, (match) => {
+      return `<ul class="md-ul">${match}</ul>`
+    })
 
-  // 引用
-  html = html.replace(/^&gt; (.+)$/gm, '<blockquote class="md-quote">$1</blockquote>')
+    // 有序列表
+    html = html.replace(/^\d+\. (.+)$/gm, '<li class="md-li-ol">$1</li>')
 
-  // 分割线
-  html = html.replace(/^---$/gm, '<hr class="md-hr" />')
+    // 引用
+    html = html.replace(/^&gt; (.+)$/gm, '<blockquote class="md-quote">$1</blockquote>')
 
-  // 链接
-  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+    // 分割线
+    html = html.replace(/^---$/gm, '<hr class="md-hr" />')
 
-  // LaTeX 行内公式 $...$
-  html = html.replace(/\$([^$\n]+)\$/g, (_m, tex) => {
-    return `<span class="md-latex">${renderLatexInline(tex)}</span>`
-  })
+    // 链接
+    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
 
-  // LaTeX 块级公式 $$...$$
-  html = html.replace(/\$\$([\s\S]+?)\$\$/g, (_m, tex) => {
-    return `<div class="md-latex-block">${renderLatexBlock(tex.trim())}</div>`
-  })
+    // LaTeX 块级公式 $$...$$（流式未闭合时跳过）
+    html = html.replace(/\$\$([\s\S]+?)\$\$/g, (_m, tex) => {
+      return `<div class="md-latex-block">${renderLatexBlock(tex.trim())}</div>`
+    })
 
-  // LaTeX 环境 \begin{equation}...\end{equation} 等
-  html = html.replace(/\\begin\{(equation\*?|align\*?|gather\*?)\}([\s\S]*?)\\end\{\1\}/g, (_m, env, body) => {
-    return `<div class="md-latex-block">${renderLatexBlock(body.trim())}</div>`
-  })
+    // LaTeX 行内公式 $...$
+    html = html.replace(/\$([^$\n]+)\$/g, (_m, tex) => {
+      return `<span class="md-latex">${renderLatexInline(tex)}</span>`
+    })
 
-  // 换行
-  html = html.replace(/\n\n/g, '</p><p>')
-  html = html.replace(/\n/g, '<br />')
+    // LaTeX 环境
+    html = html.replace(/\\begin\{(equation\*?|align\*?|gather\*?)\}([\s\S]*?)\\end\{\1\}/g, (_m, env, body) => {
+      return `<div class="md-latex-block">${renderLatexBlock(body.trim())}</div>`
+    })
 
-  return `<p class="md-para">${html}</p>`
+    // 换行
+    html = html.replace(/\n\n/g, '</p><p>')
+    html = html.replace(/\n/g, '<br />')
+
+    return `<p class="md-para">${html}</p>`
+  } catch {
+    // 渲染失败时退回纯文本，避免流式中断
+    return `<p class="md-para">${escapeHtml(text)}</p>`
+  }
 }
 
 function escapeHtml(text: string): string {

@@ -188,11 +188,38 @@ function iconFor(entry: DirEntry): string {
 // 右键菜单
 function onContextMenu(e: MouseEvent) {
   e.preventDefault()
+  // 关闭其他菜单
+  window.dispatchEvent(new CustomEvent('close-all-menus'))
   ctxMenu.value = { show: true, x: e.clientX, y: e.clientY }
 }
 
 function closeCtxMenu() {
   ctxMenu.value.show = false
+}
+
+async function openFolderDialog() {
+  const path = await window.electronAPI.openFolder()
+  if (path) await docStore.openProjectFolder(path)
+}
+
+function exitWorkspace() {
+  if (!docStore.projectRoot) return
+  const dirtyCount = docStore.tabs.filter((t) => t.isDirty).length
+  const msg = dirtyCount > 0
+    ? `退出当前工作区？\n\n已打开的 ${docStore.tabs.length} 个文件标签将全部关闭，其中 ${dirtyCount} 个有未保存更改（会丢失）。\n\n确定退出？`
+    : `退出当前工作区？\n\n已打开的 ${docStore.tabs.length} 个文件标签将全部关闭。\n\n确定退出？`
+  if (!confirm(msg)) return
+  // 真正关闭所有标签
+  docStore.tabs.splice(0, docStore.tabs.length)
+  docStore.activeTabId = null
+  docStore.mainTexPath = null
+  docStore.projectRoot = null
+  tree.value = []
+  expanded.value.clear()
+  extraTrees.value.clear()
+  extraOpen.value.clear()
+  workspaceOpen.value = false
+  loadTree()
 }
 
 function ctxAction(action: string) {
@@ -226,6 +253,11 @@ function onGlobalClick(e: Event) {
   }
 }
 
+function onCloseAllMenus() {
+  closeCtxMenu()
+  showNewInput.value = false
+}
+
 watch(
   () => docStore.projectRoot,
   () => {
@@ -239,10 +271,14 @@ watch(
 onMounted(() => {
   loadTree()
   document.addEventListener('click', onGlobalClick)
+  window.addEventListener('refresh-file-tree', loadTree)
+  window.addEventListener('close-all-menus', onCloseAllMenus)
 })
 
 onUnmounted(() => {
   document.removeEventListener('click', onGlobalClick)
+  window.removeEventListener('refresh-file-tree', loadTree)
+  window.removeEventListener('close-all-menus', onCloseAllMenus)
 })
 </script>
 
@@ -250,6 +286,18 @@ onUnmounted(() => {
   <div class="file-tree">
     <div class="tree-header">
       <span class="tree-title">工作区</span>
+      <button
+        v-if="docStore.projectRoot"
+        class="ws-icon-btn exit-ws-btn"
+        title="退出当前工作区"
+        @click="exitWorkspace"
+      >
+        <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+          <path d="M5.5 2.5H3.5C2.67 2.5 2 3.17 2 4v6c0 .83.67 1.5 1.5 1.5h2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+          <path d="M8.5 4.5L11 7l-2.5 2.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+          <line x1="6" y1="7" x2="11" y2="7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+        </svg>
+      </button>
     </div>
 
     <div class="tree-scroll" @contextmenu="onContextMenu">
@@ -354,8 +402,15 @@ onUnmounted(() => {
 
       <!-- 未打开工作区 -->
       <div v-if="!docStore.projectRoot" class="tree-empty">
-        未打开文件夹<br />
-        <small>点击工具栏「文件夹」打开项目目录</small>
+        <div class="empty-icon">📁</div>
+        <p>未打开文件夹</p>
+        <button class="open-folder-btn" @click="openFolderDialog">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M1.5 3.5C1.5 2.67 2.17 2 3 2h3l1.5 1.5H11c.83 0 1.5.67 1.5 1.5v6c0 .83-.67 1.5-1.5 1.5H3c-.83 0-1.5-.67-1.5-1.5v-7z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+          </svg>
+          打开文件夹
+        </button>
+        <small>或通过「文件 → 打开文件夹」打开项目</small>
       </div>
     </div>
 
@@ -408,7 +463,8 @@ onUnmounted(() => {
 .tree-header {
   display: flex;
   align-items: center;
-  padding: 6px 12px;
+  justify-content: space-between;
+  padding: 6px 8px 6px 12px;
   flex-shrink: 0;
   position: relative;
 }
@@ -426,6 +482,13 @@ onUnmounted(() => {
   font-weight: 600;
   color: var(--text-secondary);
   letter-spacing: 0.5px;
+}
+.exit-ws-btn {
+  flex-shrink: 0;
+}
+.exit-ws-btn:hover {
+  color: var(--error);
+  background: var(--error-bg);
 }
 .tree-scroll {
   flex: 1;
@@ -525,23 +588,66 @@ onUnmounted(() => {
   background: var(--accent-hover);
 }
 .tree-empty {
-  padding: 20px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 28px 16px;
   text-align: center;
   color: var(--text-tertiary);
   font-size: 12px;
-  line-height: 1.8;
+  line-height: 1.6;
+}
+.tree-empty .empty-icon {
+  font-size: 28px;
+  opacity: 0.5;
+  margin-bottom: 4px;
+}
+.open-folder-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  font-size: 12px;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.open-folder-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-light);
+}
+.tree-empty small {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  opacity: 0.7;
 }
 
 /* 右键菜单 */
 .ctx-menu {
   position: fixed;
   z-index: 10000;
-  background: var(--bg-primary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  background: rgba(30, 30, 46, 0.3);
+  backdrop-filter: blur(20px) saturate(1.6);
+  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
   box-shadow: var(--shadow-lg);
   min-width: 200px;
   padding: 4px 0;
+  animation: menuPop 0.14s ease;
+}
+[data-theme="light"] .ctx-menu {
+  background: rgba(255, 255, 255, 0.3);
+  border-color: rgba(0, 0, 0, 0.06);
+}
+@keyframes menuPop {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 .ctx-item {
   display: flex;

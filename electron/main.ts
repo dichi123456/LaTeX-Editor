@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, dialog, shell, Notification, Menu, nativeI
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import * as path from 'path'
+import { autoUpdater } from 'electron-updater'
 
 import { detectTexLive, getEnginePath } from './texlive'
 import { compileDocument, cancelCompile, isCompiling, cleanAuxFiles, runBibtex } from './compiler'
@@ -62,7 +63,63 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
-  electronApp.setAppUserModelId('com.latex.editor')
+  electronApp.setAppUserModelId('com.moling.tex')
+
+  // 版本升级时清理最近文件等痕迹（不删 localStorage，保留 API Key）
+  try {
+    const fs = require('fs')
+    const versionFile = join(app.getPath('userData'), '.app-version')
+    const current = app.getVersion()
+    let prev = ''
+    try { prev = fs.readFileSync(versionFile, 'utf-8').trim() } catch { /* first run */ }
+    if (prev && prev !== current) {
+      const ud = app.getPath('userData')
+      for (const f of ['recent.json', 'recent-workspaces.json']) {
+        try { fs.unlinkSync(join(ud, f)) } catch { /* ignore */ }
+      }
+    }
+    fs.writeFileSync(versionFile, current, 'utf-8')
+  } catch { /* ignore */ }
+
+  // 自动更新配置（仅打包版启用）
+  if (!is.dev) {
+    autoUpdater.autoDownload = false
+    autoUpdater.autoInstallOnAppQuit = true
+    autoUpdater.on('update-available', (info) => {
+      dialog.showMessageBox(mainWindow!, {
+        type: 'info',
+        title: '发现新版本',
+        message: `墨灵TeX ${info.version} 已发布`,
+        detail: `当前版本：${app.getVersion()}\n\n是否前往 GitHub 下载新版本？`,
+        buttons: ['前往下载', '稍后再说'],
+        defaultId: 0,
+        cancelId: 1
+      }).then(({ response }) => {
+        if (response === 0) {
+          shell.openExternal('https://github.com/dichi123456/LaTeX-Editor/releases/latest')
+        }
+      })
+    })
+    autoUpdater.on('update-not-available', () => {
+      dialog.showMessageBox(mainWindow!, {
+        type: 'info',
+        title: '已是最新版本',
+        message: `当前版本 ${app.getVersion()} 已是最新。`
+      })
+    })
+    autoUpdater.on('error', (err) => {
+      console.error('[autoUpdater]', err)
+      dialog.showMessageBox(mainWindow!, {
+        type: 'error',
+        title: '检查更新失败',
+        message: '无法连接更新服务器，请检查网络后重试。'
+      })
+    })
+    // 启动后 8 秒静默检查
+    setTimeout(() => {
+      autoUpdater.checkForUpdates().catch(() => { /* ignore */ })
+    }, 8000)
+  }
 
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
@@ -100,6 +157,28 @@ function buildMenu(): void {
         { label: '另存为…', accelerator: 'Ctrl+Shift+S', click: () => sendMenu('save-as') },
         { type: 'separator' },
         { label: '设置', accelerator: 'Ctrl+,', click: () => sendMenu('settings') },
+        { type: 'separator' },
+        {
+          label: '检查更新',
+          click: () => {
+            if (is.dev) {
+              dialog.showMessageBox(mainWindow!, {
+                type: 'info',
+                title: '开发模式',
+                message: '开发模式下不支持检查更新。'
+              })
+              return
+            }
+            dialog.showMessageBox(mainWindow!, {
+              type: 'info',
+              title: '检查更新',
+              message: '正在检查更新…'
+            })
+            autoUpdater.checkForUpdates().catch((err) => {
+              console.error('[check-update]', err)
+            })
+          }
+        },
         { type: 'separator' },
         { role: 'quit', label: '退出' }
       ]
@@ -406,7 +485,6 @@ ipcMain.handle('ai-chat', async (_event, options: {
   model: string
   messages: Array<{ role: string; content: string }>
   temperature?: number
-  maxTokens?: number
   workspaceRoot?: string | null
   texlivePath?: string | null
   enableTools?: boolean
@@ -414,7 +492,7 @@ ipcMain.handle('ai-chat', async (_event, options: {
 }) => {
   const {
     apiKey, apiBase, model, messages,
-    temperature = 0.7, maxTokens = 4096,
+    temperature = 0.7,
     workspaceRoot, texlivePath: tlPath,
     enableTools = true, permissionMode = 'full'
   } = options
@@ -423,10 +501,32 @@ ipcMain.handle('ai-chat', async (_event, options: {
   if (workspaceRoot) setWorkspace(workspaceRoot)
   if (tlPath) setTexlivePath(tlPath)
 
-  const maxIterations = 5 // 防止无限循环
+  const maxIterations = 8 // 给 agent 足够空间完成多步任务
   let allMessages = [...messages]
   let fullReasoning = ''
   aiAbortController = new AbortController()
+
+  // 上下文溢出自动压缩（Kilo Code 风格）
+  function compactMessages(msgs: any[]): any[] {
+    if (msgs.length <= 6) return msgs
+    // 保留 system + 最后 4 条用户/助手消息，中间压缩为摘要
+    const system = msgs[0]
+    const rest = msgs.slice(1)
+    if (rest.length <= 4) return msgs
+    const older = rest.slice(0, rest.length - 4)
+    const newer = rest.slice(-4)
+    const summaryContent = `【上下文摘要】此前对话已压缩。共 ${older.length} 条历史消息已省略。用户之前的请求和工具结果已处理完毕，如有需要可重新 read_file 获取文件当前状态。`
+    const summary = { role: 'user', content: summaryContent }
+    return [system, summary, ...newer]
+  }
+
+  // 每次迭代前检查是否需要压缩
+  function maybeCompact(): void {
+    const approxChars = allMessages.reduce((sum, m) => sum + (m.content?.length || 0), 0)
+    if (approxChars > 80000) {
+      allMessages = compactMessages(allMessages)
+    }
+  }
 
   for (let iter = 0; iter < maxIterations; iter++) {
     // 检查是否被中断
@@ -435,14 +535,17 @@ ipcMain.handle('ai-chat', async (_event, options: {
       return { success: false, error: '已取消' }
     }
 
+    // 上下文过长时自动压缩
+    maybeCompact()
+
     const useTools = enableTools && iter < maxIterations - 1
 
     const body: any = {
       model,
       messages: allMessages,
       temperature,
-      max_tokens: maxTokens,
       stream: true
+      // 不传 max_tokens：让 API 使用模型自身支持的上下文/输出上限
     }
     if (useTools) {
       body.tools = TOOLS
@@ -462,11 +565,26 @@ ipcMain.handle('ai-chat', async (_event, options: {
 
       if (!resp.ok) {
         const errText = await resp.text().catch(() => '')
-        return { success: false, error: `API 错误 ${resp.status}: ${errText.slice(0, 500)}` }
+        const hint = resp.status === 401
+          ? 'API Key 无效或已过期，请检查设置中的 Key。'
+          : resp.status === 404
+            ? '接口地址错误，请检查 API 地址是否包含 /v1（如 https://api.deepseek.com/v1）。'
+            : resp.status === 429
+              ? '请求过于频繁或额度不足，请稍后再试。'
+              : ''
+        const errMsg = `API 错误 ${resp.status}: ${errText.slice(0, 300)}${hint ? `\n${hint}` : ''}`
+        mainWindow?.webContents.send('ai-stream', { type: 'error', text: errMsg })
+        return { success: false, error: errMsg }
+      }
+
+      if (!resp.body) {
+        const errMsg = 'API 未返回响应流（body 为空）'
+        mainWindow?.webContents.send('ai-stream', { type: 'error', text: errMsg })
+        return { success: false, error: errMsg }
       }
 
       // 流式读取 SSE
-      const reader = resp.body!.getReader()
+      const reader = resp.body.getReader()
       const decoder = new TextDecoder()
       let buffer = ''
       let fullContent = ''
@@ -502,9 +620,11 @@ ipcMain.handle('ai-chat', async (_event, options: {
               fullContent += delta.content
               mainWindow?.webContents.send('ai-stream', { type: 'content', text: delta.content })
             }
-            if (delta?.reasoning_content) {
-              fullReasoning += delta.reasoning_content
-              mainWindow?.webContents.send('ai-stream', { type: 'reasoning', text: delta.reasoning_content })
+            // 思考过程：兼容 reasoning_content / reasoning / thinking 等字段
+            const reasoningText = delta?.reasoning_content ?? delta?.reasoning ?? delta?.thinking
+            if (reasoningText) {
+              fullReasoning += reasoningText
+              mainWindow?.webContents.send('ai-stream', { type: 'reasoning', text: reasoningText })
             }
             // 工具调用（流式增量）
             if (delta?.tool_calls) {
@@ -543,7 +663,46 @@ ipcMain.handle('ai-chat', async (_event, options: {
             args: tc.function.arguments
           })
 
-          const result = await executeTool(tc)
+          // 写操作：请求批准模式下先弹确认框
+          let result
+          const isWrite = tc.function.name === 'write_file' || tc.function.name === 'replace_text'
+          if (isWrite && permissionMode === 'ask') {
+            let detail = ''
+            try {
+              const args = JSON.parse(tc.function.arguments)
+              if (tc.function.name === 'replace_text') {
+                detail = `将修改文件：\n${args.path || '(未知)'}\n\n查找：\n${String(args.find || '').slice(0, 200)}\n\n替换为：\n${String(args.replace || '').slice(0, 200)}`
+              } else {
+                detail = `将写入文件：\n${args.path || '(未知)'}\n\n内容长度：${String(args.content || '').length} 字符`
+              }
+            } catch { detail = tc.function.arguments.slice(0, 300) }
+
+            const choice = dialog.showMessageBoxSync(mainWindow!, {
+              type: 'question',
+              buttons: ['允许', '拒绝'],
+              defaultId: 0,
+              cancelId: 1,
+              title: '墨灵请求写入',
+              message: tc.function.name === 'replace_text' ? '允许替换文件内容？' : '允许写入文件？',
+              detail
+            })
+            if (choice === 1) {
+              mainWindow?.webContents.send('ai-stream', {
+                type: 'tool_result',
+                toolName: tc.function.name,
+                result: '用户拒绝了此次写入操作。',
+                success: false
+              })
+              allMessages.push({
+                role: 'tool',
+                tool_call_id: tc.id,
+                content: '用户拒绝了此次写入操作。请告知用户已取消，不要重试写入。'
+              } as any)
+              continue
+            }
+          }
+
+          result = await executeTool(tc)
 
           mainWindow?.webContents.send('ai-stream', {
             type: 'tool_result',

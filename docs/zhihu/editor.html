@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>墨灵 TeX：开箱即用的本地 LaTeX 编辑器 — 知乎富文本草稿</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+      "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    background: #eceae6;
+    color: #1a1a1a;
+    line-height: 1.75;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── 顶栏 ── */
+  .topbar {
+    flex-shrink: 0;
+    background: #fff;
+    border-bottom: 1px solid #e5e5e5;
+    padding: 0 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: 52px;
+  }
+  .topbar-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #333;
+    margin-right: auto;
+  }
+  .topbar-title span {
+    font-weight: 400;
+    color: #999;
+    margin-left: 8px;
+    font-size: 12px;
+  }
+
+  .btn {
+    border: none;
+    border-radius: 8px;
+    padding: 9px 18px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, box-shadow 0.15s;
+    letter-spacing: 0.02em;
+  }
+  .btn-primary {
+    background: #0066ff;
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(0,102,255,0.25);
+  }
+  .btn-primary:hover { background: #0052cc; box-shadow: 0 4px 12px rgba(0,102,255,0.35); }
+  .btn-ghost {
+    background: transparent;
+    color: #666;
+    border: 1px solid #ddd;
+  }
+  .btn-ghost:hover { background: #f7f7f7; border-color: #ccc; }
+  .btn.ok { background: #15803d; box-shadow: none; }
+  .btn.err { background: #b91c1c; box-shadow: none; }
+
+  /* ── 工具栏 ── */
+  .toolbar {
+    flex-shrink: 0;
+    background: #fff;
+    border-bottom: 1px solid #e5e5e5;
+    padding: 8px 20px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px;
+    align-items: center;
+  }
+  .tb-btn {
+    min-width: 34px;
+    height: 34px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: #444;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .tb-btn:hover { background: #f0f0f0; color: #111; }
+  .tb-btn:active { background: #e8e8e8; }
+  .tb-sep {
+    width: 1px;
+    height: 20px;
+    background: #e0e0e0;
+    margin: 0 8px;
+  }
+  .tb-select {
+    height: 34px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 0 10px;
+    font-size: 13px;
+    background: #fff;
+    color: #333;
+    cursor: pointer;
+    min-width: 90px;
+  }
+  .tb-select:focus { outline: none; border-color: #0066ff; }
+
+  /* ── 主体 ── */
+  .main {
+    flex: 1;
+    overflow: auto;
+    padding: 28px 16px 72px;
+  }
+  .sheet {
+    max-width: 740px;
+    margin: 0 auto;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.06);
+    padding: 44px 52px 56px;
+  }
+
+  /* 标题 */
+  .title-field {
+    width: 100%;
+    border: none;
+    outline: none;
+    font-size: 26px;
+    font-weight: 700;
+    line-height: 1.35;
+    color: #1a1a1a;
+    margin-bottom: 10px;
+    font-family: inherit;
+    letter-spacing: -0.01em;
+  }
+  .title-field:empty::before {
+    content: attr(data-placeholder);
+    color: #c0c0c0;
+  }
+  .title-rule {
+    border: none;
+    border-top: 1px solid #f0f0f0;
+    margin: 18px 0 22px;
+  }
+  .subtitle-field {
+    width: 100%;
+    border: none;
+    outline: none;
+    font-size: 14px;
+    color: #999;
+    margin-bottom: 4px;
+    font-family: inherit;
+    line-height: 1.6;
+  }
+  .subtitle-field:empty::before {
+    content: attr(data-placeholder);
+    color: #ccc;
+  }
+
+  /* 正文编辑区 */
+  .editor {
+    min-height: 520px;
+    outline: none;
+    font-size: 16px;
+    color: #1a1a1a;
+    line-height: 1.9;
+    letter-spacing: 0.01em;
+  }
+  .editor:empty::before {
+    content: attr(data-placeholder);
+    color: #c0c0c0;
+  }
+
+  /* —— 编辑器内部排版：对齐知乎正文风格 —— */
+  .editor h2 {
+    font-size: 20px;
+    font-weight: 700;
+    color: #111;
+    margin: 36px 0 14px;
+    padding: 0 0 8px 12px;
+    border-left: 4px solid #0066ff;
+    border-bottom: 1px solid #f0f0f0;
+    line-height: 1.35;
+    letter-spacing: -0.01em;
+  }
+  .editor h3 {
+    font-size: 17px;
+    font-weight: 650;
+    color: #1a1a1a;
+    margin: 26px 0 10px;
+    line-height: 1.4;
+    position: relative;
+    padding-left: 14px;
+  }
+  .editor h3::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: #0066ff;
+  }
+  .editor p {
+    margin: 0 0 16px;
+    text-align: justify;
+  }
+  .editor ul, .editor ol {
+    margin: 0 0 16px;
+    padding-left: 1.6em;
+  }
+  .editor ul { list-style: disc; }
+  .editor ol { list-style: decimal; }
+  .editor li {
+    margin-bottom: 6px;
+    line-height: 1.85;
+  }
+  .editor li::marker { color: #0066ff; }
+  .editor strong {
+    font-weight: 650;
+    color: #111;
+  }
+  .editor a {
+    color: #0066ff;
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+    transition: border-color 0.15s;
+  }
+  .editor a:hover { border-bottom-color: #0066ff; }
+  .editor blockquote {
+    margin: 18px 0;
+    padding: 12px 18px;
+    border-left: 3px solid #0066ff;
+    background: linear-gradient(90deg, #f0f6ff 0%, #fafbff 100%);
+    color: #333;
+    border-radius: 0 8px 8px 0;
+    font-size: 15px;
+  }
+  .editor blockquote p:last-child { margin-bottom: 0; }
+  .editor pre {
+    background: #1e1e2e;
+    border: none;
+    border-radius: 10px;
+    padding: 16px 18px;
+    overflow-x: auto;
+    font-size: 13px;
+    line-height: 1.7;
+    margin: 16px 0;
+    font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+    white-space: pre-wrap;
+    color: #cdd6f4;
+  }
+  .editor code {
+    font-family: "Cascadia Code", Consolas, monospace;
+    font-size: 0.88em;
+    background: #f3f4f6;
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: #c7254e;
+  }
+  .editor pre code {
+    background: none;
+    padding: 0;
+    color: inherit;
+    font-size: inherit;
+  }
+
+  /* 表格：知乎风细边框 */
+  .editor table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 18px 0;
+    font-size: 14px;
+    line-height: 1.65;
+    border: 1px solid #e8e8e8;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .editor th, .editor td {
+    border: 1px solid #ebebeb;
+    padding: 10px 14px;
+    text-align: left;
+    vertical-align: top;
+  }
+  .editor th {
+    background: #f8f9fb;
+    font-weight: 650;
+    color: #333;
+    font-size: 13px;
+    letter-spacing: 0.02em;
+  }
+  .editor tbody tr:nth-child(even) td { background: #fafbfc; }
+  .editor tbody tr:hover td { background: #f0f6ff; }
+
+  /* 提示块 */
+  .editor .callout {
+    margin: 20px 0;
+    padding: 16px 18px;
+    background: linear-gradient(135deg, #fffbeb 0%, #fef9ee 100%);
+    border: 1px solid #f5e6a3;
+    border-radius: 10px;
+    font-size: 14px;
+    line-height: 1.7;
+  }
+  .editor .callout-title {
+    font-weight: 700;
+    color: #b45309;
+    margin-bottom: 6px;
+    font-size: 13px;
+    letter-spacing: 0.03em;
+  }
+  .editor hr {
+    border: none;
+    height: 1px;
+    background: #ebebeb;
+    margin: 32px 0;
+  }
+
+  /* 截图占位 */
+  .editor .fig-note {
+    color: #999;
+    font-size: 13px;
+    margin: 14px 0 18px;
+    padding: 16px 18px;
+    background: #fafafa;
+    border: 1px dashed #d0d0d0;
+    border-radius: 10px;
+    text-align: center;
+    letter-spacing: 0.02em;
+  }
+
+  /* 标签 */
+  .editor .tags-row {
+    margin-top: 28px;
+    padding-top: 18px;
+    border-top: 1px solid #f0f0f0;
+    font-size: 13px;
+    color: #888;
+  }
+  .editor .tags-row span {
+    display: inline-block;
+    background: #f0f6ff;
+    color: #0066ff;
+    border: 1px solid #d6e6ff;
+    border-radius: 20px;
+    padding: 4px 14px;
+    margin: 4px 6px 0 0;
+    font-size: 12px;
+    font-weight: 500;
+  }
+
+  /* ── 底部提示 ── */
+  .hint {
+    flex-shrink: 0;
+    background: #fff;
+    border-top: 1px solid #e5e5e5;
+    padding: 12px 20px;
+    font-size: 12px;
+    color: #aaa;
+    text-align: center;
+    line-height: 1.6;
+  }
+
+  /* 编辑区焦点提示 */
+  .sheet:focus-within {
+    box-shadow: 0 1px 4px rgba(0,0,0,0.04), 0 8px 28px rgba(0,102,255,0.10);
+  }
+
+  /* 全局 max-width 保护 */
+  .editor * { max-width: 100%; }
+  .editor img { max-width: 100%; height: auto; border-radius: 8px; }
+
+  /* 选中态 */
+  .editor ::selection { background: #cce0ff; }
+  .title-field ::selection { background: #cce0ff; }
+</style>
+</head>
+<body>
+
+  <!-- 顶栏 -->
+  <div class="topbar">
+    <div class="topbar-title">知乎草稿 · 富文本编辑<span>可直接编辑后复制</span></div>
+    <button type="button" class="btn btn-ghost" id="btnPlain">复制纯文本</button>
+    <button type="button" class="btn btn-primary" id="btnCopy">复制富文本</button>
+  </div>
+
+  <!-- 工具栏 -->
+  <div class="toolbar">
+    <select class="tb-select" id="blockStyle" title="段落样式">
+      <option value="p">正文</option>
+      <option value="h2">标题 2</option>
+      <option value="h3">标题 3</option>
+      <option value="pre">代码块</option>
+      <option value="blockquote">引用</option>
+    </select>
+    <span class="tb-sep"></span>
+    <button type="button" class="tb-btn" data-cmd="bold" title="加粗 Ctrl+B"><b>B</b></button>
+    <button type="button" class="tb-btn" data-cmd="italic" title="斜体 Ctrl+I"><i>I</i></button>
+    <button type="button" class="tb-btn" data-cmd="underline" title="下划线 Ctrl+U"><u>U</u></button>
+    <span class="tb-sep"></span>
+    <button type="button" class="tb-btn" data-cmd="insertUnorderedList" title="无序列表">• 列表</button>
+    <button type="button" class="tb-btn" data-cmd="insertOrderedList" title="有序列表">1. 列表</button>
+    <span class="tb-sep"></span>
+    <button type="button" class="tb-btn" id="btnTable" title="插入表格">表格</button>
+    <button type="button" class="tb-btn" id="btnCode" title="插入代码块">{ 代码 }</button>
+    <button type="button" class="tb-btn" id="btnHr" title="分割线">—</button>
+    <span class="tb-sep"></span>
+    <button type="button" class="tb-btn" data-cmd="removeFormat" title="清除格式">清除</button>
+  </div>
+
+  <!-- 主体 -->
+  <div class="main">
+    <div class="sheet">
+      <div class="title-field" id="titleField" contenteditable="true"
+           data-placeholder="在这里填标题（复制时会单独提示）"></div>
+      <hr class="title-rule" />
+      <div class="subtitle-field" id="subtitleField" contenteditable="true"
+           data-placeholder="一句话副标题（可选）"></div>
+      <div class="editor" id="editor" contenteditable="true"
+           data-placeholder="正文内容…"></div>
+    </div>
+  </div>
+
+  <div class="hint">
+    编辑完成后点右上角「复制富文本」，再粘贴到知乎草稿编辑器。
+    标题请先复制标题栏内容，粘到知乎的「标题」输入框。
+  </div>
+
+<script>
+(function () {
+  var titleEl = document.getElementById("titleField");
+  var subEl = document.getElementById("subtitleField");
+  var editor = document.getElementById("editor");
+  var btnCopy = document.getElementById("btnCopy");
+  var btnPlain = document.getElementById("btnPlain");
+  var blockStyle = document.getElementById("blockStyle");
+
+  // ── 初始内容 ──
+  titleEl.textContent = "墨灵 TeX：开箱即用的本地 LaTeX 编辑器，内置 AI 助手";
+  subEl.textContent = "开源免费 · 无需配置 · 数据不出本机 · AI 可直接改你的 .tex 文件";
+
+  editor.innerHTML = [
+    '<p>本文介绍一款开源的本地 LaTeX 桌面编辑器，名为墨灵 TeX（产品名 LaTeX编辑器）。面向所有需要在 Windows 上写 LaTeX 的用户，中文论文、英文论文、实验报告、幻灯片均可。软件采用 Electron 33 + Vue 3 + TypeScript 技术栈实现，以 MIT 协议发布。安装包约 96 MB，运行时内存占用低于 200 MB，不依赖网络，数据全部保留在本机。</p>',
+
+    '<p>核心指标一览：安装包约 96 MB · 运行内存低于 200 MB · 无需联网 · 开箱即用。</p>',
+
+    '<h2>开发背景</h2>',
+    '<p>现有 LaTeX 写作工具可分为三类。Overleaf 提供云端实时协作与编译，但依赖网络与账号，免费版功能受限，文档存储于远程服务器。TeXstudio 功能完整、本地运行，但上手需要一定配置，且未集成 AI 能力。VS Code 配合 LaTeX Workshop 扩展可覆盖大部分需求，但对非开发背景用户而言，扩展安装与 latexmk 配置的门槛偏高。</p>',
+    '<p>墨灵 TeX 的设计目标是让 LaTeX 开箱即用：装好就能写，无需配置环境；同时将 AI 助手以可操作项目文件的方式集成进编辑流程，而非仅提供一个独立的对话窗口。</p>',
+
+    '<h2>功能概览</h2>',
+    '<p>下表列出墨灵 TeX 与 Overleaf、TeXstudio 在主要能力上的对比。</p>',
+    '<table><thead><tr><th>能力</th><th>墨灵 TeX</th><th>Overleaf</th><th>TeXstudio</th></tr></thead><tbody>',
+    '<tr><td>完全本地运行</td><td>是</td><td>否，云端存储</td><td>是</td></tr>',
+    '<tr><td>无需注册或联网</td><td>是</td><td>否</td><td>是</td></tr>',
+    '<tr><td>内置 AI 助手</td><td>是，墨灵</td><td>付费功能</td><td>否</td></tr>',
+    '<tr><td>AI 可读写项目文件</td><td>Agent 模式</td><td>否</td><td>否</td></tr>',
+    '<tr><td>开箱即用（无需配置）</td><td>是</td><td>需账号与网络</td><td>需手动配置</td></tr>',
+    '<tr><td>SyncTeX 正反向同步</td><td>支持</td><td>支持</td><td>支持</td></tr>',
+    '<tr><td>安装包体积</td><td>约 96 MB</td><td>—</td><td>约 80 MB</td></tr>',
+    '<tr><td>开源协议</td><td>MIT</td><td>部分收费</td><td>GPL</td></tr>',
+    '</tbody></table>',
+
+    '<h2>界面布局</h2>',
+    '<p>界面采用四区域布局，依次为文件树、代码编辑区、PDF 预览区和 AI 助手面板。各区域宽度可拖拽调整，位置可以互换。AI 面板可关闭，关闭后界面仅保留文件管理、编辑与预览功能。</p>',
+    '<p class="fig-note">［此处插入主界面截图：文件树 · CodeMirror 编辑器 · PDF.js 预览］</p>',
+
+    '<h2>开箱即用</h2>',
+    '<p>装好 TeX Live，打开软件即可开始写作，无需配置编译器路径、字体宏包或扩展。对中文用户尤其友好，具体措施如下。</p>',
+    '<ul>',
+    '<li>默认编译器设为 XeLaTeX。该引擎对 Unicode 与系统字体支持较好，是中文场景的常用选择。</li>',
+    '<li>新建中文文档时自动加载 ctex 宏集，用户无需在导言区手动添加相关包。</li>',
+    '<li>自动检测 Windows 系统已安装的中文字体（宋体、黑体、微软雅黑、仿宋等），并在设置中提供字体选择。</li>',
+    '<li>编辑器按字符断行，中文输入法的候选框定位正确，行高按中文阅读习惯设置。</li>',
+    '</ul>',
+
+    '<h2>AI 助手</h2>',
+    '<p>软件内置 AI 助手「墨灵」，通过 Agent 模式工作。与仅提供对话窗口的方案不同，Agent 模式允许模型读取项目目录中的文件、搜索内容、修改 .tex 源文件、触发编译，并根据编译结果继续操作。</p>',
+    '<p class="fig-note">［此处插入 AI 助手界面截图：Agent 模式可调用文件读写与编译工具］</p>',
+
+    '<h3>典型操作</h3>',
+    '<p><strong>局部文本替换。</strong>在编辑器中选中一段文字后发起对话，所选内容会自动附带行号发送给模型。模型通过 replace_text 接口执行精确替换，不会重写整个文件。</p>',
+    '<p><strong>编译错误处理。</strong>编译失败时，可将日志提供给模型（或由模型自行读取）。模型定位错误位置、修改源码或导言区后重新触发编译，并检查结果。</p>',
+    '<p><strong>参考文献插入。</strong>可要求模型生成 BibTeX 条目并插入 \\cite 命令。所引文献的真实性需要用户自行核实。</p>',
+    '<p><strong>多文件项目。</strong>以文件夹方式打开项目后，模型可在多个 .tex 文件之间跳转并执行修改。例如统一调整某一章的公式编号格式。</p>',
+
+    '<h3>API 配置</h3>',
+    '<p>墨灵对接任意 OpenAI 兼容接口。DeepSeek、Moonshot、通义、OpenAI 等服务均可使用。在设置中填写 API 地址与密钥，获取模型列表并勾选即可启用。</p>',
+    '<pre>设置 → 墨灵 AI 助手\nAPI 地址  https://api.deepseek.com/v1\nAPI Key   sk-xxxx\n模型      deepseek-chat（已勾选）</pre>',
+
+    '<h2>其他功能</h2>',
+    '<ul>',
+    '<li>编译引擎支持 XeLaTeX、pdfLaTeX、LuaLaTeX 与 latexmk。按 F5 触发编译。BibTeX 的多轮编译流程自动执行。</li>',
+    '<li>SyncTeX 同步。编辑器中 Ctrl+Click 跳转 PDF 对应位置，PDF 中 Ctrl+Click 跳回源码行。</li>',
+    '<li>编译日志面板支持错误与警告高亮、按类型过滤，点击错误可跳转至源码行。</li>',
+    '<li>智能补全。cite 环境自动从 .bib 文件提取引用键，ref 环境自动列出已定义的 label。</li>',
+    '<li>支持深色、浅色与跟随系统三种主题。</li>',
+    '</ul>',
+
+    '<h2>技术实现</h2>',
+    '<table><thead><tr><th>层级</th><th>选型</th></tr></thead><tbody>',
+    '<tr><td>桌面框架</td><td>Electron 33</td></tr>',
+    '<tr><td>前端框架</td><td>Vue 3 + TypeScript</td></tr>',
+    '<tr><td>代码编辑器</td><td>CodeMirror 6</td></tr>',
+    '<tr><td>PDF 预览</td><td>PDF.js</td></tr>',
+    '<tr><td>状态管理</td><td>Pinia</td></tr>',
+    '<tr><td>构建工具</td><td>electron-vite</td></tr>',
+    '<tr><td>编译调用</td><td>本地 TeX Live，不内置发行版</td></tr>',
+    '</tbody></table>',
+    '<p>选择 Electron 而非 Tauri，主要出于团队对 Web 技术栈的熟悉程度，以及 CodeMirror 6 与 PDF.js 在 Electron 生态中的集成成本较低。代价是安装包体积大于 Tauri 方案，约 96 MB，对桌面应用可接受。</p>',
+
+    '<h2>安装与下载</h2>',
+    '<p>可从 <a href="https://github.com/dichi123456/LaTeX-Editor" target="_blank" rel="noopener">GitHub Releases</a> 获取安装包。安装版为 exe 格式，双击安装；便携版为 zip 压缩包，解压后可直接运行。</p>',
+    '<p>欢迎各位用户试用。如果觉得这个项目对你有帮助，还请到 GitHub 仓库点一下 Star（星星），这是对开源项目最直接的支持。</p>',
+    '<div class="callout"><div class="callout-title">运行环境</div>Windows 10/11（x64）。需已安装 TeX Live 2022–2024 或 MiKTeX。AI 功能为可选项，启用时需自备兼容 API 的密钥。</div>',
+
+    '<hr />',
+    '<p>Overleaf 的协作能力与 TeXstudio 的成熟度是既有优势，墨灵 TeX 不试图替代二者。本项目针对的场景是：希望打开就能用、不想折腾配置、数据不离开本机、以及希望 AI 直接参与文件级编辑的用户。若这些需求与你相关，欢迎下载试用，问题与建议可提交至项目 Issue。</p>',
+
+    '<div class="tags-row"><span>LaTeX</span><span>论文写作</span><span>开源软件</span><span>AI 助手</span><span>Windows</span><span>Electron</span></div>'
+  ].join("\n");
+
+  // ── 工具栏 ──
+  editor.addEventListener("mouseup", syncBlockStyle);
+  editor.addEventListener("keyup", syncBlockStyle);
+
+  function currentBlock() {
+    var sel = window.getSelection();
+    if (!sel.rangeCount) return null;
+    var node = sel.getRangeAt(0).startContainer;
+    while (node && node !== editor) {
+      if (node.nodeType === 1) {
+        var tag = node.tagName.toLowerCase();
+        if (["p","h2","h3","pre","blockquote","li"].indexOf(tag) !== -1) return node;
+      }
+      node = node.parentNode;
+    }
+    return null;
+  }
+
+  function syncBlockStyle() {
+    var b = currentBlock();
+    if (!b) return;
+    var tag = b.tagName.toLowerCase();
+    if (tag === "li") tag = "p"; // 列表内不改块
+    blockStyle.value = (["p","h2","h3","pre","blockquote"].indexOf(tag) !== -1) ? tag : "p";
+  }
+
+  blockStyle.addEventListener("change", function () {
+    editor.focus();
+    var val = blockStyle.value;
+    if (val === "pre") document.execCommand("formatBlock", false, "pre");
+    else if (val === "blockquote") document.execCommand("formatBlock", false, "blockquote");
+    else document.execCommand("formatBlock", false, val);
+  });
+
+  document.querySelectorAll(".tb-btn[data-cmd]").forEach(function (btn) {
+    btn.addEventListener("mousedown", function (e) {
+      e.preventDefault();
+      document.execCommand(btn.getAttribute("data-cmd"), false, null);
+      editor.focus();
+    });
+  });
+
+  document.getElementById("btnTable").addEventListener("mousedown", function (e) {
+    e.preventDefault();
+    var html = '<table><thead><tr><th>列 1</th><th>列 2</th><th>列 3</th></tr></thead><tbody>'
+      + '<tr><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>'
+      + '<tr><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>'
+      + '</tbody></table><p>&nbsp;</p>';
+    editor.focus();
+    document.execCommand("insertHTML", false, html);
+  });
+
+  document.getElementById("btnCode").addEventListener("mousedown", function (e) {
+    e.preventDefault();
+    editor.focus();
+    document.execCommand("insertHTML", false, '<pre><code>// 在此粘贴代码</code></pre><p>&nbsp;</p>');
+  });
+
+  document.getElementById("btnHr").addEventListener("mousedown", function (e) {
+    e.preventDefault();
+    editor.focus();
+    document.execCommand("insertHorizontalRule");
+  });
+
+  // ── 复制（为知乎生成能存活的内联样式 HTML） ──
+  function buildHtml() {
+    var t = titleEl.textContent.trim();
+    var s = subEl.textContent.trim();
+    var wrap = document.createElement("div");
+    wrap.innerHTML = editor.innerHTML;
+
+    // 1) h2：去掉边框，改为大号加粗蓝字 + 前置装饰符号
+    var h2s = wrap.querySelectorAll("h2");
+    for (var i = 0; i < h2s.length; i++) {
+      var h2 = h2s[i];
+      var txt = h2.textContent;
+      h2.removeAttribute("style");
+      // 用 span 包一层做颜色标记，知乎对 span 背景色/文字色较友好
+      h2.innerHTML = '<span style="color:#0066ff;font-size:1.18em;font-weight:700;">▍</span>'
+        + '<span style="font-size:1.18em;font-weight:700;color:#1a1a1a;">' + escapeHtml(txt) + '</span>';
+    }
+
+    // 2) h3：去掉圆点伪元素，改为略小加粗 + 蓝色前缀点
+    var h3s = wrap.querySelectorAll("h3");
+    for (var j = 0; j < h3s.length; j++) {
+      var h3 = h3s[j];
+      var txt3 = h3.textContent;
+      h3.removeAttribute("style");
+      h3.innerHTML = '<span style="color:#0066ff;font-weight:700;">● </span>'
+        + '<span style="font-size:1.05em;font-weight:650;color:#1a1a1a;">' + escapeHtml(txt3) + '</span>';
+    }
+
+    // 3) blockquote：去掉渐变底，改为浅蓝底 + 左边框（若边框被剥仍有底色可辨）
+    var bqs = wrap.querySelectorAll("blockquote");
+    for (var k = 0; k < bqs.length; k++) {
+      bqs[k].style.cssText = "background:#f0f6ff;border-left:3px solid #0066ff;padding:12px 16px;margin:16px 0;border-radius:0 6px 6px 0;color:#333;";
+    }
+
+    // 4) pre：深色底可能被知乎调浅，保留但加上等宽字体
+    var pres = wrap.querySelectorAll("pre");
+    for (var m = 0; m < pres.length; m++) {
+      pres[m].style.cssText = "background:#f6f8fa;border:1px solid #e8e8e8;border-radius:6px;padding:14px 16px;font-family:Consolas,monospace;font-size:13px;line-height:1.6;white-space:pre-wrap;margin:16px 0;";
+    }
+
+    // 5) 表格：用细线 + 表头底色（知乎支持基本表格样式）
+    var tables = wrap.querySelectorAll("table");
+    for (var n = 0; n < tables.length; n++) {
+      tables[n].style.cssText = "border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;border:1px solid #ddd;";
+      var ths = tables[n].querySelectorAll("th");
+      for (var a = 0; a < ths.length; a++) {
+        ths[a].style.cssText = "border:1px solid #ddd;padding:8px 12px;background:#f5f5f5;font-weight:600;text-align:left;";
+      }
+      var tds = tables[n].querySelectorAll("td");
+      for (var b = 0; b < tds.length; b++) {
+        tds[b].style.cssText = "border:1px solid #ddd;padding:8px 12px;text-align:left;vertical-align:top;";
+      }
+    }
+
+    // 6) 段落统一行高字号
+    var ps = wrap.querySelectorAll("p");
+    for (var c = 0; c < ps.length; c++) {
+      if (!ps[c].getAttribute("style")) {
+        ps[c].style.cssText = "margin:0 0 14px;font-size:15px;line-height:1.85;";
+      }
+    }
+
+    // 7) 截图占位：改成灰色提示段
+    var figs = wrap.querySelectorAll(".fig-note, fig-note");
+    // class 可能在 clone 后保留，直接按内容匹配
+    var allP = wrap.querySelectorAll("p");
+    for (var d = 0; d < allP.length; d++) {
+      if (allP[d].textContent.indexOf("［此处插入") !== -1) {
+        allP[d].style.cssText = "color:#999;font-size:13px;text-align:center;margin:12px 0 16px;";
+      }
+    }
+
+    // 8) tags-row：去掉样式类，转成纯文本行
+    var tags = wrap.querySelector(".tags-row");
+    if (tags) {
+      var tagTexts = [];
+      var spans = tags.querySelectorAll("span");
+      for (var e = 0; e < spans.length; e++) tagTexts.push(spans[e].textContent);
+      var pTag = document.createElement("p");
+      pTag.style.cssText = "color:#888;font-size:13px;margin-top:20px;";
+      pTag.textContent = "话题标签：" + tagTexts.join(" · ");
+      tags.parentNode.replaceChild(pTag, tags);
+    }
+
+    // 9) callout
+    var callouts = wrap.querySelectorAll(".callout");
+    for (var f = 0; f < callouts.length; f++) {
+      callouts[f].style.cssText = "background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:14px 16px;margin:16px 0;font-size:14px;";
+      var ct = callouts[f].querySelector(".callout-title");
+      if (ct) ct.style.cssText = "font-weight:700;color:#b45309;margin-bottom:4px;";
+    }
+
+    // 10) hr 保留
+    var hrs = wrap.querySelectorAll("hr");
+    for (var g = 0; g < hrs.length; g++) {
+      hrs[g].style.cssText = "border:none;border-top:1px solid #e5e5e5;margin:28px 0;";
+    }
+
+    var body = wrap.innerHTML;
+    var parts = [];
+    if (t) {
+      parts.push('<p style="font-size:1.4em;font-weight:700;color:#1a1a1a;margin:0 0 8px;">' + escapeHtml(t) + '</p>');
+      parts.push('<hr style="border:none;border-top:1px solid #e5e5e5;margin:16px 0 20px;" />');
+    }
+    if (s) {
+      parts.push('<p style="color:#888;font-size:14px;margin:0 0 20px;">' + escapeHtml(s) + '</p>');
+    }
+    parts.push(body);
+    return parts.join("\n");
+  }
+
+  function buildPlain() {
+    var t = titleEl.textContent.trim();
+    var s = subEl.textContent.trim();
+    var d = document.createElement("div");
+    d.innerHTML = editor.innerHTML;
+    var lines = [];
+    if (t) lines.push(t, "");
+    if (s) lines.push(s, "");
+    lines.push(d.innerText);
+    return lines.join("\n");
+  }
+
+  function escapeHtml(str) {
+    return str.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  }
+
+  function setBtn(btn, text, cls) {
+    btn.textContent = text;
+    btn.className = "btn " + (cls || "btn-primary");
+    setTimeout(function () {
+      btn.textContent = btn === btnCopy ? "复制富文本" : "复制纯文本";
+      btn.className = btn === btnCopy ? "btn btn-primary" : "btn btn-ghost";
+    }, 2200);
+  }
+
+  async function copyRich() {
+    var html = buildHtml();
+    var plain = buildPlain();
+    try {
+      if (typeof ClipboardItem !== "undefined" && navigator.clipboard && navigator.clipboard.write) {
+        await navigator.clipboard.write([new ClipboardItem({
+          "text/html": new Blob([html], { type: "text/html" }),
+          "text/plain": new Blob([plain], { type: "text/plain" })
+        })]);
+      } else {
+        await navigator.clipboard.writeText(plain);
+      }
+      setBtn(btnCopy, "已复制富文本", "ok");
+    } catch (err) {
+      // 兜底：execCommand
+      try {
+        var holder = document.createElement("div");
+        holder.contentEditable = "true";
+        holder.style.cssText = "position:fixed;left:-9999px;width:1px;height:1px;opacity:0;";
+        holder.innerHTML = html;
+        document.body.appendChild(holder);
+        var range = document.createRange();
+        range.selectNodeContents(holder);
+        var sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+        var ok = document.execCommand("copy");
+        sel.removeAllRanges();
+        document.body.removeChild(holder);
+        setBtn(btnCopy, ok ? "已复制富文本" : "复制失败，请全选手动复制", ok ? "ok" : "err");
+      } catch (e2) {
+        setBtn(btnCopy, "复制失败", "err");
+      }
+    }
+  }
+
+  async function copyPlain() {
+    var plain = buildPlain();
+    try {
+      await navigator.clipboard.writeText(plain);
+      setBtn(btnPlain, "已复制纯文本", "ok");
+    } catch (e) {
+      setBtn(btnPlain, "复制失败", "err");
+    }
+  }
+
+  btnCopy.addEventListener("click", copyRich);
+  btnPlain.addEventListener("click", copyPlain);
+})();
+</script>
+</body>
+</html>

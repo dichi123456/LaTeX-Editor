@@ -12,6 +12,7 @@ export interface ChatMessage {
   error?: boolean
   streaming?: boolean
   fileContext?: string
+  durationMs?: number
 }
 
 export interface ToolStep {
@@ -21,6 +22,15 @@ export interface ToolStep {
   result?: string
   success?: boolean
   status: 'running' | 'done'
+  startedAt?: number
+  durationMs?: number
+}
+
+export interface ChatSession {
+  id: string
+  title: string
+  messages: ChatMessage[]
+  updatedAt: number
 }
 
 export interface AiConfig {
@@ -30,7 +40,6 @@ export interface AiConfig {
   selectedModels: string[]
   systemPrompt: string
   temperature: number
-  maxTokens: number
   permissionMode: 'ask' | 'full'
 }
 
@@ -45,9 +54,8 @@ const DEFAULT_AI_CONFIG: AiConfig = {
   apiKey: '',
   model: 'deepseek-chat',
   selectedModels: [],
-  systemPrompt: '你是「墨灵」，一个专业的 LaTeX 写作助手，集成在用户的 LaTeX 编辑器中。你可以读取、搜索、修改项目文件，并编译 LaTeX 文档。\n\n回答规范：使用 Markdown 格式，LaTeX 代码用 ```latex 代码块。数学公式用 $...$ 或 $$...$$。回答简洁专业，中文优先。',
+  systemPrompt: '你是「墨灵」，一个专业的 LaTeX 写作助手。回答使用 Markdown，LaTeX 代码用 ```latex 块。中文优先，简洁专业。',
   temperature: 0.7,
-  maxTokens: 4096,
   permissionMode: 'ask'
 }
 
@@ -56,12 +64,17 @@ let streamUnsubscribe: (() => void) | null = null
 export const useAiStore = defineStore('ai', () => {
   const aiConfig: Ref<AiConfig> = ref({ ...DEFAULT_AI_CONFIG })
   const messages: Ref<ChatMessage[]> = ref([])
+  const sessions: Ref<ChatSession[]> = ref([])
+  const activeSessionId: Ref<string | null> = ref(null)
   const isThinking: Ref<boolean> = ref(false)
   const showPanel: Ref<boolean> = ref(false)
   const streamingContent: Ref<string> = ref('')
   const streamingReasoning: Ref<string> = ref('')
   const toolSteps: Ref<ToolStep[]> = ref([])
   const cancelled: Ref<boolean> = ref(false)
+  // 本轮处理耗时
+  const turnStartedAt: Ref<number | null> = ref(null)
+  const turnElapsedMs: Ref<number> = ref(0)
   // 待批准的写操作
   const pendingWrite: Ref<{ toolName: string; args: string; resolve: (approved: boolean) => void } | null> = ref(null)
 
@@ -99,16 +112,19 @@ export const useAiStore = defineStore('ai', () => {
           id: `tool-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
           toolName: data.toolName || 'unknown',
           args: data.args || '',
-          status: 'running'
+          status: 'running',
+          startedAt: Date.now()
         })
       } else if (data.type === 'tool_result') {
-        const step = toolSteps.value.find((s) => s.toolName === data.toolName && s.status === 'running')
+        const step = [...toolSteps.value].reverse().find((s) => s.toolName === data.toolName && s.status === 'running')
         if (step) {
           step.result = data.result
           step.success = data.success
           step.status = 'done'
+          if (step.startedAt) step.durationMs = Date.now() - step.startedAt
         }
       } else if (data.type === 'done') {
+        const durationMs = turnStartedAt.value ? Date.now() - turnStartedAt.value : 0
         const msg: ChatMessage = {
           id: msgId(),
           role: 'assistant',
@@ -116,16 +132,21 @@ export const useAiStore = defineStore('ai', () => {
           reasoning: streamingReasoning.value || undefined,
           timestamp: Date.now(),
           streaming: false,
-          toolSteps: toolSteps.value.length > 0 ? [...toolSteps.value] : undefined
+          toolSteps: toolSteps.value.length > 0 ? [...toolSteps.value] : undefined,
+          durationMs: durationMs > 0 ? durationMs : undefined
         }
         messages.value.push(msg)
         streamingContent.value = ''
         streamingReasoning.value = ''
         toolSteps.value = []
+        turnStartedAt.value = null
+        turnElapsedMs.value = 0
         isThinking.value = false
+        persistHistory()
       } else if (data.type === 'cancelled') {
         // 中断：保存已有内容
-        if (streamingContent.value || streamingReasoning.value) {
+        if (streamingContent.value || streamingReasoning.value || toolSteps.value.length > 0) {
+          const durationMs = turnStartedAt.value ? Date.now() - turnStartedAt.value : 0
           messages.value.push({
             id: msgId(),
             role: 'assistant',
@@ -133,12 +154,16 @@ export const useAiStore = defineStore('ai', () => {
             reasoning: streamingReasoning.value || undefined,
             timestamp: Date.now(),
             streaming: false,
-            toolSteps: toolSteps.value.length > 0 ? [...toolSteps.value] : undefined
+            toolSteps: toolSteps.value.length > 0 ? [...toolSteps.value] : undefined,
+            durationMs: durationMs > 0 ? durationMs : undefined
           })
+          persistHistory()
         }
         streamingContent.value = ''
         streamingReasoning.value = ''
         toolSteps.value = []
+        turnStartedAt.value = null
+        turnElapsedMs.value = 0
         isThinking.value = false
       } else if (data.type === 'error') {
         messages.value.push({
@@ -151,7 +176,10 @@ export const useAiStore = defineStore('ai', () => {
         streamingContent.value = ''
         streamingReasoning.value = ''
         toolSteps.value = []
+        turnStartedAt.value = null
+        turnElapsedMs.value = 0
         isThinking.value = false
+        persistHistory()
       }
     })
   }
@@ -163,11 +191,93 @@ export const useAiStore = defineStore('ai', () => {
         aiConfig.value = { ...DEFAULT_AI_CONFIG, ...JSON.parse(saved) }
       }
     } catch { /* ignore */ }
+    // 恢复对话历史
+    try {
+      const sessRaw = localStorage.getItem('ai-chat-sessions')
+      if (sessRaw) {
+        const parsed = JSON.parse(sessRaw)
+        if (Array.isArray(parsed)) {
+          sessions.value = parsed
+          // 恢复最近一个会话为当前
+          if (parsed.length > 0) {
+            const last = parsed[parsed.length - 1]
+            activeSessionId.value = last.id
+            messages.value = last.messages || []
+          }
+        }
+      }
+    } catch { /* ignore */ }
     setupStream()
   }
 
   function saveConfig(): void {
     localStorage.setItem('ai-config', JSON.stringify(aiConfig.value))
+  }
+
+  function persistSessions(): void {
+    try {
+      // 只保留最近 20 个会话
+      const recent = sessions.value.slice(-20)
+      localStorage.setItem('ai-chat-sessions', JSON.stringify(recent))
+    } catch { /* ignore */ }
+  }
+
+  // 持久化当前会话到 sessions 列表
+  function persistHistory(): void {
+    if (messages.value.length === 0) return
+    const title = messages.value.find((m) => m.role === 'user')?.content.slice(0, 40) || '新对话'
+    const existing = sessions.value.find((s) => s.id === activeSessionId.value)
+    if (existing) {
+      existing.messages = [...messages.value]
+      existing.title = title
+      existing.updatedAt = Date.now()
+    } else {
+      const id = activeSessionId.value || `sess-${Date.now()}`
+      activeSessionId.value = id
+      sessions.value.push({
+        id,
+        title,
+        messages: [...messages.value],
+        updatedAt: Date.now()
+      })
+    }
+    // 按更新时间排序，最近的在最后
+    sessions.value.sort((a, b) => a.updatedAt - b.updatedAt)
+    persistSessions()
+  }
+
+  // 开新会话：保留当前到历史，清空开始新的
+  function startNewSession(): void {
+    if (isThinking.value) return
+    persistHistory()
+    messages.value = []
+    streamingContent.value = ''
+    streamingReasoning.value = ''
+    toolSteps.value = []
+    activeSessionId.value = null
+  }
+
+  // 切换到历史会话
+  function switchSession(id: string): void {
+    if (isThinking.value) return
+    persistHistory()
+    const sess = sessions.value.find((s) => s.id === id)
+    if (!sess) return
+    activeSessionId.value = id
+    messages.value = [...sess.messages]
+    streamingContent.value = ''
+    streamingReasoning.value = ''
+    toolSteps.value = []
+  }
+
+  // 删除历史会话
+  function deleteSession(id: string): void {
+    sessions.value = sessions.value.filter((s) => s.id !== id)
+    if (activeSessionId.value === id) {
+      activeSessionId.value = null
+      messages.value = []
+    }
+    persistSessions()
   }
 
   // 构建工作区上下文描述
@@ -241,11 +351,28 @@ export const useAiStore = defineStore('ai', () => {
       fileContext
     }
     messages.value.push(userMsg)
+    persistHistory()
 
     isThinking.value = true
     streamingContent.value = ''
     streamingReasoning.value = ''
     toolSteps.value = []
+    turnStartedAt.value = Date.now()
+    turnElapsedMs.value = 0
+
+    // 超时兜底：120 秒无结果则复位，避免永久卡在思考中
+    const safetyTimer = setTimeout(() => {
+      if (isThinking.value && !streamingContent.value && !streamingReasoning.value) {
+        messages.value.push({
+          id: msgId(),
+          role: 'assistant',
+          content: '❌ 请求超时（120 秒无响应）。请检查 API 地址、Key、模型名，或稍后重试。',
+          timestamp: Date.now(),
+          error: true
+        })
+        isThinking.value = false
+      }
+    }, 120000)
 
     try {
       // 构建完整系统提示词（含工作区上下文）
@@ -254,51 +381,56 @@ export const useAiStore = defineStore('ai', () => {
 
 ${wsContext}
 
-## 可用工具
+# 工作方式
 
-你可以使用以下工具操作项目：
+直接做，不要问「是否继续」「需要我做什么」。缺细节就读代码推断，按现有约定执行。只有真正被阻塞且无法安全推断时才提问，且先做完所有不阻塞的部分。
 
-### read_file
-读取指定路径的文件内容。参数: path (完整文件路径)
-当用户提到某个文件或你需要查看文件内容时使用。
+# 工具使用策略
 
-### write_file
-将完整内容写入指定文件（覆盖原文件）。参数: path, content
-**仅在需要完全重写文件时使用。** 修改前必须先用 read_file 读取原文件。
+用最少的工具调用完成任务。每次多调一次工具都是浪费 token。
 
-### replace_text
-在文件中查找并替换指定文本片段。参数: path, find, replace, replace_all (可选)
-**这是修改文件的首选工具。** 只需提供要查找的原文和替换后的新文，无需重写整个文件。
-- find 必须与文件内容完全匹配（包括空格和换行）
-- 适合修改特定句子、段落、命令
-- 修改前可用 get_outline 定位目标位置
+**选择工具的优先级：**
+1. 用户给了行号/选区 → 直接 replace_text，不调任何只读工具
+2. 用户给了路径且要改 → 有原文就直接 replace_text；不确定才 read_file 一次
+3. 用户给了路径且要读 → read_file 一次，直接回答
+4. 路径未知 → search_project 定位，然后 read_file 确认，然后 replace_text
+5. 要编译 → compile_document
 
-### list_files
-列出目录中的文件。参数: path (目录路径，可选，默认工作区根目录)
+**禁止行为：**
+- 有路径/行号时禁止调用 search_project、list_files、get_outline
+- 同一文件本轮只 read_file 一次
+- 修改文本禁止用 write_file（除非整文件重写）
+- 有多个独立工具调用时并行发送，不要串行等待
 
-### search_project
-在项目中搜索关键词。参数: query (搜索词), file_pattern (可选，如 *.tex)
+# 工具说明
 
-### get_outline
-获取 .tex 文件的章节大纲。参数: path
+**replace_text** — 修改文件的唯一方式（除整文件重写外）
+- 参数: path, find, replace, replace_all(可选)
+- find 必须与文件原文逐字符完全匹配（含空格、换行、缩进）
+- 不需要先 read_file（除非不确定原文精确内容）
 
-### compile_document
-编译 LaTeX 文档。参数: path
+**write_file** — 仅整文件重写
+- 参数: path, content
+- 修改前必须 read_file 确认原内容
 
-## 工作规则
+**read_file** — 读文件
+- 参数: path
+- 仅在不确定原文或用户要求查看时调用
 
-1. **行号定位（最重要）**：当用户选中文本发送给你时，消息中会标注 [选中文本，来自文件: 路径, 行范围: N-M]。你**不需要**重新读取整个文件。直接基于行号范围定位即可。
+**search_project** — 搜索
+- 参数: query, file_extension(可选)
+- 仅在路径未知时使用
 
-2. **修改文件（优先用 replace_text）**：
-   - 修改特定文本/段落 → 用 **replace_text**（只需提供 find 和 replace，高效精准）
-   - 需要大范围重写 → 用 write_file
-   - 如果不确定要替换的准确文本，先用 read_file 查看目标行号附近的几行
+**list_files** — 列目录
+- 参数: path(可选)
+- 仅在 search_project 也找不到时兜底
 
-3. **写入 .tex 文件时**保留原有格式和注释。
+**get_outline** — 章节大纲
+- 参数: path
+- 仅当用户明确要求查看/修改章节结构时使用
 
-4. **如果不确定文件路径**，先用 search_project 或 list_files 查找。
-
-5. **效率优先**：能用 replace_text 的不要 write_file；能通过行号定位的不要全文读取；能通过 search_project 定位的不要盲目浏览目录。`
+**compile_document** — 编译
+- 参数: path`
 
       const apiMessages: any[] = [
         { role: 'system', content: systemPrompt }
@@ -310,24 +442,44 @@ ${wsContext}
         if (m.fileContext) {
           content = `${m.fileContext}\n\n${content}`
         }
+        // 用户消息含选区时，前置硬约束
+        if (m.role === 'user' && m.content.includes('选中文本')) {
+          content = `【用户已选中文本，附带行号。请直接基于此修改，禁止调用 read_file / list_files / search_project / get_outline。】\n\n${content}`
+        }
         apiMessages.push({
           role: m.role === 'assistant' ? 'assistant' : 'user',
           content
         })
       }
 
-      await window.electronAPI.aiChat({
+      const result = await window.electronAPI.aiChat({
         apiKey: aiConfig.value.apiKey,
         apiBase: aiConfig.value.apiBase,
         model: aiConfig.value.model,
         messages: apiMessages,
         temperature: aiConfig.value.temperature,
-        maxTokens: aiConfig.value.maxTokens,
         workspaceRoot: (await import('./docs')).useDocStore().projectRoot,
         texlivePath: (await import('./compile')).useCompileStore().texLivePath,
         enableTools: true,
         permissionMode: aiConfig.value.permissionMode
       })
+
+      // IPC 返回失败且流式未推送错误时，兜底显示错误并复位
+      if (result && result.success === false) {
+        if (!streamingContent.value && !messages.value.some((m) => m.error && m.timestamp > userMsg.timestamp - 1000)) {
+          messages.value.push({
+            id: msgId(),
+            role: 'assistant',
+            content: `❌ ${result.error || '请求失败'}`,
+            timestamp: Date.now(),
+            error: true
+          })
+        }
+        isThinking.value = false
+        streamingContent.value = ''
+        streamingReasoning.value = ''
+        toolSteps.value = []
+      }
     } catch (err: any) {
       messages.value.push({
         id: msgId(),
@@ -337,6 +489,8 @@ ${wsContext}
         error: true
       })
       isThinking.value = false
+    } finally {
+      clearTimeout(safetyTimer)
     }
   }
 
@@ -346,10 +500,12 @@ ${wsContext}
   }
 
   function clearChat(): void {
+    persistHistory()
     messages.value = []
     streamingContent.value = ''
     streamingReasoning.value = ''
     toolSteps.value = []
+    activeSessionId.value = null
   }
 
   function parseEditProposal(content: string): EditProposal[] {
@@ -373,16 +529,24 @@ ${wsContext}
   return {
     aiConfig,
     messages,
+    sessions,
+    activeSessionId,
     isThinking,
     showPanel,
     streamingContent,
     streamingReasoning,
     toolSteps,
+    turnStartedAt,
+    turnElapsedMs,
     pendingWrite,
     cancelled,
     cancelStream,
     loadConfig,
     saveConfig,
+    persistHistory,
+    startNewSession,
+    switchSession,
+    deleteSession,
     send,
     analyzeCompileError,
     clearChat,

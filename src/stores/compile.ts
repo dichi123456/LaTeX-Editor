@@ -60,6 +60,8 @@ export const useCompileStore = defineStore('compile', () => {
         const deleted = await window.electronAPI.cleanAuxFiles(filePath)
         if (deleted.length > 0) {
           liveLog.value += `[清理] 已删除 ${deleted.length} 个辅助文件：${deleted.join(', ')}\n\n`
+          // 通知文件树刷新
+          window.dispatchEvent(new CustomEvent('refresh-file-tree'))
         }
       }
 

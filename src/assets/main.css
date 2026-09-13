@@ -14,8 +14,8 @@
   --text-primary: #1f2937;
   --text-secondary: #6b7280;
   --text-tertiary: #9ca3af;
-  --border: #e5e7eb;
-  --border-strong: #d1d5db;
+  --border: rgba(0, 0, 0, 0.08);
+  --border-strong: rgba(0, 0, 0, 0.14);
   --error: #ef4444;
   --error-bg: #fef2f2;
   --warning: #f59e0b;
@@ -32,6 +32,8 @@
   --titlebar-height: 36px;
   --statusbar-height: 28px;
   --tab-height: 30px;
+  --scrollbar-thumb: rgba(0, 0, 0, 0.18);
+  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.32);
 }
 
 [data-theme="dark"],
@@ -47,8 +49,8 @@
   --text-primary: #e4e4e7;
   --text-secondary: #a1a1aa;
   --text-tertiary: #71717a;
-  --border: #3f3f46;
-  --border-strong: #52525b;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.14);
   --error: #f87171;
   --error-bg: #3b1515;
   --warning: #fbbf24;
@@ -58,6 +60,8 @@
   --info: #60a5fa;
   --shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
   --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --scrollbar-thumb: rgba(255, 255, 255, 0.12);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.22);
 }
 
 * {
@@ -79,20 +83,24 @@ body,
   -webkit-font-smoothing: antialiased;
 }
 
-/* 滚动条 */
+/* 滚动条：细圆角半透明 */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--border-strong);
-  border-radius: 4px;
+  background: var(--scrollbar-thumb);
+  border-radius: 3px;
+  border: none;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--text-tertiary);
+  background: var(--scrollbar-thumb-hover);
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 /* 按钮基础 */

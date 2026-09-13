@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useDocStore } from '../stores/docs'
 
 const docStore = useDocStore()
@@ -12,10 +12,32 @@ const emit = defineEmits<{
 const recentFiles = ref<string[]>([])
 const recentWorkspaces = ref<string[]>([])
 
+// 右键菜单
+const ctxMenu = ref({ show: false, x: 0, y: 0 })
+function onContextMenu(e: MouseEvent) {
+  e.preventDefault()
+  window.dispatchEvent(new CustomEvent('close-all-menus'))
+  ctxMenu.value = { show: true, x: e.clientX, y: e.clientY }
+}
+function closeCtx() { ctxMenu.value.show = false }
+function onGlobalClick(e: MouseEvent) {
+  if (!(e.target as HTMLElement).closest('.welcome-ctx')) closeCtx()
+}
+function onCtxAction(action: string) {
+  closeCtx()
+  if (action === 'new-file') emit('new-file')
+  else if (action === 'open-file') emit('open-file')
+  else if (action === 'open-folder') emit('open-folder')
+}
+
 onMounted(async () => {
   await docStore.loadRecent()
   recentFiles.value = docStore.recentFiles
   recentWorkspaces.value = docStore.recentWorkspaces
+  document.addEventListener('click', onGlobalClick)
+})
+onUnmounted(() => {
+  document.removeEventListener('click', onGlobalClick)
 })
 
 async function openRecentFile(path: string) {
@@ -38,7 +60,30 @@ function shortPath(path: string): string {
 </script>
 
 <template>
-  <div class="welcome">
+  <div class="welcome" @contextmenu="onContextMenu">
+    <!-- 右键菜单 -->
+    <Teleport to="body">
+      <div
+        v-if="ctxMenu.show"
+        class="welcome-ctx"
+        :style="{ left: ctxMenu.x + 'px', top: ctxMenu.y + 'px' }"
+        @click.stop
+      >
+        <button class="wctx-item" @click="onCtxAction('new-file')">
+          <span class="wctx-icon">📄</span> 新建文件
+          <span class="wctx-key">Ctrl+N</span>
+        </button>
+        <button class="wctx-item" @click="onCtxAction('open-file')">
+          <span class="wctx-icon">📂</span> 打开文件…
+          <span class="wctx-key">Ctrl+O</span>
+        </button>
+        <button class="wctx-item" @click="onCtxAction('open-folder')">
+          <span class="wctx-icon">📁</span> 打开文件夹…
+          <span class="wctx-key">Ctrl+K</span>
+        </button>
+      </div>
+    </Teleport>
+
     <div class="welcome-container">
       <!-- 左侧：启动 + 最近 -->
       <div class="welcome-main">
@@ -401,6 +446,53 @@ function shortPath(path: string): string {
 }
 
 .template-hint {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+/* 右键菜单 */
+.welcome-ctx {
+  position: fixed;
+  z-index: 10000;
+  background: rgba(30, 30, 46, 0.3);
+  backdrop-filter: blur(20px) saturate(1.6);
+  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  box-shadow: var(--shadow-lg);
+  min-width: 200px;
+  padding: 4px 0;
+  animation: menuPop 0.14s ease;
+}
+[data-theme="light"] .welcome-ctx {
+  background: rgba(255, 255, 255, 0.3);
+  border-color: rgba(0, 0, 0, 0.06);
+}
+@keyframes menuPop {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.wctx-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 14px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-primary);
+  text-align: left;
+}
+.wctx-item:hover {
+  background: var(--accent);
+  color: #fff;
+}
+.wctx-item:hover .wctx-key { color: rgba(255,255,255,0.8); }
+.wctx-icon { font-size: 13px; }
+.wctx-key {
+  margin-left: auto;
   font-size: 11px;
   color: var(--text-tertiary);
 }

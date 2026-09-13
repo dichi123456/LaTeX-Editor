@@ -93,7 +93,6 @@ const api = {
     model: string
     messages: Array<{ role: string; content: string }>
     temperature?: number
-    maxTokens?: number
     workspaceRoot?: string | null
     texlivePath?: string | null
     enableTools?: boolean

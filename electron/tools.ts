@@ -48,53 +48,15 @@ export const TOOLS: ToolDefinition[] = [
   {
     type: 'function',
     function: {
-      name: 'read_file',
-      description: '读取指定路径文件的完整文本内容。当需要查看、分析或修改文件内容时，必须先调用此工具。',
-      parameters: {
-        type: 'object',
-        properties: {
-          path: {
-            type: 'string',
-            description: '要读取的文件的绝对完整路径。例如: E:\\project\\main.tex'
-          }
-        },
-        required: ['path']
-      }
-    }
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'write_file',
-      description: '将完整内容写入指定文件。会覆盖原文件（自动备份为.bak）。必须提供文件的完整新内容，不是差异或补丁。修改前应先用 read_file 读取原文件。',
-      parameters: {
-        type: 'object',
-        properties: {
-          path: {
-            type: 'string',
-            description: '目标文件的绝对完整路径'
-          },
-          content: {
-            type: 'string',
-            description: '文件的完整新内容（包含所有原有内容和修改）'
-          }
-        },
-        required: ['path', 'content']
-      }
-    }
-  },
-  {
-    type: 'function',
-    function: {
       name: 'replace_text',
-      description: '在文件中查找并替换指定文本片段。比 write_file 更高效，只需提供要替换的部分，无需重写整个文件。适合修改特定段落、句子或命令。',
+      description: 'Replace exact text in a file. This is the PRIMARY tool for modifying files. find must match the file content character-for-character including whitespace and newlines. Do NOT call read_file first unless you are unsure of the exact original text. Do NOT use write_file for partial edits.',
       parameters: {
         type: 'object',
         properties: {
-          path: { type: 'string', description: '目标文件的绝对路径' },
-          find: { type: 'string', description: '要查找的原文本（必须与文件中的内容完全匹配）' },
-          replace: { type: 'string', description: '替换后的新文本。留空则删除 find 匹配的内容。' },
-          replace_all: { type: 'boolean', description: '是否替换所有匹配项，默认只替换第一个' }
+          path: { type: 'string', description: 'Absolute path to the target file' },
+          find: { type: 'string', description: 'Exact text to find (must match file content precisely)' },
+          replace: { type: 'string', description: 'Replacement text. Empty string deletes the find content.' },
+          replace_all: { type: 'boolean', description: 'Replace all occurrences (default: first only)' }
         },
         required: ['path', 'find', 'replace']
       }
@@ -103,17 +65,31 @@ export const TOOLS: ToolDefinition[] = [
   {
     type: 'function',
     function: {
-      name: 'list_files',
-      description: '列出指定目录中的文件和子目录。用于了解项目结构或查找文件。',
+      name: 'write_file',
+      description: 'Write complete file content (overwrites the file, auto-backs up as .bak). ONLY use when rewriting the ENTIRE file. For partial edits, use replace_text instead. Must read_file first to confirm original content.',
       parameters: {
         type: 'object',
         properties: {
-          path: {
-            type: 'string',
-            description: '目录的绝对路径。留空则列出工作区根目录。'
-          }
+          path: { type: 'string', description: 'Absolute path to the target file' },
+          content: { type: 'string', description: 'Complete new file content' }
         },
-        required: []
+        required: ['path', 'content']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'read_file',
+      description: 'Read a file with optional line paging. Use offset/limit for large files. Only call when: (1) you are unsure of the exact original text for a replace_text, (2) user asks to view/analyze a file, or (3) before write_file. Do NOT call when user already provided line numbers or you already know the content.',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'Absolute path to the file' },
+          offset: { type: 'number', description: '1-based line number to start reading from (default: 1)' },
+          limit: { type: 'number', description: 'Max number of lines to read (default: all)' }
+        },
+        required: ['path']
       }
     }
   },
@@ -121,18 +97,12 @@ export const TOOLS: ToolDefinition[] = [
     type: 'function',
     function: {
       name: 'search_project',
-      description: '在工作区的所有文本文件中搜索关键词，返回匹配的文件名、行号和内容片段。',
+      description: 'Search project files for a keyword. ONLY call when the file path is unknown. Do NOT call when the user already provided a path or selected text with line numbers.',
       parameters: {
         type: 'object',
         properties: {
-          query: {
-            type: 'string',
-            description: '要搜索的关键词或短语'
-          },
-          file_extension: {
-            type: 'string',
-            description: '可选，按扩展名过滤，如 .tex、.bib'
-          }
+          query: { type: 'string', description: 'Keyword to search for' },
+          file_extension: { type: 'string', description: 'Optional file extension filter, e.g. .tex' }
         },
         required: ['query']
       }
@@ -141,15 +111,26 @@ export const TOOLS: ToolDefinition[] = [
   {
     type: 'function',
     function: {
-      name: 'get_outline',
-      description: '解析 .tex 文件的文档结构，返回章节标题列表及其行号。',
+      name: 'list_files',
+      description: 'List files in a directory. ONLY call as fallback when search_project also cannot find the target. Do NOT call when the user already provided a path or selected text.',
       parameters: {
         type: 'object',
         properties: {
-          path: {
-            type: 'string',
-            description: '.tex 文件的绝对完整路径'
-          }
+          path: { type: 'string', description: 'Directory path (optional, defaults to workspace root)' }
+        },
+        required: []
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_outline',
+      description: 'Get chapter outline of a .tex file. ONLY call when the user explicitly asks to view or modify the document structure/sections. Do NOT call for content edits.',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'Absolute path to the .tex file' }
         },
         required: ['path']
       }
@@ -159,14 +140,11 @@ export const TOOLS: ToolDefinition[] = [
     type: 'function',
     function: {
       name: 'compile_document',
-      description: '使用 XeLaTeX 编译指定的 .tex 文档，返回编译结果和错误信息。',
+      description: 'Compile a LaTeX document with XeLaTeX. Only call when the user asks to compile or check errors.',
       parameters: {
         type: 'object',
         properties: {
-          path: {
-            type: 'string',
-            description: '要编译的 .tex 文件的绝对完整路径'
-          }
+          path: { type: 'string', description: 'Absolute path to the .tex file' }
         },
         required: ['path']
       }
@@ -201,7 +179,7 @@ export async function executeTool(call: ToolCall): Promise<ToolResult> {
 
   try {
     switch (call.function.name) {
-      case 'read_file': return execReadFile(call.id, args.path)
+      case 'read_file': return execReadFile(call.id, args.path, args.offset, args.limit)
       case 'write_file': return execWriteFile(call.id, args.path, args.content)
       case 'replace_text': return execReplaceText(call.id, args.path, args.find, args.replace, args.replace_all)
       case 'list_files': return execListFiles(call.id, args.path || workspaceRoot || '')
@@ -216,23 +194,37 @@ export async function executeTool(call: ToolCall): Promise<ToolResult> {
   }
 }
 
-function execReadFile(id: string, path: string): ToolResult {
+function execReadFile(id: string, path: string, offset?: number, limit?: number): ToolResult {
   if (!path) {
     return { toolCallId: id, name: 'read_file', result: '错误: 缺少 path 参数', success: false }
   }
   if (!existsSync(path)) {
-    return { toolCallId: id, name: 'read_file', result: `文件不存在: ${path}\n\n提示: 请确认路径是否正确。可使用 list_files 或 search_project 查找文件。`, success: false }
+    return { toolCallId: id, name: 'read_file', result: `文件不存在: ${path}\n\n提示: 可用 list_files 或 search_project 查找正确路径。`, success: false }
   }
   const content = readFileSync(path, 'utf-8')
-  const lines = content.split('\n')
-  const truncated = content.length > 20000
-    ? content.slice(0, 20000) + `\n\n... (文件共 ${lines.length} 行，已显示前 ${Math.min(lines.length, 20000)} 字符，使用行号定位后续内容)`
-    : content
+  const allLines = content.split('\n')
+  const totalLines = allLines.length
+
+  // 分页读取：Kilo Code 风格 offset/limit
+  const start = Math.max(0, (offset || 1) - 1)
+  const end = limit ? Math.min(totalLines, start + limit) : totalLines
+  const pageLines = allLines.slice(start, end)
+  const pageContent = pageLines.join('\n')
+
+  const truncated = end < totalLines
+  const header = truncated
+    ? `文件: ${path}\n共 ${totalLines} 行，当前显示第 ${start + 1}-${end} 行。使用 offset=${end + 1} 继续读取。\n\n`
+    : `文件: ${path}\n共 ${totalLines} 行\n\n`
+
+  // 截断保护
+  const display = pageContent.length > 30000
+    ? pageContent.slice(0, 30000) + `\n\n... (本页内容过长已截断，共 ${pageLines.length} 行)`
+    : pageContent
 
   return {
     toolCallId: id,
     name: 'read_file',
-    result: `文件: ${path}\n共 ${lines.length} 行\n\n${truncated}`,
+    result: header + display,
     success: true
   }
 }
@@ -268,40 +260,70 @@ function execReplaceText(id: string, path: string, find: string, replace: string
   }
   try {
     const content = readFileSync(path, 'utf-8')
-    if (!content.includes(find)) {
-      // 提供相似文本帮助调试
-      const firstLine = find.split('\n')[0].slice(0, 60)
+
+    // Kilo Code 风格：行尾规范化 + BOM 处理
+    const normalize = (t: string) => t.replace(/\r\n/g, '\n')
+    const hasBom = content.startsWith('﻿')
+    const body = hasBom ? content.slice(1) : content
+    const normBody = normalize(body)
+
+    // 尝试精确匹配
+    let idx = normBody.indexOf(normalize(find))
+    if (idx === -1) {
+      // 尝试原样匹配（未规范化）
+      idx = content.indexOf(find)
+      if (idx === -1) {
+        const firstLine = find.split('\n')[0].slice(0, 80)
+        return {
+          toolCallId: id,
+          name: 'replace_text',
+          result: `未找到匹配文本。首行: "${firstLine}..."\n提示: find 必须与文件内容完全一致（含空格、换行、缩进）。建议先 read_file 确认。`,
+          success: false
+        }
+      }
+      // 用原文匹配结果
+      const origContent = content
+      writeFileSync(path + '.bak', origContent, 'utf-8')
+      let newContent: string
+      let count: number
+      if (replaceAll) {
+        const parts = origContent.split(find)
+        count = parts.length - 1
+        newContent = parts.join(replace)
+      } else {
+        newContent = origContent.slice(0, idx) + replace + origContent.slice(idx + find.length)
+        count = 1
+      }
+      writeFileSync(path, (hasBom ? '﻿' : '') + newContent, 'utf-8')
+      const lineNum = origContent.slice(0, idx).split('\n').length
       return {
         toolCallId: id,
         name: 'replace_text',
-        result: `未在文件中找到要替换的文本。查找内容首行: "${firstLine}..."\n\n提示: find 必须与文件中的内容完全匹配（包括空格、换行、特殊字符）。请用 read_file 确认准确内容。`,
-        success: false
+        result: `已替换 ${count} 处（第 ${lineNum} 行附近）\n文件: ${path}`,
+        success: true
       }
     }
-    // 备份
-    writeFileSync(path + '.bak', content, 'utf-8')
 
-    let newContent: string
+    // 规范化匹配成功
+    writeFileSync(path + '.bak', content, 'utf-8')
+    let newNorm: string
     let count: number
+    const nFind = normalize(find)
     if (replaceAll) {
-      const parts = content.split(find)
+      const parts = normBody.split(nFind)
       count = parts.length - 1
-      newContent = parts.join(replace)
+      newNorm = parts.join(replace)
     } else {
-      const idx = content.indexOf(find)
-      newContent = content.slice(0, idx) + replace + content.slice(idx + find.length)
+      newNorm = normBody.slice(0, idx) + replace + normBody.slice(idx + nFind.length)
       count = 1
     }
-    writeFileSync(path, newContent, 'utf-8')
-
-    // 计算修改位置的行号
-    const beforeMatch = content.slice(0, content.indexOf(find))
-    const lineNum = beforeMatch.split('\n').length
+    writeFileSync(path, (hasBom ? '﻿' : '') + newNorm, 'utf-8')
+    const lineNum = normBody.slice(0, idx).split('\n').length
 
     return {
       toolCallId: id,
       name: 'replace_text',
-      result: `已在 ${path} 第 ${lineNum} 行处替换${count > 1 ? `了 ${count} 处` : ''}文本。\n原文件已备份为 .bak`,
+      result: `已替换 ${count} 处（第 ${lineNum} 行附近）\n文件: ${path}`,
       success: true
     }
   } catch (err: any) {

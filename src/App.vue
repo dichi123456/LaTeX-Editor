@@ -101,6 +101,7 @@ onMounted(async () => {
   document.addEventListener('drop', onDrop)
   window.addEventListener('keydown', onGlobalKeydown)
   document.addEventListener('click', onOutsideMenuClick)
+  window.addEventListener('close-all-menus', onCloseAllMenusApp)
 
   // SyncTeX 正向/反向同步事件
   window.addEventListener('synctex-forward', onSyncTexForward as unknown as EventListener)
@@ -116,6 +117,7 @@ onUnmounted(() => {
   document.removeEventListener('drop', onDrop)
   window.removeEventListener('keydown', onGlobalKeydown)
   document.removeEventListener('click', onOutsideMenuClick)
+  window.removeEventListener('close-all-menus', onCloseAllMenusApp)
   window.removeEventListener('synctex-forward', onSyncTexForward as unknown as EventListener)
   window.removeEventListener('synctex-backward', onSyncTexBackward as unknown as EventListener)
   window.removeEventListener('send-to-moling', onSendToMoling as unknown as EventListener)
@@ -130,6 +132,10 @@ function closeFileMenu() {
 }
 
 function toggleFileMenu() {
+  // 打开文件菜单时关闭其他菜单
+  if (!openFileMenu.value) {
+    window.dispatchEvent(new CustomEvent('close-all-menus'))
+  }
   openFileMenu.value = !openFileMenu.value
   openRecentMenu.value = false
 }
@@ -139,6 +145,10 @@ function onOutsideMenuClick(e: MouseEvent) {
   if (!target.closest('.menu-bar') && !target.closest('.menu-dropdown')) {
     closeFileMenu()
   }
+}
+
+function onCloseAllMenusApp() {
+  closeFileMenu()
 }
 
 function runFileAction(action: string) {
@@ -420,11 +430,11 @@ async function onSyncTexBackward(e: CustomEvent) {
 }
 
 function onSendToMoling(e: CustomEvent) {
-  const { text, filePath, fileName } = e.detail || {}
+  const { text, filePath, fileName, lineRange } = e.detail || {}
   if (!text) return
   showAi.value = true
   window.dispatchEvent(new CustomEvent('moling-prefill', {
-    detail: { text, filePath, fileName }
+    detail: { text, filePath, fileName, lineRange }
   }))
 }
 
@@ -432,6 +442,8 @@ async function cleanAux() {
   const mainPath = docStore.mainTexPath || docStore.activeTab?.path
   if (!mainPath) return
   const deleted = await compileStore.cleanAux(mainPath)
+  // 刷新文件树
+  window.dispatchEvent(new CustomEvent('refresh-file-tree'))
   if (deleted.length > 0) {
     alert(`已清理 ${deleted.length} 个辅助文件：\n${deleted.join('\n')}`)
   } else {
@@ -533,9 +545,18 @@ function toggleSidebar() {
 }
 
 const hasProject = computed(() => !!docStore.projectRoot)
-const showWelcome = computed(() => docStore.tabs.length === 0)
+const showWelcome = computed(() => docStore.tabs.length === 0 && !docStore.projectRoot)
 const errorCount = computed(() => compileStore.lastResult?.errors.length || 0)
 const warningCount = computed(() => compileStore.lastResult?.warnings.length || 0)
+
+function onTogglePanel(tab: 'problems' | 'log' | 'output') {
+  if (panelOpen.value && panelTab.value === tab) {
+    panelOpen.value = false
+  } else {
+    panelTab.value = tab
+    panelOpen.value = true
+  }
+}
 
 function onCommandRun(cmd: string) {
   showCommandPalette.value = false
@@ -655,14 +676,6 @@ function editorAction(action: string) {
         </div>
       </div>
       <div class="toolbar-right">
-        <span
-          class="texlive-badge"
-          :class="compileStore.texLiveFound ? 'ok' : 'missing'"
-          :title="compileStore.texLiveFound ? `TeX Live: ${compileStore.texLivePath}` : '未检测到 TeX Live'"
-        >
-          {{ compileStore.texLiveFound ? 'TeX Live ✓' : 'TeX Live ✗' }}
-        </span>
-        <span class="right-divider"></span>
         <button
           class="icon-btn"
           :class="{ active: showAi }"
@@ -792,53 +805,22 @@ function editorAction(action: string) {
 
         <!-- VS Code 风格底部面板 -->
         <div class="bottom-panel" :class="{ open: panelOpen }">
-          <!-- 面板把手（默认可见的细条） -->
-          <div class="panel-handle" @click="panelOpen = !panelOpen">
-            <div class="handle-tabs">
-              <button
-                class="handle-tab"
-                :class="{ active: panelOpen && panelTab === 'problems' }"
-                @click.stop="panelTab = 'problems'; panelOpen = true"
-              >
-                问题
-                <span v-if="errorCount > 0" class="badge error">{{ errorCount }}</span>
-                <span v-if="warningCount > 0" class="badge warning">{{ warningCount }}</span>
-              </button>
-              <button
-                class="handle-tab"
-                :class="{ active: panelOpen && panelTab === 'log' }"
-                @click.stop="panelTab = 'log'; panelOpen = true"
-              >
-                编译日志
-              </button>
-              <button
-                class="handle-tab"
-                :class="{ active: panelOpen && panelTab === 'output' }"
-                @click.stop="panelTab = 'output'; panelOpen = true"
-              >
-                输出
-              </button>
-            </div>
-            <div class="handle-actions">
-              <button
-                class="handle-btn"
-                :title="panelOpen ? '收起面板' : '展开面板'"
-                @click.stop="panelOpen = !panelOpen"
-              >
-                {{ panelOpen ? '▼' : '▲' }}
-              </button>
-            </div>
+          <!-- 细条把手（标签已移至状态栏） -->
+          <div class="panel-handle slim" @click="panelOpen = !panelOpen">
+            <span class="handle-chevron">{{ panelOpen ? '▼' : '▲' }}</span>
           </div>
 
-          <!-- 面板内容 -->
-          <div v-if="panelOpen" class="panel-body" :style="{ height: panelHeight + 'px' }">
-            <div class="panel-resize" @mousedown="startPanelResize"></div>
-            <LogPanel
-              v-if="panelTab === 'log' || panelTab === 'problems' || panelTab === 'output'"
-              :mode="panelTab"
-              @jump="jumpToLine"
-            />
-          </div>
+          <!-- 面板内容：带展开过渡 -->
+          <Transition name="panel-slide">
+            <div v-if="panelOpen" class="panel-body" :style="{ height: panelHeight + 'px' }">
+              <div class="panel-resize" @mousedown="startPanelResize"></div>
+              <LogPanel
+                v-if="panelTab === 'log' || panelTab === 'problems' || panelTab === 'output'"
+                :mode="panelTab"
+                @jump="jumpToLine"
+              />
+            </div>
+          </Transition>
         </div>
       </div>
 
@@ -859,7 +841,14 @@ function editorAction(action: string) {
       </template>
     </div>
 
-    <StatusBar v-if="!distractionFree" />
+    <StatusBar
+      v-if="!distractionFree"
+      :panel-open="panelOpen"
+      :panel-tab="panelTab"
+      :error-count="errorCount"
+      :warning-count="warningCount"
+      @toggle-panel="onTogglePanel"
+    />
     <Settings v-if="configStore.showSettings" />
 
     <!-- 命令面板 -->
@@ -948,15 +937,32 @@ function editorAction(action: string) {
   top: calc(100% + 2px);
   left: 0;
   min-width: 220px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  background: rgba(30, 30, 46, 0.3);
+  backdrop-filter: blur(20px) saturate(1.6);
+  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
   box-shadow: var(--shadow-lg);
   padding: 4px;
   z-index: 1000;
   display: flex;
   flex-direction: column;
   gap: 1px;
+  animation: menuPop 0.14s ease;
+}
+[data-theme="light"] .menu-dropdown {
+  background: rgba(255, 255, 255, 0.3);
+  border-color: rgba(0, 0, 0, 0.06);
+}
+@keyframes menuPop {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 .menu-entry {
   display: flex;
@@ -1005,6 +1011,17 @@ function editorAction(action: string) {
   left: 100%;
   min-width: 240px;
   margin-left: 2px;
+  background: rgba(30, 30, 46, 0.88);
+  backdrop-filter: blur(24px) saturate(1.8);
+  -webkit-backdrop-filter: blur(24px) saturate(1.8);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  box-shadow: var(--shadow-lg);
+  animation: menuPop 0.14s ease;
+}
+[data-theme="light"] .menu-dropdown.submenu {
+  background: rgba(255, 255, 255, 0.88);
+  border-color: rgba(0, 0, 0, 0.08);
 }
 .menu-empty {
   padding: 8px 12px;
@@ -1298,83 +1315,19 @@ function editorAction(action: string) {
 .panel-handle {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  height: 28px;
-  padding: 0 12px;
+  justify-content: center;
+  height: 18px;
   background: transparent;
   cursor: pointer;
   user-select: none;
   flex-shrink: 0;
 }
-.panel-handle:hover {
+.panel-handle.slim:hover {
   background: var(--bg-hover);
 }
-
-.handle-tabs {
-  display: flex;
-  gap: 2px;
-  align-items: center;
-}
-
-.handle-tab {
-  font-size: 11px;
-  padding: 3px 10px;
-  border-radius: 3px;
-  color: var(--text-secondary);
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  position: relative;
-}
-.handle-tab:hover {
-  color: var(--text-primary);
-  background: var(--bg-hover);
-}
-.handle-tab.active {
-  color: var(--text-primary);
-  background: var(--bg-active);
-}
-.handle-tab.active::after {
-  content: '';
-  position: absolute;
-  bottom: -1px;
-  left: 8px;
-  right: 8px;
-  height: 2px;
-  background: var(--accent);
-  border-radius: 1px;
-}
-
-.badge {
-  font-size: 10px;
-  padding: 0 4px;
-  border-radius: 8px;
-  font-weight: 600;
-  min-width: 14px;
-  text-align: center;
-}
-.badge.error {
-  background: var(--error);
-  color: #fff;
-}
-.badge.warning {
-  background: var(--warning);
-  color: #fff;
-}
-
-.handle-actions {
-  display: flex;
-  gap: 2px;
-}
-.handle-btn {
-  font-size: 10px;
-  padding: 2px 6px;
+.handle-chevron {
+  font-size: 9px;
   color: var(--text-tertiary);
-  border-radius: 3px;
-}
-.handle-btn:hover {
-  color: var(--text-primary);
-  background: var(--bg-hover);
 }
 
 .panel-body {
@@ -1383,6 +1336,19 @@ function editorAction(action: string) {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+}
+
+/* 面板展开/收起过渡 */
+.panel-slide-enter-active {
+  transition: height 0.18s ease, opacity 0.15s ease;
+}
+.panel-slide-leave-active {
+  transition: height 0.15s ease, opacity 0.1s ease;
+}
+.panel-slide-enter-from,
+.panel-slide-leave-to {
+  opacity: 0;
+  height: 0 !important;
 }
 
 .panel-resize {

@@ -412,14 +412,22 @@ function getExtensions() {
       '.cm-gutters': {
         backgroundColor: 'var(--bg-secondary)',
         color: 'var(--text-tertiary)',
-        borderRight: '1px solid var(--border)'
+        borderRight: '1px solid var(--border)',
+        minWidth: '0'
+      },
+      '.cm-lineNumbers': {
+        width: '36px'
+      },
+      '.cm-lineNumbers .cm-gutterElement': {
+        padding: '0 4px 0 8px',
+        minWidth: '0'
       },
       '.cm-activeLineGutter': {
         backgroundColor: 'var(--bg-hover)',
         color: 'var(--text-secondary)'
       },
       '.cm-foldGutter': {
-        width: '18px'
+        width: '14px'
       },
       '.cm-foldGutter .cm-foldGutterElement': {
         padding: '0',
@@ -428,9 +436,9 @@ function getExtensions() {
         justifyContent: 'center',
         cursor: 'pointer',
         color: 'var(--text-tertiary)',
-        fontSize: '11px',
+        fontSize: '10px',
         lineHeight: '1',
-        width: '18px'
+        width: '14px'
       },
       '.cm-foldGutter .cm-foldGutterElement:hover': {
         color: 'var(--accent)'
@@ -784,12 +792,20 @@ function onReloadTab(e: Event) {
   if (detail.tabId !== docStore.activeTabId) return
   const currentContent = view.state.doc.toString()
   if (currentContent === detail.content) return
-  // 保存光标位置
+  // 保存光标位置与滚动位置
   const sel = view.state.selection.main
   const maxLen = detail.content.length
+  const scroller = view.scrollDOM
+  const prevScrollTop = scroller.scrollTop
+  const prevScrollLeft = scroller.scrollLeft
   view.dispatch({
     changes: { from: 0, to: currentContent.length, insert: detail.content },
     selection: { anchor: Math.min(sel.anchor, maxLen), head: Math.min(sel.head, maxLen) }
+  })
+  // 恢复滚动位置（不跳到顶部）
+  requestAnimationFrame(() => {
+    scroller.scrollTop = prevScrollTop
+    scroller.scrollLeft = prevScrollLeft
   })
 }
 
@@ -813,6 +829,8 @@ function onApplyEdit(e: Event) {
 // ===== 右键菜单 =====
 function onEditorContextMenu(e: MouseEvent) {
   e.preventDefault()
+  // 关闭其他菜单
+  window.dispatchEvent(new CustomEvent('close-all-menus'))
   // 记录右键时的光标行，供「跳转到 PDF」使用
   if (view) {
     const pos = view.posAtCoords({ x: e.clientX, y: e.clientY })
@@ -827,6 +845,10 @@ let ctxMenuLine: number | null = null
 
 function closeCtxMenu() {
   ctxMenu.value.show = false
+}
+
+function onCloseAllMenus() {
+  closeCtxMenu()
 }
 
 function ctxJumpToPdf() {
@@ -929,6 +951,7 @@ onMounted(() => {
   window.addEventListener('insert-text', onInsertText)
   window.addEventListener('apply-edit', onApplyEdit)
   window.addEventListener('reload-tab', onReloadTab)
+  window.addEventListener('close-all-menus', onCloseAllMenus)
   document.addEventListener('click', onGlobalClick)
 })
 
@@ -939,6 +962,7 @@ onUnmounted(() => {
   window.removeEventListener('insert-text', onInsertText)
   window.removeEventListener('apply-edit', onApplyEdit)
   window.removeEventListener('reload-tab', onReloadTab)
+  window.removeEventListener('close-all-menus', onCloseAllMenus)
   document.removeEventListener('click', onGlobalClick)
 })
 </script>
@@ -1157,12 +1181,23 @@ onUnmounted(() => {
 .editor-ctx-menu {
   position: fixed;
   z-index: 10000;
-  background: var(--bg-primary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  background: rgba(30, 30, 46, 0.3);
+  backdrop-filter: blur(20px) saturate(1.6);
+  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
   box-shadow: var(--shadow-lg);
   min-width: 200px;
   padding: 4px 0;
+  animation: menuPop 0.14s ease;
+}
+[data-theme="light"] .editor-ctx-menu {
+  background: rgba(255, 255, 255, 0.3);
+  border-color: rgba(0, 0, 0, 0.06);
+}
+@keyframes menuPop {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 .ctx-item {
   display: flex;

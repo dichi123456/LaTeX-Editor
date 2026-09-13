@@ -27,7 +27,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   autoSave: true,
   autoSaveInterval: 30,
   autoCompile: false,
-  theme: 'light',
+  theme: 'dark',
   texlivePath: '',
   showLineNumbers: true,
   fontSize: 14,

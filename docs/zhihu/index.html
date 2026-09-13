@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>墨灵 TeX：开箱即用的本地 LaTeX 编辑器，内置 AI 助手</title>
+<style>
+  :root {
+    --bg: #f6f6f4;
+    --ink: #1a1a1a;
+    --muted: #6b6b6b;
+    --line: #e8e8e4;
+    --accent: #0066ff;
+    --accent-soft: #eef4ff;
+    --code-bg: #f3f4f6;
+    --warn: #b45309;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { font-size: 16px; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+      "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.85;
+    -webkit-font-smoothing: antialiased;
+  }
+  .page {
+    max-width: 680px;
+    margin: 0 auto;
+    padding: 40px 20px 80px;
+  }
+  .meta-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 28px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #1a1a2e, #16213e);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+  .meta-name { font-weight: 600; color: var(--ink); font-size: 14px; }
+  .meta-sub { font-size: 12px; }
+  h1 {
+    font-size: 26px;
+    font-weight: 700;
+    line-height: 1.45;
+    margin-bottom: 8px;
+    letter-spacing: -0.02em;
+  }
+  .subtitle {
+    color: var(--muted);
+    font-size: 14px;
+    margin-bottom: 32px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+  .content h2 {
+    font-size: 19px;
+    font-weight: 700;
+    margin: 40px 0 14px;
+    padding-left: 12px;
+    border-left: 3px solid var(--accent);
+  }
+  .content h3 {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 28px 0 10px;
+  }
+  .content p { margin-bottom: 16px; font-size: 15px; }
+  .content ul, .content ol {
+    margin: 0 0 16px 1.4em;
+    font-size: 15px;
+  }
+  .content li { margin-bottom: 6px; }
+  .content strong { font-weight: 600; }
+  .content a { color: var(--accent); text-decoration: none; }
+  .content a:hover { text-decoration: underline; }
+  .callout {
+    margin: 24px 0;
+    padding: 16px 18px;
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    border-radius: 10px;
+    font-size: 14px;
+  }
+  .callout-title {
+    font-weight: 700;
+    color: var(--warn);
+    margin-bottom: 6px;
+    font-size: 13px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+  th, td {
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    text-align: left;
+    vertical-align: top;
+  }
+  th {
+    background: #f0f0ee;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  tr:nth-child(even) td { background: #fafaf8; }
+  .hl-yes { color: #15803d; font-weight: 600; }
+  .hl-no { color: #b91c1c; }
+  .hl-warn { color: var(--warn); }
+  .fig {
+    margin: 24px 0;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    background: var(--code-bg);
+  }
+  .fig img {
+    width: 100%;
+    display: block;
+  }
+  .fig-cap {
+    padding: 10px 14px;
+    font-size: 12px;
+    color: var(--muted);
+    background: #fff;
+    border-top: 1px solid var(--line);
+  }
+  code {
+    font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+    font-size: 0.9em;
+    background: var(--code-bg);
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+  pre {
+    margin: 16px 0;
+    padding: 16px 18px;
+    background: #1e1e2e;
+    color: #cdd6f4;
+    border-radius: 10px;
+    overflow-x: auto;
+    font-size: 13px;
+    line-height: 1.7;
+  }
+  pre code {
+    background: none;
+    padding: 0;
+    color: inherit;
+    font-size: inherit;
+  }
+  .divider {
+    margin: 48px 0;
+    text-align: center;
+    color: var(--muted);
+    font-size: 12px;
+    letter-spacing: 4px;
+  }
+  .footer-note {
+    margin-top: 48px;
+    padding-top: 24px;
+    border-top: 1px solid var(--line);
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .footer-note a { color: var(--accent); }
+  .tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 20px 0 8px;
+  }
+  .tag {
+    font-size: 12px;
+    padding: 4px 12px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-radius: 20px;
+  }
+  .stat-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin: 24px 0;
+  }
+  .stat {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 14px 10px;
+    text-align: center;
+  }
+  .stat-num {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--accent);
+    line-height: 1.3;
+  }
+  .stat-label {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+  @media (max-width: 520px) {
+    h1 { font-size: 22px; }
+    .stat-row { grid-template-columns: repeat(2, 1fr); }
+    table { font-size: 12px; }
+    th, td { padding: 8px 6px; }
+  }
+  .copy-btn {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 9999;
+    padding: 10px 18px;
+    border: none;
+    border-radius: 8px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 4px 16px rgba(0, 102, 255, 0.28);
+    transition: background 0.15s, transform 0.1s;
+  }
+  .copy-btn:hover { background: #0052cc; }
+  .copy-btn:active { transform: scale(0.97); }
+  .copy-btn.ok { background: #15803d; }
+  .copy-btn.err { background: #b91c1c; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="meta-bar">
+    <div class="avatar">墨</div>
+    <div>
+      <div class="meta-name">墨灵 TeX · 个人开发者</div>
+      <div class="meta-sub">发布于 2026 年</div>
+    </div>
+  </div>
+
+  <h1>墨灵 TeX：开箱即用的本地 LaTeX 编辑器，内置 AI 助手</h1>
+  <p class="subtitle">开源免费 · 无需配置 · 数据不出本机 · AI 可直接改你的 .tex 文件</p>
+
+  <div class="content">
+
+    <p>
+      本文介绍一款开源的本地 LaTeX 桌面编辑器，名为墨灵 TeX（产品名 LaTeX编辑器）。
+      面向所有需要在 Windows 上写 LaTeX 的用户，中文论文、英文论文、实验报告、
+      幻灯片均可。软件采用 Electron 33 + Vue 3 + TypeScript 技术栈实现，
+      以 MIT 协议发布。安装包约 96 MB，运行时内存占用低于 200 MB，不依赖网络，
+      数据全部保留在本机。
+    </p>
+
+    <div class="stat-row">
+      <div class="stat">
+        <div class="stat-num">96 MB</div>
+        <div class="stat-label">安装包体积</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">&lt;200 MB</div>
+        <div class="stat-label">运行内存</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">0</div>
+        <div class="stat-label">联网要求</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">0</div>
+        <div class="stat-label">配置成本</div>
+      </div>
+    </div>
+
+    <h2>开发背景</h2>
+
+    <p>
+      现有 LaTeX 写作工具可分为三类。Overleaf 提供云端实时协作与编译，但依赖网络与账号，
+      免费版功能受限，文档存储于远程服务器。TeXstudio 功能完整、本地运行，但上手
+      需要一定配置，且未集成 AI 能力。VS Code 配合 LaTeX Workshop
+      扩展可覆盖大部分需求，但对非开发背景用户而言，扩展安装与 latexmk 配置的
+      门槛偏高。
+    </p>
+
+    <p>
+      墨灵 TeX 的设计目标是让 LaTeX 开箱即用，装好就能写，无需配置环境。
+      同时将 AI 助手以可操作项目文件的方式集成进编辑流程，而非仅提供一个
+      独立的对话窗口。
+    </p>
+
+    <h2>功能概览</h2>
+
+    <p>下表列出墨灵 TeX 与 Overleaf、TeXstudio 在主要能力上的对比。</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>能力</th>
+          <th>墨灵 TeX</th>
+          <th>Overleaf</th>
+          <th>TeXstudio</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>完全本地运行</td>
+          <td class="hl-yes">是</td>
+          <td class="hl-no">否，云端存储</td>
+          <td class="hl-yes">是</td>
+        </tr>
+        <tr>
+          <td>无需注册或联网</td>
+          <td class="hl-yes">是</td>
+          <td class="hl-no">否</td>
+          <td class="hl-yes">是</td>
+        </tr>
+        <tr>
+          <td>内置 AI 助手</td>
+          <td class="hl-yes">是，墨灵</td>
+          <td class="hl-warn">付费功能</td>
+          <td class="hl-no">否</td>
+        </tr>
+        <tr>
+          <td>AI 可读写项目文件</td>
+          <td class="hl-yes">Agent 模式</td>
+          <td class="hl-no">否</td>
+          <td class="hl-no">否</td>
+        </tr>
+        <tr>
+          <td>开箱即用（无需配置）</td>
+          <td class="hl-yes">是</td>
+          <td class="hl-warn">需账号与网络</td>
+          <td class="hl-warn">需手动配置</td>
+        </tr>
+        <tr>
+          <td>SyncTeX 正反向同步</td>
+          <td class="hl-yes">支持</td>
+          <td class="hl-yes">支持</td>
+          <td class="hl-yes">支持</td>
+        </tr>
+        <tr>
+          <td>安装包体积</td>
+          <td>约 96 MB</td>
+          <td>—</td>
+          <td>约 80 MB</td>
+        </tr>
+        <tr>
+          <td>开源协议</td>
+          <td class="hl-yes">MIT</td>
+          <td class="hl-no">部分收费</td>
+          <td class="hl-yes">GPL</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>界面布局</h2>
+
+    <p>
+      界面采用四区域布局，依次为文件树、代码编辑区、PDF 预览区和 AI 助手面板。
+      各区域宽度可拖拽调整，位置可以互换。AI 面板可关闭，关闭后界面仅保留
+      文件管理、编辑与预览功能。
+    </p>
+
+    <div class="fig">
+      <img src="../screenshot-main.png" alt="墨灵 TeX 主界面" />
+      <div class="fig-cap">图 1　主界面。左侧为文件树，中部为 CodeMirror 6 编辑器，右侧为 PDF.js 预览。</div>
+    </div>
+
+    <h2>开箱即用</h2>
+
+    <p>
+      装好 TeX Live，打开软件即可开始写作，无需配置编译器路径、字体宏包或扩展。
+      对中文用户尤其友好，具体措施如下。
+    </p>
+
+    <ul>
+      <li>默认编译器设为 XeLaTeX。该引擎对 Unicode 与系统字体支持较好，是中文场景的常用选择。</li>
+      <li>新建中文文档时自动加载 ctex 宏集，用户无需在导言区手动添加相关包。</li>
+      <li>自动检测 Windows 系统已安装的中文字体（宋体、黑体、微软雅黑、仿宋等），并在设置中提供字体选择。</li>
+      <li>编辑器按字符断行，中文输入法的候选框定位正确，行高按中文阅读习惯设置。</li>
+    </ul>
+
+    <h2>AI 助手</h2>
+
+    <p>
+      软件内置 AI 助手「墨灵」，通过 Agent 模式工作。与仅提供对话窗口的方案不同，
+      Agent 模式允许模型读取项目目录中的文件、搜索内容、修改 .tex 源文件、
+      触发编译，并根据编译结果继续操作。
+    </p>
+
+    <div class="fig">
+      <img src="../screenshot-ai.png" alt="墨灵 AI 助手界面" />
+      <div class="fig-cap">图 2　墨灵 AI 助手。Agent 模式下可调用文件读写与编译工具。</div>
+    </div>
+
+    <h3>典型操作</h3>
+
+    <p>
+      <strong>局部文本替换。</strong>
+      在编辑器中选中一段文字后发起对话，所选内容会自动附带行号发送给模型。
+      模型通过 replace_text 接口执行精确替换，不会重写整个文件。
+    </p>
+
+    <p>
+      <strong>编译错误处理。</strong>
+      编译失败时，可将日志提供给模型（或由模型自行读取）。模型定位错误位置、
+      修改源码或导言区后重新触发编译，并检查结果。
+    </p>
+
+    <p>
+      <strong>参考文献插入。</strong>
+      可要求模型生成 BibTeX 条目并插入 \cite 命令。所引文献的真实性需要用户自行核实。
+    </p>
+
+    <p>
+      <strong>多文件项目。</strong>
+      以文件夹方式打开项目后，模型可在多个 .tex 文件之间跳转并执行修改。
+      例如统一调整某一章的公式编号格式。
+    </p>
+
+    <h3>API 配置</h3>
+
+    <p>
+      墨灵对接任意 OpenAI 兼容接口。DeepSeek、Moonshot、通义、OpenAI 等服务均可使用。
+      在设置中填写 API 地址与密钥，获取模型列表并勾选即可启用。
+    </p>
+
+    <pre><code>设置 → 墨灵 AI 助手
+API 地址  https://api.deepseek.com/v1
+API Key   sk-xxxx
+模型      deepseek-chat（已勾选）</code></pre>
+
+    <h2>其他功能</h2>
+
+    <ul>
+      <li>编译引擎支持 XeLaTeX、pdfLaTeX、LuaLaTeX 与 latexmk。按 F5 触发编译。BibTeX 的多轮编译流程自动执行。</li>
+      <li>SyncTeX 同步。编辑器中 Ctrl+Click 跳转 PDF 对应位置，PDF 中 Ctrl+Click 跳回源码行。</li>
+      <li>编译日志面板支持错误与警告高亮、按类型过滤，点击错误可跳转至源码行。</li>
+      <li>智能补全。cite 环境自动从 .bib 文件提取引用键，ref 环境自动列出已定义的 label。</li>
+      <li>支持深色、浅色与跟随系统三种主题。</li>
+    </ul>
+
+    <h2>技术实现</h2>
+
+    <table>
+      <thead>
+        <tr><th>层级</th><th>选型</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>桌面框架</td><td>Electron 33</td></tr>
+        <tr><td>前端框架</td><td>Vue 3 + TypeScript</td></tr>
+        <tr><td>代码编辑器</td><td>CodeMirror 6</td></tr>
+        <tr><td>PDF 预览</td><td>PDF.js</td></tr>
+        <tr><td>状态管理</td><td>Pinia</td></tr>
+        <tr><td>构建工具</td><td>electron-vite</td></tr>
+        <tr><td>编译调用</td><td>本地 TeX Live，不内置发行版</td></tr>
+      </tbody>
+    </table>
+
+    <p>
+      选择 Electron 而非 Tauri，主要出于团队对 Web 技术栈的熟悉程度，
+      以及 CodeMirror 6 与 PDF.js 在 Electron 生态中的集成成本较低。
+      代价是安装包体积大于 Tauri 方案，约 96 MB，对桌面应用可接受。
+    </p>
+
+    <h2>安装与下载</h2>
+
+    <p>
+      可从
+      <a href="https://github.com/dichi123456/LaTeX-Editor" target="_blank" rel="noopener">GitHub Releases</a>
+      获取安装包。安装版为 exe 格式，双击安装；便携版为 zip 压缩包，解压后可直接运行。
+    </p>
+
+    <p>
+      欢迎各位用户试用。如果觉得这个项目对你有帮助，还请到 GitHub 仓库点一下 Star（星星），
+      这是对开源项目最直接的支持。
+    </p>
+
+    <div class="callout">
+      <div class="callout-title">运行环境</div>
+      Windows 10/11（x64）。需已安装 TeX Live 2022–2024 或 MiKTeX。
+      AI 功能为可选项，启用时需自备兼容 API 的密钥。
+    </div>
+
+    <div class="divider">· · ·</div>
+
+    <p>
+      Overleaf 的协作能力与 TeXstudio 的成熟度是既有优势，墨灵 TeX 不试图替代二者。
+      本项目针对的场景是，希望打开就能用、不想折腾配置、数据不离开本机、以及希望 AI
+      直接参与文件级编辑的用户。若这些需求与你相关，欢迎下载试用，
+      问题与建议可提交至项目 Issue。
+    </p>
+
+    <div class="footer-note">
+      <p>
+        项目地址 <a href="https://github.com/dichi123456/LaTeX-Editor" target="_blank" rel="noopener">github.com/dichi123456/LaTeX-Editor</a><br />
+        协议 MIT · 平台 Windows 10/11 x64 · 版本 v1.0.0
+      </p>
+      <div class="tags">
+        <span class="tag">LaTeX</span>
+        <span class="tag">论文写作</span>
+        <span class="tag">开源软件</span>
+        <span class="tag">AI 助手</span>
+        <span class="tag">Windows</span>
+        <span class="tag">Electron</span>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<button type="button" class="copy-btn" id="copyBtn">复制全文</button>
+
+<script>
+(function () {
+  var btn = document.getElementById("copyBtn");
+  if (!btn) return;
+
+  function cleanClone() {
+    // 取标题 + 正文，去掉页面装饰元素
+    var h1 = document.querySelector("h1");
+    var content = document.querySelector(".content");
+    if (!content) return "";
+
+    var wrap = document.createElement("div");
+
+    if (h1) {
+      // 标题以加粗段落形式进入剪贴板，便于粘进知乎后删掉再贴到标题栏
+      var pTitle = document.createElement("p");
+      var strong = document.createElement("strong");
+      strong.style.fontSize = "1.3em";
+      strong.textContent = h1.textContent;
+      pTitle.appendChild(strong);
+      wrap.appendChild(pTitle);
+      wrap.appendChild(document.createElement("hr"));
+    }
+
+    // 深拷贝 content
+    var clone = content.cloneNode(true);
+
+    // 去掉不适合粘贴的结构类
+    var figs = clone.querySelectorAll(".fig");
+    for (var i = 0; i < figs.length; i++) {
+      // 保留图注文字，图片路径对知乎无用，整块替换为图注
+      var cap = figs[i].querySelector(".fig-cap");
+      var p = document.createElement("p");
+      if (cap) p.textContent = cap.textContent;
+      else p.textContent = "[此处插入界面截图]";
+      p.style.color = "#666";
+      figs[i].parentNode.replaceChild(p, figs[i]);
+    }
+
+    // 知乎会剥掉 border 类 CSS，改用内联颜色/字号 + 前缀符号表达层次
+    var h2s = clone.querySelectorAll("h2");
+    for (var j = 0; j < h2s.length; j++) {
+      var h2txt = h2s[j].textContent;
+      h2s[j].innerHTML = '<span style="color:#0066ff;font-size:1.18em;font-weight:700;">▍</span>'
+        + '<span style="font-size:1.18em;font-weight:700;color:#1a1a1a;">' + h2txt.replace(/</g,"&lt;").replace(/>/g,"&gt;") + '</span>';
+      h2s[j].style.cssText = "margin:28px 0 12px;";
+    }
+    var h3s = clone.querySelectorAll("h3");
+    for (var k = 0; k < h3s.length; k++) {
+      var h3txt = h3s[k].textContent;
+      h3s[k].innerHTML = '<span style="color:#0066ff;font-weight:700;">● </span>'
+        + '<span style="font-size:1.05em;font-weight:650;color:#1a1a1a;">' + h3txt.replace(/</g,"&lt;").replace(/>/g,"&gt;") + '</span>';
+      h3s[k].style.cssText = "margin:20px 0 8px;";
+    }
+    var bqs = clone.querySelectorAll("blockquote");
+    for (var bq = 0; bq < bqs.length; bq++) {
+      bqs[bq].style.cssText = "background:#f0f6ff;border-left:3px solid #0066ff;padding:12px 16px;margin:16px 0;border-radius:0 6px 6px 0;color:#333;";
+    }
+    var ps = clone.querySelectorAll("p");
+    for (var m = 0; m < ps.length; m++) {
+      if (!ps[m].getAttribute("style")) ps[m].style.cssText = "margin:0 0 14px;font-size:15px;line-height:1.85;";
+    }
+    var tables = clone.querySelectorAll("table");
+    for (var t = 0; t < tables.length; t++) {
+      tables[t].style.cssText = "border-collapse:collapse;width:100%;margin:16px 0;font-size:13px;";
+      var ths = tables[t].querySelectorAll("th");
+      for (var a = 0; a < ths.length; a++) {
+        ths[a].style.cssText = "border:1px solid #ddd;padding:8px 10px;background:#f5f5f5;text-align:left;";
+      }
+      var tds = tables[t].querySelectorAll("td");
+      for (var b = 0; b < tds.length; b++) {
+        tds[b].style.cssText = "border:1px solid #ddd;padding:8px 10px;text-align:left;vertical-align:top;";
+      }
+    }
+    var lis = clone.querySelectorAll("li");
+    for (var n = 0; n < lis.length; n++) {
+      lis[n].style.cssText = "margin-bottom:6px;";
+    }
+    // 链接保留
+    var as = clone.querySelectorAll("a");
+    for (var q = 0; q < as.length; q++) {
+      as[q].style.cssText = "color:#0066ff;";
+    }
+    // 预格式化代码块
+    var pres = clone.querySelectorAll("pre");
+    for (var r = 0; r < pres.length; r++) {
+      pres[r].style.cssText = "background:#f6f8fa;border:1px solid #e1e4e8;border-radius:6px;padding:12px 14px;overflow-x:auto;font-size:13px;line-height:1.6;white-space:pre-wrap;";
+    }
+    // callout / footer / tags 保留文字
+    var callouts = clone.querySelectorAll(".callout");
+    for (var c = 0; c < callouts.length; c++) {
+      callouts[c].style.cssText = "background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px 16px;margin:16px 0;font-size:14px;";
+    }
+
+    // 清掉 meta-bar、avatar 等仅在页面存在的（不在 content 内，安全）
+    wrap.appendChild(clone);
+
+    // footer-note 在 content 内，保留链接信息
+    var fn = wrap.querySelector(".footer-note");
+    if (fn) {
+      fn.style.cssText = "margin-top:24px;padding-top:16px;border-top:1px solid #ddd;font-size:13px;color:#666;";
+      var tags = fn.querySelectorAll(".tags, .tag");
+      // 保留标签文字作为话题候选
+    }
+
+    // stat-row 在 content 内 —— 转成简洁文字
+    var stats = wrap.querySelector(".stat-row");
+    if (stats) {
+      var pStat = document.createElement("p");
+      pStat.textContent = "安装包约 96 MB，运行内存低于 200 MB，无需联网，内置 5 套中文模板。";
+      pStat.style.cssText = "margin:0 0 14px;font-size:15px;line-height:1.85;";
+      stats.parentNode.replaceChild(pStat, stats);
+    }
+
+    return wrap.innerHTML;
+  }
+
+  function setBtn(text, cls) {
+    btn.textContent = text;
+    btn.className = "copy-btn" + (cls ? " " + cls : "");
+    setTimeout(function () {
+      btn.textContent = "复制全文";
+      btn.className = "copy-btn";
+    }, 2200);
+  }
+
+  btn.addEventListener("click", function () {
+    var html = cleanClone();
+    var plain = document.createElement("div");
+    plain.innerHTML = html;
+    var text = plain.innerText || plain.textContent;
+
+    // 优先 ClipboardItem 写富文本；失败则退到 execCommand
+    if (typeof ClipboardItem !== "undefined" && navigator.clipboard && navigator.clipboard.write) {
+      var item = new ClipboardItem({
+        "text/html": new Blob([html], { type: "text/html" }),
+        "text/plain": new Blob([text], { type: "text/plain" })
+      });
+      navigator.clipboard.write([item]).then(function () {
+        setBtn("已复制，去知乎粘贴", "ok");
+      }).catch(function () {
+        fallbackCopy(html, text);
+      });
+    } else {
+      fallbackCopy(html, text);
+    }
+  });
+
+  function fallbackCopy(html, text) {
+    // 选中隐藏 div 后 execCommand copy，兼容部分环境
+    var ta = document.createElement("div");
+    ta.contentEditable = "true";
+    ta.style.cssText = "position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;";
+    ta.innerHTML = html;
+    document.body.appendChild(ta);
+
+    var range = document.createRange();
+    range.selectNodeContents(ta);
+    var sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+
+    var ok = false;
+    try {
+      ok = document.execCommand("copy");
+    } catch (e) {
+      ok = false;
+    }
+    sel.removeAllRanges();
+    document.body.removeChild(ta);
+
+    if (ok) setBtn("已复制，去知乎粘贴", "ok");
+    else setBtn("复制失败，请手动全选", "err");
+  }
+})();
+</script>
+</body>
+</html>
