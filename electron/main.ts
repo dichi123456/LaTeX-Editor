@@ -2,7 +2,6 @@ import { app, BrowserWindow, ipcMain, dialog, shell, Notification, Menu, nativeI
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import * as path from 'path'
-import { autoUpdater } from 'electron-updater'
 
 import { detectTexLive, getEnginePath } from './texlive'
 import { compileDocument, cancelCompile, isCompiling, cleanAuxFiles, runBibtex } from './compiler'
@@ -81,46 +80,6 @@ app.whenReady().then(() => {
     fs.writeFileSync(versionFile, current, 'utf-8')
   } catch { /* ignore */ }
 
-  // 自动更新配置（仅打包版启用）
-  if (!is.dev) {
-    autoUpdater.autoDownload = false
-    autoUpdater.autoInstallOnAppQuit = true
-    autoUpdater.on('update-available', (info) => {
-      dialog.showMessageBox(mainWindow!, {
-        type: 'info',
-        title: '发现新版本',
-        message: `墨灵TeX ${info.version} 已发布`,
-        detail: `当前版本：${app.getVersion()}\n\n是否前往 GitHub 下载新版本？`,
-        buttons: ['前往下载', '稍后再说'],
-        defaultId: 0,
-        cancelId: 1
-      }).then(({ response }) => {
-        if (response === 0) {
-          shell.openExternal('https://github.com/dichi123456/LaTeX-Editor/releases/latest')
-        }
-      })
-    })
-    autoUpdater.on('update-not-available', () => {
-      dialog.showMessageBox(mainWindow!, {
-        type: 'info',
-        title: '已是最新版本',
-        message: `当前版本 ${app.getVersion()} 已是最新。`
-      })
-    })
-    autoUpdater.on('error', (err) => {
-      console.error('[autoUpdater]', err)
-      dialog.showMessageBox(mainWindow!, {
-        type: 'error',
-        title: '检查更新失败',
-        message: '无法连接更新服务器，请检查网络后重试。'
-      })
-    })
-    // 启动后 8 秒静默检查
-    setTimeout(() => {
-      autoUpdater.checkForUpdates().catch(() => { /* ignore */ })
-    }, 8000)
-  }
-
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })
@@ -157,28 +116,6 @@ function buildMenu(): void {
         { label: '另存为…', accelerator: 'Ctrl+Shift+S', click: () => sendMenu('save-as') },
         { type: 'separator' },
         { label: '设置', accelerator: 'Ctrl+,', click: () => sendMenu('settings') },
-        { type: 'separator' },
-        {
-          label: '检查更新',
-          click: () => {
-            if (is.dev) {
-              dialog.showMessageBox(mainWindow!, {
-                type: 'info',
-                title: '开发模式',
-                message: '开发模式下不支持检查更新。'
-              })
-              return
-            }
-            dialog.showMessageBox(mainWindow!, {
-              type: 'info',
-              title: '检查更新',
-              message: '正在检查更新…'
-            })
-            autoUpdater.checkForUpdates().catch((err) => {
-              console.error('[check-update]', err)
-            })
-          }
-        },
         { type: 'separator' },
         { role: 'quit', label: '退出' }
       ]
@@ -416,6 +353,43 @@ ipcMain.handle('show-notification', async (_event, title: string, body: string) 
 
 ipcMain.handle('set-title', async (_event, title: string) => {
   mainWindow?.setTitle(title)
+})
+
+// 检查更新（GitHub API）
+ipcMain.handle('check-update', async () => {
+  const current = app.getVersion()
+  try {
+    const resp = await fetch('https://api.github.com/repos/dichi123456/LaTeX-Editor/releases/latest', {
+      headers: { 'User-Agent': 'MoLingTeX-Updater' }
+    })
+    if (!resp.ok) {
+      return { success: false, error: `GitHub API 返回 ${resp.status}`, current }
+    }
+    const data = await resp.json()
+    const latest = String(data.tag_name || '').replace(/^v/, '')
+    const hasUpdate = latest && latest !== current
+    return {
+      success: true,
+      current,
+      latest,
+      hasUpdate,
+      url: data.html_url || 'https://github.com/dichi123456/LaTeX-Editor/releases/latest',
+      body: String(data.body || '').slice(0, 500)
+    }
+  } catch (err: any) {
+    return { success: false, error: err?.message || '网络请求失败', current }
+  }
+})
+
+// 关于墨灵TeX
+ipcMain.handle('show-about', async () => {
+  if (!mainWindow) return
+  dialog.showMessageBox(mainWindow, {
+    type: 'info',
+    title: '关于 墨灵TeX',
+    message: `墨灵TeX v${app.getVersion()}`,
+    detail: '本地 LaTeX 编辑器 — 编辑·编译·预览·AI 助手\n\n开源协议：MIT\n仓库：github.com/dichi123456/LaTeX-Editor\n\n依赖本机 TeX Live，数据不出本机。'
+  })
 })
 
 // 窗口控制（无边框窗口）

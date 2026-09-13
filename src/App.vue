@@ -44,6 +44,7 @@ const showCommandPalette = ref(false)
 const showSearch = ref(false)
 const openFileMenu = ref(false)
 const openRecentMenu = ref(false)
+const openHelpMenu = ref(false)
 // 最近一次编译成功的 PDF 路径（供 SyncTeX 使用）
 let lastPdfPath: string | null = null
 
@@ -129,15 +130,55 @@ onUnmounted(() => {
 function closeFileMenu() {
   openFileMenu.value = false
   openRecentMenu.value = false
+  openHelpMenu.value = false
+}
+
+function closeHelpMenu() {
+  openHelpMenu.value = false
 }
 
 function toggleFileMenu() {
-  // 打开文件菜单时关闭其他菜单
   if (!openFileMenu.value) {
     window.dispatchEvent(new CustomEvent('close-all-menus'))
   }
   openFileMenu.value = !openFileMenu.value
   openRecentMenu.value = false
+  openHelpMenu.value = false
+}
+
+function toggleHelpMenu() {
+  if (!openHelpMenu.value) {
+    window.dispatchEvent(new CustomEvent('close-all-menus'))
+  }
+  openHelpMenu.value = !openHelpMenu.value
+  openFileMenu.value = false
+  openRecentMenu.value = false
+}
+
+async function onCheckUpdate() {
+  closeFileMenu()
+  closeHelpMenu()
+  try {
+    const result = await window.electronAPI.checkUpdate()
+    if (result.success && result.hasUpdate) {
+      const ok = confirm(`发现新版本 v${result.latest}（当前 v${result.current}）\n\n是否前往 GitHub 下载？`)
+      if (ok && result.url) {
+        window.electronAPI.openExternal(result.url)
+      }
+    } else if (result.success) {
+      alert(`已是最新版本（v${result.current}）`)
+    } else {
+      alert(`检查更新失败：${result.error || '未知错误'}`)
+    }
+  } catch (err: any) {
+    alert(`检查更新异常：${err.message}`)
+  }
+}
+
+function onShowAbout() {
+  closeFileMenu()
+  closeHelpMenu()
+  window.electronAPI.showAbout()
 }
 
 function onOutsideMenuClick(e: MouseEvent) {
@@ -149,6 +190,7 @@ function onOutsideMenuClick(e: MouseEvent) {
 
 function onCloseAllMenusApp() {
   closeFileMenu()
+  openHelpMenu.value = false
 }
 
 function runFileAction(action: string) {
@@ -673,6 +715,18 @@ function editorAction(action: string) {
 
           <button class="menu-btn" title="命令面板 (Ctrl+Shift+P)" @click="showCommandPalette = true">命令</button>
           <button class="menu-btn" title="设置 (Ctrl+,)" @click="configStore.showSettings = true">设置</button>
+          <!-- 帮助菜单 -->
+          <div class="menu-item-wrap">
+            <button class="menu-btn" :class="{ open: openHelpMenu }" @click.stop="toggleHelpMenu()">帮助</button>
+            <div v-if="openHelpMenu" class="menu-dropdown" @click.stop>
+              <button class="menu-entry" @click="onCheckUpdate">
+                <span>检查更新</span>
+              </button>
+              <button class="menu-entry" @click="onShowAbout">
+                <span>关于 墨灵TeX</span>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
       <div class="toolbar-right">

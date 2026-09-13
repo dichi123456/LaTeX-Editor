@@ -73,6 +73,9 @@ const api = {
   showNotification: (title: string, body: string): Promise<void> =>
     ipcRenderer.invoke('show-notification', title, body),
   setTitle: (title: string): Promise<void> => ipcRenderer.invoke('set-title', title),
+  checkUpdate: (): Promise<{ success: boolean; current: string; latest?: string; hasUpdate?: boolean; url?: string; error?: string }> =>
+    ipcRenderer.invoke('check-update'),
+  showAbout: (): Promise<void> => ipcRenderer.invoke('show-about'),
   notifyCompileDone: (success: boolean): Promise<void> =>
     ipcRenderer.invoke('notify-compile-done', success),
 
