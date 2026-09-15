@@ -3,19 +3,19 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>墨灵TeX — 本地 LaTeX 编辑器 | AI 驱动</title>
-<meta name="description" content="墨灵TeX 是一款 Windows 本地 LaTeX 编辑器，集编辑、编译、预览、AI 助手于一体。支持 TeX Live、SyncTeX 同步、中文模板，数据完全本地。">
-<meta name="keywords" content="LaTeX,编辑器,论文写作,TeX,AI,墨灵TeX,毕业论文,ctex,XeLaTeX,PDF预览">
+<title>墨灵TeX — 本地 LaTeX 编辑器 | AI 驱动 · v1.0.5</title>
+<meta name="description" content="墨灵TeX 是一款 Windows 本地 LaTeX 编辑器，集编辑、编译、预览、AI 助手于一体。内置国赛/期刊/简历/幻灯片模板库，支持 TeX Live、SyncTeX 同步，数据完全本地。">
+<meta name="keywords" content="LaTeX,编辑器,论文写作,TeX,AI,墨灵TeX,毕业论文,ctex,XeLaTeX,PDF预览,国赛,IEEE,Elsevier,简历,Beamer">
 <meta name="robots" content="index, follow">
 <meta property="og:type" content="website">
 <meta property="og:title" content="墨灵TeX — 本地 LaTeX 编辑器">
-<meta property="og:description" content="AI 驱动的本地 LaTeX 编辑器，集编辑、编译、预览、AI 助手于一体。">
-<meta property="og:url" content="https://dichi123456.github.io/LaTeX-Editor/">
-<meta property="og:image" content="https://dichi123456.github.io/LaTeX-Editor/ui-main.png">
+<meta property="og:description" content="AI 驱动的本地 LaTeX 编辑器。v1.0.5 新增丰富模板库：国赛、期刊投稿、多套简历与幻灯片。">
+<meta property="og:url" content="https://www.molingtex.cn/">
+<meta property="og:image" content="https://www.molingtex.cn/ui-main.png">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="墨灵TeX — 本地 LaTeX 编辑器">
-<meta name="twitter:description" content="AI 驱动的本地 LaTeX 编辑器。">
-<link rel="canonical" href="https://dichi123456.github.io/LaTeX-Editor/">
+<meta name="twitter:description" content="AI 驱动的本地 LaTeX 编辑器。v1.0.5 已发布。">
+<link rel="canonical" href="https://www.molingtex.cn/">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html{scroll-behavior:smooth}
@@ -36,7 +36,7 @@ nav{position:fixed;top:0;width:100%;z-index:100;background:rgba(255,255,255,.92)
 .hero{padding:100px 24px 40px;text-align:center;background:linear-gradient(180deg,#f8fafc,#fff)}
 .hero h1{font-size:44px;font-weight:800;color:#0f172a;line-height:1.2;margin-bottom:14px}
 .hero h1 .gr{background:linear-gradient(135deg,#2563EB,#7c3aed);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
-.hero>p{font-size:16px;color:#64748b;max-width:500px;margin:0 auto 28px;line-height:1.7}
+.hero>p{font-size:16px;color:#64748b;max-width:520px;margin:0 auto 28px;line-height:1.7}
 .hbtns{display:flex;gap:12px;justify-content:center;margin-bottom:36px}
 .bglow{background:linear-gradient(135deg,#2563EB,#7c3aed);color:#fff;padding:12px 32px;border-radius:10px;font-size:15px;font-weight:600;transition:all .3s}
 .bglow:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(37,99,235,.35)}
@@ -47,13 +47,11 @@ nav{position:fixed;top:0;width:100%;z-index:100;background:rgba(255,255,255,.92)
 .hs-n{font-size:26px;font-weight:800;color:#0f172a}.hs-n span{font-size:14px}
 .hs-l{font-size:12px;color:#94a3b8;margin-top:2px}
 
-/* 双图并列 */
 .shots{padding:20px 24px 60px;display:flex;gap:16px;justify-content:center;max-width:1100px;margin:0 auto;flex-wrap:wrap}
 .shot-card{flex:1;min-width:300px;max-width:520px;border-radius:10px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,.1);border:1px solid #e2e8f0;transition:all .4s}
 .shot-card:hover{transform:translateY(-6px);box-shadow:0 20px 60px rgba(0,0,0,.15)}
 .shot-card img{width:100%;display:block}
 
-/* 紧凑区块 */
 .sec{padding:56px 24px}
 .sec-alt{background:#f8fafc}
 .sh{text-align:center;margin-bottom:40px}
@@ -71,6 +69,14 @@ nav{position:fixed;top:0;width:100%;z-index:100;background:rgba(255,255,255,.92)
 .fc ul{margin-top:10px;padding-left:0;list-style:none}
 .fc li{font-size:12px;color:#64748b;padding:2px 0;padding-left:16px;position:relative}
 .fc li::before{content:'✓';position:absolute;left:0;color:#10b981;font-weight:700}
+
+.tg{max-width:1000px;margin:0 auto;display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+.tc{background:#fff;border-radius:12px;padding:20px 22px;border:1px solid #e2e8f0;transition:all .3s}
+.tc:hover{border-color:#2563EB;box-shadow:0 8px 24px rgba(37,99,235,.08)}
+.tc h3{font-size:14px;font-weight:700;color:#0f172a;margin-bottom:6px}
+.tc p{font-size:12px;color:#64748b;line-height:1.6}
+.tc .tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px}
+.tc .tag{font-size:11px;padding:3px 8px;border-radius:8px;background:#f1f5f9;color:#475569}
 
 .ai-sec{padding:56px 24px;background:#0f172a}
 .ai-in{max-width:1000px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center}
@@ -110,7 +116,7 @@ nav{position:fixed;top:0;width:100%;z-index:100;background:rgba(255,255,255,.92)
 .fq::after{content:'+';font-size:20px;color:#94a3b8;transition:transform .3s;font-weight:300}
 .fi2.open .fq::after{transform:rotate(45deg)}
 .fa{max-height:0;overflow:hidden;transition:max-height .3s;padding:0 18px;color:#64748b;font-size:13px;line-height:1.7}
-.fi2.open .fa{max-height:150px;padding:0 18px 14px}
+.fi2.open .fa{max-height:180px;padding:0 18px 14px}
 
 footer{padding:32px 24px;text-align:center;color:#94a3b8;font-size:12px;border-top:1px solid #e2e8f0}
 footer a{color:#2563EB}
@@ -118,6 +124,7 @@ footer a{color:#2563EB}
 @media(max-width:768px){
   .hero h1{font-size:30px}
   .fg{grid-template-columns:1fr}
+  .tg{grid-template-columns:1fr}
   .ai-in{grid-template-columns:1fr}
   .ug{grid-template-columns:1fr}
   .nl{display:none}
@@ -131,32 +138,32 @@ footer a{color:#2563EB}
 <nav>
   <div class="ni">
     <a class="logo" href="#">
-      <svg width="28" height="28" viewBox="0 0 512 512"><rect width="512" height="512" rx="96" fill="#0f172a"/><text x="256" y="260" text-anchor="middle" font-family="KaiTi,STKaiti,SimSun,serif" font-size="200" font-weight="700" fill="#f1f5f9" letter-spacing="20">墨</text></svg>
+      <svg width="28" height="28" viewBox="0 0 512 512"><rect width="512" height="512" rx="96" fill="#0f172a"/><path d="M120 360 V152 L256 292 L392 152 V360" fill="none" stroke="#f1f5f9" stroke-width="42" stroke-linecap="round" stroke-linejoin="round"/><rect x="120" y="388" width="272" height="22" rx="11" fill="#38bdf8"/></svg>
       墨灵TeX
     </a>
     <ul class="nl">
       <li><a href="#features">功能</a></li>
+      <li><a href="#templates">模板库</a></li>
       <li><a href="#ai">AI</a></li>
       <li><a href="#scenarios">场景</a></li>
-      <li><a href="#compare">对比</a></li>
       <li><a href="#faq">FAQ</a></li>
     </ul>
-    <a class="ncta" href="https://github.com/dichi123456/LaTeX-Editor/releases" target="_blank">下载 v1.0.4</a>
+    <a class="ncta" href="https://github.com/dichi123456/LaTeX-Editor/releases/tag/v1.0.5" target="_blank">下载 v1.0.5</a>
   </div>
 </nav>
 
 <section class="hero">
   <h1 class="an">墨灵TeX<br><span class="gr">AI 驱动</span>的本地 LaTeX 编辑器</h1>
-  <p class="an d1">集编辑、编译、预览、AI 助手于一体的桌面应用。数据完全本地，无需联网，开箱即用。</p>
+  <p class="an d1">集编辑、编译、预览、AI 助手与丰富模板库于一体的桌面应用。数据完全本地，无需联网，开箱即用。</p>
   <div class="hbtns an d2">
-    <a class="bglow" href="https://github.com/dichi123456/LaTeX-Editor/releases" target="_blank">⬇ 立即下载</a>
+    <a class="bglow" href="https://github.com/dichi123456/LaTeX-Editor/releases/tag/v1.0.5" target="_blank">⬇ 下载 v1.0.5</a>
     <a class="bgh" href="https://github.com/dichi123456/LaTeX-Editor" target="_blank">GitHub ↗</a>
   </div>
   <div class="hstats an d3">
-    <div class="hs"><div class="hs-n">97<span>MB</span></div><div class="hs-l">安装包</div></div>
-    <div class="hs"><div class="hs-n">&lt;200<span>MB</span></div><div class="hs-l">内存</div></div>
+    <div class="hs"><div class="hs-n">98<span>MB</span></div><div class="hs-l">安装包</div></div>
+    <div class="hs"><div class="hs-n">20+</div><div class="hs-l">内置模板</div></div>
     <div class="hs"><div class="hs-n">6</div><div class="hs-l">AI 工具</div></div>
-    <div class="hs"><div class="hs-n">5</div><div class="hs-l">中文模板</div></div>
+    <div class="hs"><div class="hs-n">1.0.5</div><div class="hs-l">当前版本</div></div>
   </div>
 </section>
 
@@ -175,12 +182,26 @@ footer a{color:#2563EB}
     <h2 class="st2">一个编辑器，覆盖全流程</h2>
   </div>
   <div class="fg">
-    <div class="fc an d1"><div class="fi b">⚡</div><h3>极速编译</h3><p>XeLaTeX 深度集成，TeX Live 自动检测。</p><ul><li>一键编译 F5</li><li>三种编译模式</li><li>bibtex 自动处理</li></ul></div>
+    <div class="fc an d1"><div class="fi b">⚡</div><h3>极速编译</h3><p>XeLaTeX 深度集成，TeX Live 自动检测。</p><ul><li>一键编译 F5</li><li>按文档自动纠正引擎</li><li>bibtex 自动处理</li></ul></div>
     <div class="fc an d2"><div class="fi p">📄</div><h3>PDF 实时预览</h3><p>PDF.js 渲染，垂直滚动浏览。</p><ul><li>Ctrl+滚轮缩放</li><li>SyncTeX 双向同步</li><li>多 PDF 标签页</li></ul></div>
     <div class="fc an d3"><div class="fi g">🎯</div><h3>智能编辑</h3><p>CodeMirror 6 驱动，LaTeX 优化。</p><ul><li>命令/环境/引用补全</li><li>BibTeX 扫描</li><li>正则查找替换</li></ul></div>
-    <div class="fc an d4"><div class="fi a">🇨🇳</div><h3>中文开箱</h3><p>专为中文论文调优。</p><ul><li>ctex + 系统字体</li><li>XeLaTeX 默认</li><li>5 套中文模板</li></ul></div>
-    <div class="fc an d5"><div class="fi r">🎨</div><h3>现代界面</h3><p>面板化布局，自由定制。</p><ul><li>深色/浅色/跟随系统</li><li>面板拖拽互换</li><li>命令面板</li></ul></div>
-    <div class="fc an d6"><div class="fi c">📂</div><h3>项目管理</h3><p>文件树、大纲、多标签。</p><ul><li>工作区 + 大纲导航</li><li>标签拖拽排序</li><li>引用自动扫描</li></ul></div>
+    <div class="fc an d4"><div class="fi a">🇨🇳</div><h3>中文开箱</h3><p>专为中文论文调优。</p><ul><li>ctex + 系统字体</li><li>XeLaTeX 默认</li><li>国赛 CUMCM 完整模板</li></ul></div>
+    <div class="fc an d5"><div class="fi r">🎨</div><h3>现代界面</h3><p>面板化布局，默认深色。</p><ul><li>深色/浅色/跟随系统</li><li>面板拖拽互换</li><li>命令面板</li></ul></div>
+    <div class="fc an d6"><div class="fi c">📂</div><h3>模板库</h3><p>左侧分类导航，一键建项目。</p><ul><li>系统对话框选/建文件夹</li><li>自动写入 cls/sty/图片</li><li>IEEE / Elsevier / Wiley</li></ul></div>
+  </div>
+</section>
+
+<section class="sec" id="templates">
+  <div class="sh an">
+    <div class="st">模板库 · v1.0.5</div>
+    <h2 class="st2">20+ 套，开箱即用</h2>
+    <p class="ss">覆盖国赛、期刊投稿、简历、课程与学术幻灯片。点击模板后在系统对话框中选择或新建文件夹即可生成完整项目。</p>
+  </div>
+  <div class="tg">
+    <div class="tc an d1"><h3>📄 中文论文</h3><p>课程论文 / 学位论文结构模板，以及国赛 CUMCM 完整包（cls、sty、示例图）。</p><div class="tags"><span class="tag">ctex</span><span class="tag">国赛 CUMCM</span><span class="tag">含 figures</span></div></div>
+    <div class="tc an d2"><h3>📰 英文论文投稿</h3><p>通用英文结构，以及 IEEEtran、elsarticle、Wiley 期刊骨架，按文档自动选 pdflatex/xelatex。</p><div class="tags"><span class="tag">IEEE</span><span class="tag">Elsevier</span><span class="tag">Wiley</span></div></div>
+    <div class="tc an d3"><h3>👤 简历</h3><p>应届生单栏、技术双栏、高密度紧凑、英文 CV、简洁中文等多套布局。</p><div class="tags"><span class="tag">校招</span><span class="tag">社招</span><span class="tag">英文 CV</span></div></div>
+    <div class="tc an d4"><h3>🖼 幻灯片</h3><p>Metropolis 学术汇报、课程报告、现代中文进度汇报、Arguelles 极简英文 seminar、经典 Madrid。</p><div class="tags"><span class="tag">Beamer</span><span class="tag">组会</span><span class="tag">课程</span></div></div>
   </div>
 </section>
 
@@ -214,26 +235,26 @@ footer a{color:#2563EB}
   </div>
 </section>
 
-<section class="sec" id="scenarios">
+<section class="sec sec-alt" id="scenarios">
   <div class="sh an"><div class="st">应用场景</div><h2 class="st2">全场景覆盖</h2></div>
   <div class="ug">
     <div class="uc an d1"><h3>📝 毕业论文写作</h3><p>ctex 中文模板开箱即用，SyncTeX 源码与 PDF 快速定位，AI 润色段落、检查引用。</p><div class="uc-tags"><span class="uc-tag">ctex</span><span class="uc-tag">SyncTeX</span><span class="uc-tag">AI 润色</span></div></div>
-    <div class="uc an d2"><h3>📚 学术论文投稿</h3><p>IEEE、Elsevier 等期刊模板。BibTeX 自动管理参考文献，编译日志精准定位错误。</p><div class="uc-tags"><span class="uc-tag">BibTeX</span><span class="uc-tag">期刊模板</span><span class="uc-tag">错误定位</span></div></div>
-    <div class="uc an d3"><h3>👨‍🏫 教学课件制作</h3><p>Beamer 幻灯片模板内置，公式智能补全。AI 帮你把讲义转换为 Beamer 格式。</p><div class="uc-tags"><span class="uc-tag">Beamer</span><span class="uc-tag">AI 转换</span></div></div>
-    <div class="uc an d4"><h3>💼 个人简历制作</h3><p>中文简历模板即开即用，一键编译出 PDF，比 Word 更精确的排版控制。</p><div class="uc-tags"><span class="uc-tag">简历模板</span><span class="uc-tag">一键 PDF</span></div></div>
+    <div class="uc an d2"><h3>📚 学术论文投稿</h3><p>内置 IEEE / Elsevier / Wiley 投稿骨架。BibTeX 自动管理参考文献，编译日志精准定位错误。</p><div class="uc-tags"><span class="uc-tag">IEEE</span><span class="uc-tag">Elsevier</span><span class="uc-tag">Wiley</span></div></div>
+    <div class="uc an d3"><h3>🏆 数学建模竞赛</h3><p>国赛 CUMCM 完整模板：封面、承诺书、示例图与参考文献结构，一键生成可编译项目。</p><div class="uc-tags"><span class="uc-tag">CUMCM</span><span class="uc-tag">示例图齐全</span></div></div>
+    <div class="uc an d4"><h3>💼 简历 / 课件 / 汇报</h3><p>多套中文/英文简历与 Beamer 幻灯片。模板创建后自动固定主文档与编译引擎。</p><div class="uc-tags"><span class="uc-tag">简历</span><span class="uc-tag">Beamer</span><span class="uc-tag">自动引擎</span></div></div>
   </div>
 </section>
 
-<section class="sec sec-alt" id="compare">
+<section class="sec sec-alt" id="compare" style="padding-top:0">
   <div class="sh an"><div class="st">对比</div><h2 class="st2">为什么选择本地编辑器？</h2></div>
   <table class="ct an d1">
     <thead><tr><th style="text-align:left">特性</th><th style="color:#2563EB">墨灵TeX</th><th>Overleaf</th><th>TeXstudio</th></tr></thead>
     <tbody>
       <tr><td>完全本地运行</td><td class="hl y">●</td><td class="n">○</td><td class="y">●</td></tr>
       <tr><td>无需注册/联网</td><td class="hl y">●</td><td class="n">○</td><td class="y">●</td></tr>
-      <tr><td>AI 助手</td><td class="hl y">●</td><td style="color:#f59e0b">◐ 付费</td><td class="n">○</td></tr>
       <tr><td>AI 读写项目文件</td><td class="hl y">●</td><td class="n">○</td><td class="n">○</td></tr>
-      <tr><td>中文开箱优化</td><td class="hl y">●</td><td style="color:#f59e0b">◐ 需配置</td><td style="color:#f59e0b">◐</td></tr>
+      <tr><td>丰富中文模板库</td><td class="hl y">●</td><td style="color:#f59e0b">◐</td><td style="color:#f59e0b">◐</td></tr>
+      <tr><td>国赛 / 期刊一键建项目</td><td class="hl y">●</td><td class="n">○</td><td class="n">○</td></tr>
       <tr><td>免费开源</td><td class="hl y">● MIT</td><td class="n">○</td><td class="y">●</td></tr>
     </tbody>
   </table>
@@ -242,15 +263,16 @@ footer a{color:#2563EB}
 <section class="sec sec-alt" id="faq" style="padding-top:0">
   <div class="sh an"><div class="st">FAQ</div><h2 class="st2">常见问题</h2></div>
   <div class="fl">
-    <div class="fi2 an d1" onclick="this.classList.toggle('open')"><div class="fq">需要安装 TeX Live 吗？</div><div class="fa">编译功能需要 TeX Live 2024。编辑器自动检测路径，未找到时可在设置中手动指定。AI 对话不依赖 TeX Live。</div></div>
-    <div class="fi2 an d2" onclick="this.classList.toggle('open')"><div class="fq">墨灵 AI 需要付费吗？</div><div class="fa">墨灵免费，需自备 API Key（如 DeepSeek）。API 费用由服务商收取。</div></div>
-    <div class="fi2 an d3" onclick="this.classList.toggle('open')"><div class="fq">支持 macOS / Linux 吗？</div><div class="fa">目前仅 Windows 10/11。基于 Electron，理论可跨平台但未测试。</div></div>
-    <div class="fi2 an d4" onclick="this.classList.toggle('open')"><div class="fq">数据会上传云端吗？</div><div class="fa">不会。所有操作本地完成。仅 AI 对话内容发送给你配置的服务商。</div></div>
+    <div class="fi2 an d1" onclick="this.classList.toggle('open')"><div class="fq">需要安装 TeX Live 吗？</div><div class="fa">编译功能需要 TeX Live 2022/2023/2024 或 MiKTeX。编辑器自动检测路径，未找到时可在设置中手动指定。AI 对话不依赖 TeX Live。</div></div>
+    <div class="fi2 an d2" onclick="this.classList.toggle('open')"><div class="fq">模板创建后如何编译？</div><div class="fa">从模板库创建后会自动打开 main.tex 并固定主文档；编译时会按 documentclass 自动选择 pdflatex 或 xelatex。也可在设置中手动指定引擎。</div></div>
+    <div class="fi2 an d3" onclick="this.classList.toggle('open')"><div class="fq">墨灵 AI 需要付费吗？</div><div class="fa">墨灵免费，需自备 API Key（如 DeepSeek）。API 费用由服务商收取。</div></div>
+    <div class="fi2 an d4" onclick="this.classList.toggle('open')"><div class="fq">支持 macOS / Linux 吗？</div><div class="fa">目前仅 Windows 10/11。基于 Electron，理论可跨平台但未测试。</div></div>
+    <div class="fi2 an d5" onclick="this.classList.toggle('open')"><div class="fq">数据会上传云端吗？</div><div class="fa">不会。所有操作本地完成。仅 AI 对话内容发送给你配置的服务商。</div></div>
   </div>
 </section>
 
 <footer>
-  <p>MIT License · 墨灵TeX · <a href="https://github.com/dichi123456/LaTeX-Editor" target="_blank">GitHub</a></p>
+  <p>MIT License · 墨灵TeX v1.0.5 · 官网 <a href="https://www.molingtex.cn">www.molingtex.cn</a> · <a href="https://github.com/dichi123456/LaTeX-Editor/releases/tag/v1.0.5">下载</a> · <a href="https://github.com/dichi123456/LaTeX-Editor" target="_blank">GitHub</a></p>
 </footer>
 
 <script>

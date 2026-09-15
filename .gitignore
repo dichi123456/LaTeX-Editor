@@ -5,3 +5,15 @@ release/
 .DS_Store
 Thumbs.db
 截图/
+
+# build/export artifacts
+.export-build/
+.full*/
+.rel*/
+.r*/
+.export-build/
+win-unpacked/
+*.exe
+*.zip
+*.blockmap
+electron.vite.config.*.mjs
