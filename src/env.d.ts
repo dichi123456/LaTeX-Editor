@@ -18,6 +18,7 @@ interface Window {
     openFolder: () => Promise<string | null>
     readFile: (filePath: string) => Promise<{ content: string; encoding: string }>
     writeFile: (filePath: string, content: string) => Promise<boolean>
+    writeBinaryFile: (filePath: string, base64: string) => Promise<boolean>
     readPdf: (filePath: string) => Promise<string | null>
     listDir: (dirPath: string) => Promise<DirEntry[]>
     createFile: (dirPath: string, fileName: string) => Promise<string | null>
@@ -57,7 +58,7 @@ interface Window {
     saveConfig: (config: AppConfig) => Promise<boolean>
 
     // 对话框 / 系统
-    chooseDirectory: () => Promise<string | null>
+    chooseDirectory: (options?: { title?: string; defaultPath?: string }) => Promise<string | null>
     saveAs: (defaultName: string) => Promise<string | null>
     openExternal: (url: string) => Promise<void>
     openPdfExternal: (pdfPath: string) => Promise<void>

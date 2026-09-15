@@ -1,13 +1,13 @@
 {
   "name": "latex-editor",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "本地 LaTeX 编辑器 — Windows 桌面应用（编辑·编译·预览）",
   "main": "./out/main/main.js",
   "author": "墨灵TeX",
   "license": "MIT",
   "scripts": {
     "dev": "electron-vite dev",
-    "build": "electron-vite build",
+    "build": "node scripts/gen-cumcm-assets.mjs && electron-vite build",
     "preview": "electron-vite preview",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "vue-tsc --noEmit -p tsconfig.web.json --composite false",

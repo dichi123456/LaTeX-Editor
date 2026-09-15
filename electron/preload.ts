@@ -15,6 +15,8 @@ const api = {
     ipcRenderer.invoke('read-pdf', filePath),
   writeFile: (filePath: string, content: string): Promise<boolean> =>
     ipcRenderer.invoke('write-file', filePath, content),
+  writeBinaryFile: (filePath: string, base64: string): Promise<boolean> =>
+    ipcRenderer.invoke('write-binary-file', filePath, base64),
   listDir: (dirPath: string): Promise<DirEntry[]> => ipcRenderer.invoke('list-dir', dirPath),
   createFile: (dirPath: string, fileName: string): Promise<string | null> =>
     ipcRenderer.invoke('create-file', dirPath, fileName),
@@ -62,7 +64,8 @@ const api = {
   saveConfig: (config: AppConfig): Promise<boolean> => ipcRenderer.invoke('save-config', config),
 
   // 系统
-  chooseDirectory: (): Promise<string | null> => ipcRenderer.invoke('choose-directory'),
+  chooseDirectory: (options?: { title?: string; defaultPath?: string }): Promise<string | null> =>
+    ipcRenderer.invoke('choose-directory', options),
   saveAs: (defaultName: string): Promise<string | null> =>
     ipcRenderer.invoke('save-as-dialog', defaultName),
   openExternal: (url: string): Promise<void> => ipcRenderer.invoke('open-external', url),

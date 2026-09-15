@@ -1,0 +1,94 @@
+%% Elsevier 通用投稿骨架（elsarticle）
+%% 依赖 TeX Live 自带 elsarticle（LPPL / Elsevier Bundle）
+%% 常用编译: pdflatex + bibtex；预印本模式 preprint
+\documentclass[preprint,12pt]{elsarticle}
+% 期刊终稿示例: \documentclass[final,3p,twocolumn]{elsarticle}
+
+\usepackage{lineno,amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+% elsarticle 已加载 natbib，不要重复 \usepackage[authoryear]{natbib}
+\journal{Journal Name}
+
+\begin{document}
+
+\begin{frontmatter}
+
+\	itle{A Concise Template for Elsevier Journal Submission}
+
+\author[aff1]{First A. Author\corref{cor1}}
+\ead{first.author@example.com}
+
+\author[aff1,aff2]{Second B. Author}
+\ead{second.author@example.com}
+
+\cortext[cor1]{Corresponding author}
+
+\address[aff1]{Department of Computer Science, University Name, City, Country}
+\address[aff2]{Research Institute, Organization Name, City, Country}
+
+\begin{abstract}
+This skeleton demonstrates the structure of an Elsevier manuscript using the \	exttt{elsarticle} class. Replace sample sections with your content and adjust bibliography style according to the journal guide for authors.
+\end{abstract}
+
+\begin{keyword}
+LaTeX \sep elsarticle \sep journal paper \sep template
+\end{keyword}
+
+\end{frontmatter}
+
+\section{Introduction}
+State the problem, briefly review related work, and list concrete contributions of this manuscript.
+
+\section{Methods}
+Describe materials, models, and algorithms. Number equations when they are referenced in the text.
+
+\begin{equation}
+\min_{x} \\|Ax - b\\|_2^2 + \lambda \\|x\\|_1
+\label{eq:lasso}
+\end{equation}
+
+Equation~\eqref{eq:lasso} is illustrative only.
+
+\section{Results}
+Report experimental design and main findings. Prefer self-contained tables and figures.
+
+\begin{table}[htbp]
+\caption{Illustrative comparison of methods}
+\label{tab:results}
+\begin{tabular}{lcc}
+\	oprule
+Method & Accuracy & Runtime (s) \\
+\midrule
+Baseline & 0.901 & 12.4 \\
+Proposed & 0.935 & 10.8 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Discussion}
+Interpret results, discuss limitations, and outline future research directions.
+
+\section{Conclusion}
+Summarize the key contribution and practical implications in a concise closing paragraph.
+
+\section*{Declaration of competing interest}
+The authors declare that they have no known competing financial interests or personal relationships that could have appeared to influence the work reported in this paper.
+
+\section*{Acknowledgements}
+The authors thank colleagues for valuable discussions. This work was supported by Grant No.~XXXX.
+
+\section*{Data availability}
+Data will be made available on reasonable request.
+
+\bibliographystyle{elsarticle-harv}
+% 也可使用: \bibliographystyle{plainnat}
+\begin{thebibliography}{00}
+\bibitem{ref1}
+A. Author, Title of article, Journal Name. Year;Vol(Issue):Pages.
+
+\bibitem{ref2}
+B. Author, Title of conference paper, In: Proceedings of Conference; Year; Pages.
+\end{thebibliography}
+
+\end{document}

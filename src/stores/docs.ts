@@ -153,9 +153,14 @@ export const useDocStore = defineStore('doc', () => {
   }
 
   async function openProjectFolder(folderPath: string): Promise<void> {
+    const prev = projectRoot.value
     projectRoot.value = folderPath
     await window.electronAPI.addRecentWorkspace(folderPath)
     recentWorkspaces.value = await window.electronAPI.getRecentWorkspaces()
+    // 切换到不同工作区时清空主文档指针，避免编译指向旧项目
+    if (prev && prev !== folderPath) {
+      mainTexPath.value = null
+    }
   }
 
   function addExtraFolder(path: string): void {

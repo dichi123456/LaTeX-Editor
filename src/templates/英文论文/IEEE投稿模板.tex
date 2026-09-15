@@ -1,0 +1,95 @@
+%% IEEE 期刊 / 会议通用投稿骨架
+%% 依赖 TeX Live 自带 IEEEtran（LPPL）
+%% 编译: xelatex 或 pdflatex
+\documentclass[conference]{IEEEtran}
+% 期刊双栏可改为: \documentclass[journal]{IEEEtran}
+
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+
+\begin{document}
+
+\title{A Concise Template for IEEE Conferences and Transactions}
+
+\author{
+\IEEEauthorblockN{First A. Author}
+\IEEEauthorblockA{Department of Electrical Engineering\\
+University Name\\
+City, Country\\
+email@university.edu}
+\and
+\IEEEauthorblockN{Second B. Author}
+\IEEEauthorblockA{Research Laboratory\\
+Company / Institute\\
+City, Country\\
+email@company.com}
+}
+
+\maketitle
+
+\begin{abstract}
+This skeleton demonstrates the structure of an IEEE conference paper using the \texttt{IEEEtran} class. Replace the sample text with your manuscript content. Keep the abstract within the page limit required by the target venue.
+\end{abstract}
+
+\begin{IEEEkeywords}
+LaTeX, IEEEtran, conference paper, template
+\end{IEEEkeywords}
+
+\IEEEpeerreviewmaketitle
+
+\section{Introduction}
+IEEE papers typically begin with motivation, related work summary, and a clear statement of contributions.
+
+\section{Method}
+Describe the proposed method with equations, algorithms, and figures.
+
+\begin{equation}
+    E = mc^2
+    \label{eq:sample}
+\end{equation}
+
+Equation~\eqref{eq:sample} is only a placeholder.
+
+\section{Results}
+Present experimental settings, baselines, and quantitative results.
+
+\begin{table}[!t]
+\caption{Sample Results}
+\label{tab:sample}
+\begin{center}
+\begin{tabular}{lcc}
+\hline
+Method & Accuracy & Latency (ms) \\
+\hline
+Baseline & 90.1 & 12.4 \\
+Ours & 93.5 & 10.8 \\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+
+\section{Discussion}
+Summarize implications, limitations, and future work without over-claiming.
+
+\section{Conclusion}
+Restate the problem, the approach, and the main experimental finding in a few sentences.
+
+\section*{Acknowledgment}
+This work was supported in part by Grant No.~XXXX.
+
+\begin{thebibliography}{00}
+\bibitem{ref1}
+A.~Author, ``Title of paper,'' \textit{IEEE Trans.~XXX}, vol.~XX, no.~XX, pp.~XXX--XXX, Year.
+
+\bibitem{ref2}
+B.~Author, ``Title of conference paper,'' in \textit{Proc. IEEE Conf.}, City, Year, pp.~XXX--XXX.
+\end{thebibliography}
+
+\end{document}

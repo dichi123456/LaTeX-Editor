@@ -1,0 +1,106 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=1.8cm,top=1.6cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{fontawesome5}
+\usepackage{titlesec}
+\usepackage{parskip}
+
+\definecolor{accent}{HTML}{5B21B6}
+\definecolor{ink}{HTML}{111827}
+\definecolor{muted}{HTML}{6B7280}
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\setlist[itemize]{leftmargin=1.2em, itemsep=0.15em, parsep=0pt, topsep=0.15em}
+
+\	itleformat{\section}{\large\bfseries\color{accent}}{}{0em}{}[\	itlerule]
+\	itlespacing*{\section}{0pt}{0.9em}{0.45em}
+
+\hypersetup{
+  colorlinks=true,
+  urlcolor=accent,
+  pdftitle={Resume},
+  pdfauthor={Alex Chen}
+}
+
+\begin{document}
+\color{ink}
+
+\begin{center}
+  {\Huge\bfseries Alex Chen}\\[0.35em]
+  {\large M.S. Computer Science \quad|\quad Software Engineer}\\[0.4em]
+  {\small\color{muted}
+    \faEnvelope~~\href{mailto:alex.chen@example.com}{alex.chen@example.com}
+    \quad
+    \faPhone~~+86 138-0000-0000
+    \quad
+    \faMapMarker~~San Francisco, CA
+    \quad
+    \faLinkedin~~\href{https://linkedin.com/in/example}{linkedin.com/in/example}
+    \quad
+    \faGithub~~\href{https://github.com/example}{github.com/example}}
+\end{center}
+
+\vspace{0.2em}
+{\color{accent}\rule{\	extwidth}{1.3pt}}
+
+\section{Education}
+\	extbf{University of Example} \hfill San Francisco, CA\\
+M.S.\\ in Computer Science \hfill Sep 2022 -- Jun 2024\\
+\begin{itemize}
+  \item Coursework: Distributed Systems, Machine Learning, Database Systems
+  \item GPA: 3.85/4.0
+\end{itemize}
+
+\	extbf{Example University} \hfill Shanghai, China\\
+B.Eng.\\ in Software Engineering \hfill Sep 2018 -- Jun 2022\\
+\begin{itemize}
+  \item Dean's List (2020, 2021); ACM-ICPC Regional Bronze Medal
+\end{itemize}
+
+\section{Experience}
+\	extbf{Streamly Inc.} \hfill San Francisco, CA\\
+\	extit{Software Engineer, Infrastructure} \hfill Jul 2024 -- Present
+\begin{itemize}
+  \item Designed a multi-region failover path that cut incident MTTR by 35\\%
+  \item Built internal developer platform features used by 40+ service owners
+  \item Led migration of batch jobs to a streaming pipeline with stronger SLOs
+\end{itemize}
+
+\	extbf{Cloudnest} \hfill Remote\\
+\	extit{Software Engineering Intern} \hfill Jun 2023 -- Sep 2023
+\begin{itemize}
+  \item Implemented API gateway rate-limiting rules reducing 5xx errors by 22\\%
+  \item Added integration tests and runbooks for on-call engineers
+\end{itemize}
+
+\section{Projects}
+\	extbf{OpenTrace} \hfill \href{https://github.com/example/opentrace}{github.com/example/opentrace}\\
+Lightweight distributed tracing SDK (Go) with sampling and OTLP export.
+\begin{itemize}
+  \item 1.2k GitHub stars; adopted by 3 university research projects
+\end{itemize}
+
+\	extbf{Campus Marketplace} \hfill Full-stack Vue3 + Spring Boot platform\\
+\begin{itemize}
+  \item End-to-end marketplace with search, chat, and payment sandbox
+\end{itemize}
+
+\section{Skills}
+\	extbf{Languages:} Go, Python, TypeScript, SQL \\;
+\	extbf{Systems:} Kafka, Redis, PostgreSQL, Kubernetes, AWS \\
+\	extbf{Other:} Technical writing, cross-team design reviews, mentoring interns
+
+\section{Selected Awards}
+\begin{itemize}
+  \item University Merit Scholarship (2021, 2022)
+  \item Best Intern Project Award, Cloudnest (2023)
+\end{itemize}
+
+\vspace{0.6em}
+{\small\color{muted}Based on an Awesome-CV inspired layout. Customize freely for your own applications.}
+
+\end{document}

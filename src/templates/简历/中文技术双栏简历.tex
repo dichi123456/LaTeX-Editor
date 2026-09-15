@@ -1,0 +1,122 @@
+\documentclass[UTF8,a4paper,10.5pt]{ctexart}
+\usepackage[a4paper,margin=0pt]{geometry}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{graphicx}
+\usepackage{fontawesome5}
+\usepackage{tikz}
+
+\setCJKmainfont{SimSun}
+\setCJKsansfont{Microsoft YaHei}
+\setCJKmonofont{FangSong}
+
+\definecolor{sidebar}{HTML}{1F2937}
+\definecolor{accent}{HTML}{3B82F6}
+\definecolor{muted}{HTML}{9CA3AF}
+\definecolor{bodytext}{HTML}{111827}
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\setlist[itemize]{leftmargin=1.1em, itemsep=0.12em, parsep=0pt, topsep=0.15em}
+
+\
+ewcommand{\ssection}[1]{%
+  \vspace{0.55em}%
+  {\sffamily\bfseries\color{accent}\large #1}\\[-0.15em]
+  {\color{white!80}\rule{\linewidth}{0.4pt}}\\[0.35em]
+}
+\
+ewcommand{\msection}[1]{%
+  \vspace{0.5em}%
+  {\sffamily\bfseries\color{sidebar}\large #1}\\[-0.1em]
+  {\color{accent}\rule{2.2em}{1.2pt}}\\[0.35em]
+}
+
+\begin{document}
+\color{bodytext}
+
+\begin{tikzpicture}[remember picture, overlay]
+  \fill[sidebar] (current page.north west) rectangle ([xshift=0.30\paperwidth]current page.south west);
+\end{tikzpicture}
+
+\
+oindent
+\begin{minipage}[t]{0.28\paperwidth}
+  \color{white}
+  \vspace{1.5cm}
+  \hspace{0.9cm}
+  \begin{minipage}[t]{0.18\paperwidth}
+    {\sffamily\bfseries\Huge 张~~~~三}\\[0.35em]
+    {\small\color{muted} 后端 / 算法工程师}\\[0.9em]
+    {\color{accent}\rule{\linewidth}{0.6pt}}\\[0.7em]
+
+    \ssection{联系方式}
+    {\small
+      \faPhone~~138-0000-0000\\[0.25em]
+      \faEnvelope~~zhangsan@mail.com\\[0.25em]
+      \faMapMarker~~上海\\[0.25em]
+      \faGithub~~github.com/zhangsan\\[0.25em]
+      \faLinkedin~~linkedin.com/in/zhangsan}
+
+    \ssection{技能栈}
+    {\small
+      \	extbf{语言}：C++ / Python / Go\\[0.2em]
+      \	extbf{方向}：分布式系统\\[0.2em]
+      \	extbf{工具}：Kafka、Redis、K8s\\[0.2em]
+      \	extbf{英语}：CET-6}
+
+    \ssection{证书与兴趣}
+    {\small
+      \begin{itemize}
+        \item 算法工程师认证
+        \item 专利（申请中）
+        \item 开源、写作
+      \end{itemize}}
+  \end{minipage}
+\end{minipage}%
+\begin{minipage}[t]{0.72\paperwidth}
+  \hspace{1.0cm}
+  \begin{minipage}[t]{0.62\paperwidth}
+    \vspace{1.5cm}
+    {\fontsize{20}{24}\selectfont\bfseries\sffamily 个人优势}\\[0.35em]
+    {\small 5 年后端与算法经验，主导过高并发交易链路与推荐召回重构。擅长把业务指标拆成可观测技术目标，推动跨团队落地。}
+
+    \msection{工作经历}
+    {\bfseries 某科技有限公司 · 高级后端工程师} \hfill 2022.03 -- 至今\\
+    {\small\color{muted} 上海 · 全职}\\[0.2em]
+    {\small
+      \begin{itemize}
+        \item 重构订单履约链路，峰值吞吐提升 2.3 倍，P99 延迟下降 45\\%
+        \item 设计幂等与对账体系，资损类故障从月均 3 起降至 0
+        \item 建设服务治理规范，推动 12 个核心服务可观测升级
+      \end{itemize}}
+
+    {\bfseries 某互联网公司 · 后端工程师} \hfill 2019.07 -- 2022.02\\
+    {\small\color{muted} 杭州 · 全职}\\[0.2em]
+    {\small
+      \begin{itemize}
+        \item 负责搜索基础服务，支撑日均 8 亿次查询
+        \item 引入异步化与限流组件，大促稳定性 99.99\\%
+      \end{itemize}}
+
+    \msection{项目经历}
+    {\bfseries 实时推荐召回平台} \hfill 2023.01 -- 2023.10\\
+    {\small
+      \begin{itemize}
+        \item 统一多路召回与特征服务，候选集覆盖提升 18\\%
+        \item 在线实验框架支持分钟级开关，缩短策略验证周期
+      \end{itemize}}
+
+    {\bfseries 多机房容灾改造} \hfill 2021.04 -- 2021.12\\
+    {\small
+      \begin{itemize}
+        \item 设计流量染色与故障转移方案，完成双活演练 10+
+      \end{itemize}}
+
+    \msection{教育背景}
+    {\bfseries XX大学 · 计算机硕士} \hfill 2017.09 -- 2019.06\\
+    {\small 研究方向：分布式机器学习系统}
+  \end{minipage}
+\end{minipage}
+
+\end{document}

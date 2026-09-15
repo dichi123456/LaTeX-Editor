@@ -1,0 +1,106 @@
+\documentclass[UTF8,a4paper,10.5pt]{ctexart}
+\usepackage[margin=1.35cm,top=1.2cm,bottom=1.15cm]{geometry}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{graphicx}
+\usepackage{fontawesome5}
+\usepackage{titlesec}
+
+\setCJKmainfont{SimSun}
+\setCJKsansfont{Microsoft YaHei}
+\setCJKmonofont{FangSong}
+
+\definecolor{accent}{HTML}{1A56DB}
+\definecolor{lightline}{HTML}{D1D5DB}
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\setlist[itemize]{leftmargin=1.15em, itemsep=0.1em, parsep=0pt, topsep=0.12em}
+\	itleformat{\section}{\
+ormalsize\bfseries\sffamily\color{accent}}{}{0em}{}[\	itlerule]
+\	itlespacing*{\section}{0pt}{0.55em}{0.28em}
+
+\
+ewcommand{\csection}[1]{\section*{\	extcolor{accent}{\sffamily #1}}\vspace{-0.25em}}
+
+\begin{document}
+
+% ===== 头部 =====
+\begin{minipage}[c]{0.78\	extwidth}
+  {\fontsize{24}{28}\selectfont\bfseries\sffamily 姓~~~~名}\\[0.35em]
+  {\large\sffamily 求职意向：前端 / 全栈工程师}\\[0.25em]
+  {\small
+    \faPhone~~138-0000-0000 \quad
+    \faEnvelope~~example@mail.com \quad
+    \faMapMarker~~北京 \quad
+    \faGithub~~github.com/example}
+\end{minipage}\hfill
+\begin{minipage}[c]{0.18\	extwidth}
+  \centering
+  % 可替换为证件照：\includegraphics[width=2.6cm]{photo.jpg}
+  \fbox{\parbox[c][2.6cm][c]{2.2cm}{\centering\scriptsize\	extcolor{accent}{照片\\占位}}}
+\end{minipage}
+
+\vspace{0.4em}
+{\color{accent}\rule{\	extwidth}{1.2pt}}
+\vspace{0.6em}
+
+\csection{教育背景}
+\	extbf{XX大学} \hfill \	extbf{计算机科学与技术 · 本科} \hfill 2021.09 -- 2025.06 \\
+GPA：3.7/4.0（专业前 10\\%）\quad CET-6：560 \\
+主修课程：数据结构与算法、计算机网络、操作系统、数据库系统、Web 前端开发
+
+\vspace{0.35em}
+\csection{实习经历}
+\	extbf{某互联网公司 · 前端开发实习生} \hfill 2024.06 -- 2024.12 \\
+\begin{itemize}
+  \item 参与运营活动页搭建，沉淀通用组件 8 个，页面开发效率提升约 30\\%
+  \item 排查并修复核心链路 12+ 个交互缺陷，推动埋点规范落地
+  \item 与后端联调开放平台接口，保障活动峰值 QPS 稳定
+\end{itemize}
+
+\vspace{0.25em}
+\	extbf{某软件公司 · 软件开发实习生} \hfill 2023.07 -- 2023.09 \\
+\begin{itemize}
+  \item 负责内部管理系统列表页重构，优化首屏加载与分页性能
+  \item 编写单元测试与使用文档，减少回归问题
+\end{itemize}
+
+\vspace{0.35em}
+\csection{项目经历}
+\	extbf{校园二手交易平台} \hfill 2024.01 -- 2024.05 \\
+\begin{itemize}
+  \item 独立完成 Vue3 + Spring Boot 全栈开发，支持商品发布、即时沟通与订单管理
+  \item 引入 Redis 缓存热门商品，接口 P95 延迟由 420ms 降至 180ms
+  \item 使用 Docker Compose 部署，支持一键拉起开发环境
+\end{itemize}
+
+\vspace{0.25em}
+\	extbf{个人技术博客} \hfill 2022.09 -- 至今 \\
+\begin{itemize}
+  \item 持续输出前端与算法笔记 60+ 篇，月均访问 3000+
+  \item 自建静态站点与 CI 发布流水线，保障内容快速迭代
+\end{itemize}
+
+\vspace{0.35em}
+\csection{专业技能}
+\begin{itemize}
+  \item 前端：HTML/CSS/JavaScript/TypeScript，熟悉 Vue3 与 React 生态
+  \item 后端：Java / Python，了解 Spring Boot、FastAPI 常用模式
+  \item 工具：Git、Linux、Docker、Figma 切图与基础交互稿理解
+  \item 其他：良好的文档与沟通能力，能独立推动跨端联调
+\end{itemize}
+
+\vspace{0.35em}
+\csection{奖项与证书}
+\begin{itemize}
+  \item 2024 年 国家奖学金
+  \item 2023 年 校级“三好学生”
+  \item CET-6 / 普通话二级甲等
+\end{itemize}
+
+\vspace{0.4em}
+{\color{lightline}\rule{\	extwidth}{0.6pt}}\\[0.35em]
+{\small\	extcolor{gray}{本模板仅供求职示例，请替换为真实信息。}}
+
+\end{document}

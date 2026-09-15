@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted, computed } from 'vue'
+import { ref, watch, onMounted, onUnmounted, computed, nextTick } from 'vue'
 import { useDocStore } from '../stores/docs'
 import { useCompileStore } from '../stores/compile'
 import TreeNode from './TreeNode.vue'
@@ -109,12 +109,21 @@ async function createNewFile() {
   showNewInput.value = true
   newIsDir.value = false
   newFileName.value = ''
+  await focusNewInput()
 }
 
 async function createNewFolder() {
   showNewInput.value = true
   newIsDir.value = true
   newFileName.value = ''
+  await focusNewInput()
+}
+
+async function focusNewInput() {
+  await nextTick()
+  const input = document.querySelector<HTMLInputElement>('.new-input-row input')
+  input?.focus()
+  input?.select()
 }
 
 async function createNew() {
@@ -224,16 +233,18 @@ function exitWorkspace() {
 
 function ctxAction(action: string) {
   closeCtxMenu()
-  switch (action) {
-    case 'new-file': createNewFile(); break
-    case 'new-folder': createNewFolder(); break
-    case 'add-folder': addFolderToWorkspace(); break
-    case 'remove-last-folder':
-      if (docStore.extraFolders.length > 0) {
-        removeFolderFromWorkspace(docStore.extraFolders[docStore.extraFolders.length - 1])
-      }
-      break
-  }
+  requestAnimationFrame(() => {
+    switch (action) {
+      case 'new-file': createNewFile(); break
+      case 'new-folder': createNewFolder(); break
+      case 'add-folder': addFolderToWorkspace(); break
+      case 'remove-last-folder':
+        if (docStore.extraFolders.length > 0) {
+          removeFolderFromWorkspace(docStore.extraFolders[docStore.extraFolders.length - 1])
+        }
+        break
+    }
+  })
 }
 
 function cancelNewInput() {
@@ -247,8 +258,13 @@ function onGlobalClick(e: Event) {
   if (!target.closest('.ctx-menu')) {
     closeCtxMenu()
   }
-  // 点击新建输入框外部时取消新建
-  if (showNewInput.value && !target.closest('.new-input-row') && !target.closest('.ctx-menu')) {
+  if (
+    showNewInput.value &&
+    !target.closest('.new-input-row') &&
+    !target.closest('.ctx-menu') &&
+    !target.closest('.ws-icon-btn') &&
+    !target.closest('[data-new-input-trigger]')
+  ) {
     cancelNewInput()
   }
 }
@@ -308,7 +324,7 @@ onUnmounted(() => {
           <span class="ws-icon">📁</span>
           <span class="ws-name truncate">{{ workspaceName }}</span>
           <div class="ws-actions" @click.stop>
-            <button class="ws-icon-btn" title="新建文件" @click="createNewFile">
+            <button class="ws-icon-btn" title="新建文件" @click.stop="createNewFile">
               <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
                 <path d="M8 1H3.5C2.67 1 2 1.67 2 2.5v9C2 12.33 2.67 13 3.5 13h7c.83 0 1.5-.67 1.5-1.5V5L8 1z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
                 <path d="M8 1v4h4" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
@@ -316,7 +332,7 @@ onUnmounted(() => {
                 <line x1="5" y1="9.5" x2="9" y2="9.5" stroke="currentColor" stroke-width="1.2"/>
               </svg>
             </button>
-            <button class="ws-icon-btn" title="新建文件夹" @click="createNewFolder">
+            <button class="ws-icon-btn" title="新建文件夹" @click.stop="createNewFolder">
               <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
                 <path d="M1.5 3.5C1.5 2.67 2.17 2 3 2h3l1.5 1.5H11c.83 0 1.5.67 1.5 1.5v6c0 .83-.67 1.5-1.5 1.5H3c-.83 0-1.5-.67-1.5-1.5v-7z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
                 <line x1="7" y1="6.5" x2="7" y2="10.5" stroke="currentColor" stroke-width="1.2"/>

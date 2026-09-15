@@ -1,0 +1,121 @@
+%% 课程报告 / 课堂展示（清新双色学术风）
+%% 编译: xelatex
+\documentclass[UTF8,aspectratio=169,10pt]{ctexbeamer}
+\usepackage{ctex}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{listings}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta}
+
+\setCJKmainfont{SimSun}
+\setCJKsansfont{Microsoft YaHei}
+\setCJKmonofont{FangSong}
+
+\definecolor{primary}{HTML}{0F766E}
+\definecolor{primaryDark}{HTML}{115E59}
+\definecolor{accent}{HTML}{F59E0B}
+\definecolor{ink}{HTML}{0F172A}
+\definecolor{muted}{HTML}{64748B}
+
+\mode<presentation>
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{footline}[frame number]
+\setbeamercolor{structure}{fg=primary}
+\setbeamercolor{frametitle}{bg=primary,fg=white}
+\setbeamercolor{title}{fg=primaryDark}
+\setbeamercolor{block title}{bg=primary,fg=white}
+\setbeamercolor{block body}{bg=primary!8,fg=ink}
+\setbeamercolor{block title alerted}{bg=accent,fg=white}
+\setbeamercolor{block body alerted}{bg=accent!12,fg=ink}
+\setbeamerfont{frametitle}{size=\large,series=\bfseries}
+\setbeamertemplate{itemize items}{\textcolor{primary}{$\bullet$}}
+\setbeamertemplate{enumerate items}{\textcolor{primary}{\insertenumlabel.}}
+
+\title{课程名称报告}
+\subtitle{第 X 次作业 / 课堂展示}
+\author{姓名 · 学号}
+\institute{学校 · 学院}
+\date{\today}
+
+\begin{document}
+
+\begin{frame}
+  \titlepage
+\end{frame}
+
+\begin{frame}{大纲}
+  \tableofcontents
+\end{frame}
+
+\section{问题引入}
+
+\begin{frame}{为什么要学这个主题？}
+  \begin{block}{核心问题}
+    在给定约束下，如何获得可解释、可复现的解决方案？
+  \end{block}
+  \begin{itemize}
+    \item 现实场景中的建模需求
+    \item 课程知识与后续章节的衔接
+    \item 本次报告的目标与范围
+  \end{itemize}
+\end{frame}
+
+\section{基本原理}
+
+\begin{frame}{关键概念}
+  \begin{itemize}
+    \item \textbf{定义}：用一句话说明对象与条件
+    \item \textbf{性质}：列出 2--3 条关键性质
+    \item \textbf{算法}：给出流程或伪代码框架
+  \end{itemize}
+  \begin{alertblock}{注意}
+    符号约定与前置知识请在此处交代清楚。
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{流程示意}
+  \centering
+  \begin{tikzpicture}[
+      node distance=1.2cm and 1.6cm,
+      box/.style={draw=primary, fill=primary!10, rounded corners=4pt, minimum height=1cm, minimum width=2.2cm, align=center},
+      arr/.style={-{Stealth[length=3mm]}, thick, primary}
+    ]
+    \node[box] (a) {输入数据};
+    \node[box, right=of a] (b) {预处理};
+    \node[box, right=of b] (c) {模型};
+    \node[box, right=of c] (d) {输出};
+    \draw[arr] (a) -- (b);
+    \draw[arr] (b) -- (c);
+    \draw[arr] (c) -- (d);
+  \end{tikzpicture}
+\end{frame}
+
+\section{示例与讨论}
+
+\begin{frame}{简单算例}
+  \begin{equation}
+    \min_{x} \; c^{\top}x
+    \quad \text{s.t.} \quad
+    Ax \le b,\; x \ge 0
+  \end{equation}
+  \begin{itemize}
+    \item 说明变量含义与约束解释
+    \item 给出求解思路或软件命令
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{小结}
+  \begin{enumerate}
+    \item 回顾本次报告的 3 个要点
+    \item 指出易错点与作业提示
+    \item 预告下一节内容
+  \end{enumerate}
+\end{frame}
+
+\begin{frame}{谢谢}
+  \centering
+  {\Large 感谢聆听，欢迎提问！}
+\end{frame}
+
+\end{document}

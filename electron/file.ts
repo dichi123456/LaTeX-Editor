@@ -1,5 +1,5 @@
 import { readFileSync, writeFileSync, readdirSync, statSync, mkdirSync, existsSync, unlinkSync, renameSync } from 'fs'
-import { join, basename, extname } from 'path'
+import { join, basename, extname, dirname } from 'path'
 import { app } from 'electron'
 
 export interface DirEntry {
@@ -83,10 +83,22 @@ function detectLikelyGBK(buf: Buffer): boolean {
 
 export async function writeTextFile(filePath: string, content: string): Promise<boolean> {
   try {
+    mkdirSync(dirname(filePath), { recursive: true })
     writeFileSync(filePath, content, 'utf-8')
     return true
   } catch (err) {
     console.error('写入文件失败:', err)
+    return false
+  }
+}
+
+export async function writeBinaryFile(filePath: string, base64: string): Promise<boolean> {
+  try {
+    mkdirSync(dirname(filePath), { recursive: true })
+    writeFileSync(filePath, Buffer.from(base64, 'base64'))
+    return true
+  } catch (err) {
+    console.error('写入二进制文件失败:', err)
     return false
   }
 }

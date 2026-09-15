@@ -11,6 +11,7 @@ import { TOOLS, executeTool, setWorkspace, setTexlivePath, getToolPermission, ty
 import {
   readTextFile,
   writeTextFile,
+  writeBinaryFile,
   listDirectory,
   createFile,
   createDir,
@@ -258,6 +259,9 @@ ipcMain.handle('read-pdf', async (_event, filePath: string) => {
 ipcMain.handle('write-file', async (_event, filePath: string, content: string) =>
   writeTextFile(filePath, content)
 )
+ipcMain.handle('write-binary-file', async (_event, filePath: string, base64: string) =>
+  writeBinaryFile(filePath, base64)
+)
 ipcMain.handle('list-dir', async (_event, dirPath: string) => listDirectory(dirPath))
 ipcMain.handle('create-file', async (_event, dirPath: string, fileName: string) =>
   createFile(dirPath, fileName)
@@ -298,10 +302,11 @@ ipcMain.handle('save-config', async (_event, config) => {
 })
 
 // 对话框
-ipcMain.handle('choose-directory', async () => {
+ipcMain.handle('choose-directory', async (_event, options?: { title?: string; defaultPath?: string }) => {
   if (!mainWindow) return null
   const result = await dialog.showOpenDialog(mainWindow, {
-    title: '选择目录',
+    title: options?.title || '选择目录',
+    defaultPath: options?.defaultPath || undefined,
     properties: ['openDirectory', 'createDirectory']
   })
   if (result.canceled) return null

@@ -15,6 +15,7 @@ interface Command {
 
 const commands: Command[] = [
   { id: 'new-file', label: '新建文件', category: '文件', shortcut: 'Ctrl+N' },
+  { id: 'new-template', label: '从模板新建…', category: '文件' },
   { id: 'open-file', label: '打开文件…', category: '文件', shortcut: 'Ctrl+O' },
   { id: 'open-folder', label: '打开文件夹…', category: '文件', shortcut: 'Ctrl+K' },
   { id: 'save', label: '保存', category: '文件', shortcut: 'Ctrl+S' },

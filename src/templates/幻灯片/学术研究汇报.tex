@@ -1,0 +1,107 @@
+%% 学术研究汇报（Metropolis 现代深色主题）
+%% 依赖 TeX Live 自带 beamertheme-metropolis
+%% 编译: xelatex（推荐，中文）
+\documentclass[UTF8,aspectratio=169,10pt]{ctexbeamer}
+\usetheme{metropolis}
+\usepackage{ctex}
+\usepackage{graphicx}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{listings}
+
+\setCJKmainfont{SimSun}
+\setCJKsansfont{Microsoft YaHei}
+\setCJKmonofont{FangSong}
+
+\metroset{block=fill}
+\definecolor{accent}{HTML}{2563EB}
+
+\title{基于深度学习的轨迹预测方法}
+\subtitle{组会 / 学术报告}
+\author{姓名}
+\institute{单位 / 实验室}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{frame}{目录}
+  \tableofcontents
+\end{frame}
+
+\section{研究背景}
+
+\begin{frame}{研究动机}
+  \begin{itemize}
+    \item 自动驾驶对周围车辆轨迹预测的需求日益增长
+    \item 传统模型难以捕捉交互与不确定性
+    \item 深度学习提供了端到端建模能力
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{相关工作}
+  \begin{columns}[T]
+    \begin{column}{0.48\textwidth}
+      \textbf{传统方法}
+      \begin{itemize}
+        \item 物理模型（IDM、MOBIL）
+        \item 滤波与优化
+      \end{itemize}
+    \end{column}
+    \begin{column}{0.48\textwidth}
+      \textbf{数据驱动}
+      \begin{itemize}
+        \item RNN / LSTM
+        \item Transformer
+        \item 图神经网络
+      \end{itemize}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\section{方法}
+
+\begin{frame}{总体框架}
+  输入历史轨迹 $\rightarrow$ 编码器 $\rightarrow$ 交互建模 $\rightarrow$ 解码器 $\rightarrow$ 多模态预测
+\end{frame}
+
+\begin{frame}{损失函数}
+  \begin{align}
+    \mathcal{L}
+    &= \mathcal{L}_{\mathrm{reg}} + \lambda \mathcal{L}_{\mathrm{cls}} \\
+    \mathcal{L}_{\mathrm{reg}}
+    &= \frac{1}{N}\sum_{i=1}^{N}\left\lVert \hat{y}_i - y_i \right\rVert_2^2
+  \end{align}
+\end{frame}
+
+\section{实验}
+
+\begin{frame}{主要结果}
+  \begin{table}
+    \centering
+    \begin{tabular}{lcc}
+      \toprule
+      方法 & ADE$\downarrow$ & FDE$\downarrow$ \\
+      \midrule
+      LSTM & 1.12 & 2.45 \\
+      Transformer & 0.98 & 2.10 \\
+      \textbf{Ours} & \textbf{0.91} & \textbf{1.96} \\
+      \bottomrule
+    \end{tabular}
+  \end{table}
+\end{frame}
+
+\begin{frame}{小结与展望}
+  \begin{itemize}
+    \item 提出了交互感知的多模态轨迹预测框架
+    \item 在公开数据集上取得竞争力结果
+    \item 未来：可解释性、实时性、闭环评测
+  \end{itemize}
+\end{frame}
+
+\begin{frame}[standout]
+  谢谢！欢迎提问
+\end{frame}
+
+\end{document}

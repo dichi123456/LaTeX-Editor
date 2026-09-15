@@ -13,10 +13,12 @@ import Settings from './components/Settings.vue'
 import Tabs from './components/Tabs.vue'
 import CommandPalette from './components/CommandPalette.vue'
 import AiPanel from './components/AiPanel.vue'
+import TemplateLibrary from './components/TemplateLibrary.vue'
 import { useAiStore } from './stores/ai'
 import { scanProjectBibs, bibScanner } from './utils/bibtex'
 import { scanProjectImages } from './utils/images'
 import type { CompileMode } from './stores/compile'
+import type { TemplateMeta } from './utils/templates'
 import logoUrl from './assets/logo.svg'
 
 const docStore = useDocStore()
@@ -45,6 +47,7 @@ const showSearch = ref(false)
 const openFileMenu = ref(false)
 const openRecentMenu = ref(false)
 const openHelpMenu = ref(false)
+const showTemplateLibrary = ref(false)
 // 最近一次编译成功的 PDF 路径（供 SyncTeX 使用）
 let lastPdfPath: string | null = null
 
@@ -287,6 +290,7 @@ async function onDrop(e: DragEvent) {
 async function handleMenuAction(action: string) {
   switch (action) {
     case 'new-file': newFile(); break
+    case 'new-template': openTemplateLibrary(); break
     case 'open-file': openFile(); break
     case 'open-folder': openFolder(); break
     case 'save': await save(); break
@@ -300,6 +304,69 @@ async function handleMenuAction(action: string) {
     case 'distraction-free': distractionFree.value = !distractionFree.value; break
     case 'settings': configStore.showSettings = true; break
     case 'command-palette': showCommandPalette.value = true; break
+  }
+}
+
+function openTemplateLibrary() {
+  closeFileMenu()
+  closeHelpMenu()
+  showTemplateLibrary.value = true
+}
+
+async function useTemplate(payload: { template: TemplateMeta }) {
+  const { template } = payload
+  const mainFile = 'main.tex'
+
+  const projectDir = await window.electronAPI.chooseDirectory({
+    title: `为「${template.name}」选择或新建项目文件夹`,
+    defaultPath: docStore.projectRoot || undefined
+  })
+  if (!projectDir) return
+
+  showTemplateLibrary.value = false
+
+  try {
+    const sep = projectDir.includes('\\') ? '\\' : '/'
+    const mainPath = projectDir + sep + mainFile
+    const okMain = await window.electronAPI.writeFile(mainPath, template.content)
+    if (!okMain) throw new Error('写入主文件失败，请检查目录权限')
+
+    if (template.extraFiles) {
+      for (const f of template.extraFiles) {
+        const ok = await window.electronAPI.writeFile(projectDir + sep + f.name, f.content)
+        if (!ok) throw new Error(`写入附带文件失败：${f.name}`)
+      }
+    }
+
+    if (template.assetFiles?.length) {
+      for (const a of template.assetFiles) {
+        const filePath = projectDir + sep + a.name.replace(/\//g, sep)
+        const idx = a.dataUrl.indexOf('base64,')
+        const b64 = idx >= 0 ? a.dataUrl.slice(idx + 7) : a.dataUrl
+        const ok = await window.electronAPI.writeBinaryFile(filePath, b64)
+        if (!ok) throw new Error(`写入资源失败：${a.name}`)
+      }
+    }
+
+    // 切换工作区（若所选目录不在当前工作区内）
+    if (!docStore.projectRoot || !projectDir.startsWith(docStore.projectRoot)) {
+      await docStore.openProjectFolder(projectDir)
+      showSidebar.value = true
+    } else {
+      window.dispatchEvent(new CustomEvent('refresh-file-tree'))
+    }
+
+    // 固定主文档与引擎，避免模板创建后无法编译
+    await docStore.openFile(mainPath)
+    docStore.setMainTex(mainPath)
+    if (template.engine) {
+      await configStore.save({ engine: template.engine })
+    }
+    compileStore.appendLiveLog(
+      `[模板] 已创建「${template.name}」，主文档 ${mainPath}，引擎 ${template.engine}\n`
+    )
+  } catch (err: any) {
+    alert(`创建项目失败：${err.message}`)
   }
 }
 
@@ -405,11 +472,26 @@ async function compileDoc(mode: CompileMode = 'quick') {
     return
   }
   const cfg = configStore.config
+  // 按文档类自动纠正引擎，避免模板/期刊类用错 pdflatex/xelatex
+  let engine = cfg?.engine || 'xelatex'
+  try {
+    const { content } = await window.electronAPI.readFile(mainPath)
+    const head = content.slice(0, 800)
+    if (/\\documentclass[^%]*\{[^}]*IEEEtran\}/.test(head) || /elsarticle/.test(head)) {
+      engine = 'pdflatex'
+    } else if (/\\documentclass[^%]*\{[^}]*ctex/.test(head) || /cumcmthesis/.test(head) || /\\setCJKmainfont/.test(head)) {
+      engine = 'xelatex'
+    } else if (/Wiley|article/.test(head) && !/ctex/.test(head)) {
+      // Wiley 骨架用 article，pdflatex/xelatex 均可，默认跟配置
+    }
+  } catch { /* ignore read fail */ }
+
   const extraArgs = (cfg?.extraArgs || '').split(/\s+/).filter(Boolean)
   if (!extraArgs.some((a: string) => a.includes('synctex'))) {
     extraArgs.push('-synctex=1')
   }
-  await compileStore.compile(mainPath, cfg?.engine || 'xelatex', extraArgs, cfg?.timeout || 120, mode)
+  compileStore.appendLiveLog(`[编译] 引擎 ${engine} · ${mainPath}\n`)
+  await compileStore.compile(mainPath, engine, extraArgs, cfg?.timeout || 120, mode)
 
   if (compileStore.lastResult?.success && mainPath) {
     lastPdfPath = compileStore.lastResult.pdfPath
@@ -667,6 +749,9 @@ function editorAction(action: string) {
               <button class="menu-entry" @click="runFileAction('open-folder')">
                 <span>打开文件夹…</span><span class="menu-key">Ctrl+K</span>
               </button>
+              <button class="menu-entry" @click="runFileAction('new-template')">
+                <span>从模板新建…</span>
+              </button>
 
               <div class="menu-sep"></div>
 
@@ -855,7 +940,7 @@ function editorAction(action: string) {
                 </button>
               </div>
             </div>
-            <Welcome v-if="showWelcome" @new-file="newFile" @open-file="openFile" @open-folder="openFolder" />
+            <Welcome v-if="showWelcome" @new-file="newFile" @open-file="openFile" @open-folder="openFolder" @open-template-library="openTemplateLibrary" />
             <Editor v-else :show-search="showSearch" @close-search="showSearch = false" />
           </div>
 
@@ -915,6 +1000,12 @@ function editorAction(action: string) {
       @toggle-panel="onTogglePanel"
     />
     <Settings v-if="configStore.showSettings" />
+
+    <TemplateLibrary
+      v-if="showTemplateLibrary"
+      @close="showTemplateLibrary = false"
+      @use="useTemplate"
+    />
 
     <!-- 命令面板 -->
     <CommandPalette

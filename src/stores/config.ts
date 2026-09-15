@@ -20,9 +20,13 @@ export const useConfigStore = defineStore('config', () => {
   async function load(): Promise<void> {
     try {
       config.value = await window.electronAPI.loadConfig()
+      if (!config.value.theme) {
+        config.value.theme = 'dark'
+      }
       console.log('[config store] loaded:', JSON.stringify(config.value).slice(0, 300))
     } catch (err) {
       console.error('[config store] load failed:', err)
+      config.value = config.value || ({ theme: 'dark' } as AppConfig)
     }
     setupSystemThemeListener()
     applyTheme()
@@ -71,7 +75,7 @@ export const useConfigStore = defineStore('config', () => {
 
   function toggleTheme(): void {
     const order: Array<'light' | 'dark' | 'system'> = ['light', 'dark', 'system']
-    const current = config.value?.theme || 'light'
+    const current = config.value?.theme || 'dark'
     const idx = Math.max(0, order.indexOf(current))
     const next = order[(idx + 1) % order.length]
     console.log('[config store] toggleTheme:', current, '→', next)
@@ -79,13 +83,13 @@ export const useConfigStore = defineStore('config', () => {
   }
 
   function themeIcon(): string {
-    const t = config.value?.theme || 'light'
+    const t = config.value?.theme || 'dark'
     if (t === 'system') return '🖥'
     return t === 'dark' ? '☀' : '☾'
   }
 
   function themeLabel(): string {
-    const t = config.value?.theme || 'light'
+    const t = config.value?.theme || 'dark'
     if (t === 'system') return '跟随系统'
     return t === 'dark' ? '深色' : '浅色'
   }

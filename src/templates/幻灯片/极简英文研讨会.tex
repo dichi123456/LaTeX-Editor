@@ -1,0 +1,86 @@
+%% 极简英文研讨会幻灯片（Arguelles 风格）
+%% 依赖 TeX Live 自带 beamertheme-arguelles
+%% 编译: pdflatex 或 xelatex
+\documentclass[aspectratio=169,10pt]{beamer}
+\usetheme{arguelles}
+\usepackage{graphicx}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{microtype}
+
+\title{A Minimal Academic Talk}
+\subtitle{Seminar / Journal Club}
+\author{Your Name}
+\institute{Your Lab / University}
+\date{\today}
+
+\begin{document}
+
+\begin{frame}
+  \titlepage
+\end{frame}
+
+\begin{frame}{Outline}
+  \tableofcontents
+\end{frame}
+
+\section{Motivation}
+
+\begin{frame}{Why it matters}
+  \begin{itemize}
+    \item Clear practical motivation
+    \item Open problem in the literature
+    \item What this talk will cover
+  \end{itemize}
+\end{frame}
+
+\section{Method}
+
+\begin{frame}{Problem setup}
+  Given history $\mathcal{H}_{t}$, predict future trajectory:
+  \begin{equation}
+    \hat{\mathcal{T}} = f\!\left(\mathcal{H}_{t}; \theta\right)
+  \end{equation}
+\end{frame}
+
+\begin{frame}{Key idea}
+  \begin{block}{Claim}
+    Modeling interaction improves multi-modal forecasting accuracy.
+  \end{block}
+  \begin{itemize}
+    \item Encode each agent separately
+    \item Exchange information with a graph
+    \item Decode diverse futures
+  \end{itemize}
+\end{frame}
+
+\section{Experiments}
+
+\begin{frame}{Results}
+  \begin{table}
+    \centering
+    \begin{tabular}{lcc}
+      \toprule
+      Model & ADE & FDE \\
+      \midrule
+      Baseline & 1.12 & 2.45 \\
+      Ours & \textbf{0.91} & \textbf{1.96} \\
+      \bottomrule
+    \end{tabular}
+  \end{table}
+\end{frame}
+
+\begin{frame}{Takeaways}
+  \begin{enumerate}
+    \item Interaction modeling helps
+    \item Calibration of uncertainty remains open
+    \item Next: real-time deployment
+  \end{enumerate}
+\end{frame}
+
+\begin{frame}{Thanks}
+  \centering
+  {\Large Thank you!}
+\end{frame}
+
+\end{document}

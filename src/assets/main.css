@@ -1,43 +1,9 @@
-/* ========== LaTeX编辑器 全局样式 ========== */
+/* ========== 全局样式 ========== */
 
+/* 默认深色（启动即生效） */
 :root,
-.theme-light {
-  /* 浅色主题 */
-  --bg-primary: #ffffff;
-  --bg-secondary: #f8f9fa;
-  --bg-tertiary: #f1f3f5;
-  --bg-hover: #e9ecef;
-  --bg-active: #dee2e6;
-  --accent: #2563eb;
-  --accent-hover: #1d4ed8;
-  --accent-light: #dbeafe;
-  --text-primary: #1f2937;
-  --text-secondary: #6b7280;
-  --text-tertiary: #9ca3af;
-  --border: rgba(0, 0, 0, 0.08);
-  --border-strong: rgba(0, 0, 0, 0.14);
-  --error: #ef4444;
-  --error-bg: #fef2f2;
-  --warning: #f59e0b;
-  --warning-bg: #fffbeb;
-  --success: #10b981;
-  --success-bg: #ecfdf5;
-  --info: #3b82f6;
-  --shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.12);
-  --radius: 6px;
-  --radius-sm: 4px;
-  --font-ui: "Microsoft YaHei UI", "PingFang SC", "Segoe UI", sans-serif;
-  --font-mono: "Consolas", "JetBrains Mono", "Fira Code", "Courier New", monospace;
-  --titlebar-height: 36px;
-  --statusbar-height: 28px;
-  --tab-height: 30px;
-  --scrollbar-thumb: rgba(0, 0, 0, 0.18);
-  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.32);
-}
-
-[data-theme="dark"],
-.theme-dark {
+.theme-dark,
+[data-theme="dark"] {
   --bg-primary: #1e1e2e;
   --bg-secondary: #282a36;
   --bg-tertiary: #21222c;
@@ -60,8 +26,43 @@
   --info: #60a5fa;
   --shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
   --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --radius: 6px;
+  --radius-sm: 4px;
+  --font-ui: "Microsoft YaHei UI", "PingFang SC", "Segoe UI", sans-serif;
+  --font-mono: "Consolas", "JetBrains Mono", "Fira Code", "Courier New", monospace;
+  --titlebar-height: 36px;
+  --statusbar-height: 28px;
+  --tab-height: 30px;
   --scrollbar-thumb: rgba(255, 255, 255, 0.12);
   --scrollbar-thumb-hover: rgba(255, 255, 255, 0.22);
+}
+
+[data-theme="light"],
+.theme-light {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8f9fa;
+  --bg-tertiary: #f1f3f5;
+  --bg-hover: #e9ecef;
+  --bg-active: #dee2e6;
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-light: #dbeafe;
+  --text-primary: #1f2937;
+  --text-secondary: #6b7280;
+  --text-tertiary: #9ca3af;
+  --border: rgba(0, 0, 0, 0.08);
+  --border-strong: rgba(0, 0, 0, 0.14);
+  --error: #ef4444;
+  --error-bg: #fef2f2;
+  --warning: #f59e0b;
+  --warning-bg: #fffbeb;
+  --success: #10b981;
+  --success-bg: #ecfdf5;
+  --info: #3b82f6;
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.12);
+  --scrollbar-thumb: rgba(0, 0, 0, 0.18);
+  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.32);
 }
 
 * {

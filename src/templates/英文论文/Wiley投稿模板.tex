@@ -1,0 +1,110 @@
+%% Wiley 期刊通用投稿骨架
+%% 说明:
+%% - Wiley 正式模板（如 wileyNJD-v2）请在投稿时从 Wiley Author Services 下载对应期刊 class
+%% - 本骨架基于标准 article，按 Wiley 常见结构组织
+%% 编译: pdflatex 或 xelatex
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{setspace}
+\usepackage{graphicx}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{hyperref}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=black,
+  citecolor=blue!50!black,
+  urlcolor=blue!50!black,
+  pdfauthor={Author Name},
+  pdftitle={Wiley Journal Submission Template}
+}
+
+\setstretch{1.15}
+\DeclareMathOperator*{\argmin}{arg\\,min}
+
+\begin{document}
+
+\begin{center}
+{\LARGE\bfseries A Concise Template for Wiley Journal Submission}\\[1.2em]
+{\large First A. Author$^{1}$, Second B. Author$^{1,2}$}\\[0.6em]
+{$^{1}$ Department of Computer Science, University Name, City, Country}\\
+{$^{2}$ Research Institute, Organization Name, City, Country}\\[0.6em]
+\	exttt{first.author@example.com}
+\end{center}
+
+\vspace{1.2em}
+
+\
+oindent\	extbf{Abstract.}
+This skeleton follows a structure commonly used for Wiley journal manuscripts. Replace the sample text with your abstract (typically 150--250 words). Provide keywords separately below the abstract.
+
+\vspace{0.8em}
+
+\
+oindent\	extbf{Keywords:} LaTeX; Wiley; journal submission; template; scientific writing
+
+\vspace{1.2em}
+
+\section{Introduction}
+Introduce the research problem, motivation, and contribution. Cite related work as required by the target journal.
+
+\section{Related Work}
+Summarize prior approaches and position your contribution relative to them.
+
+\section{Methods}
+Describe the framework, algorithms, or experimental setup.
+
+\begin{equation}
+\	heta^{*} = \argmin_{\	heta} \\, \mathcal{L}(\	heta; \mathcal{D})
+\label{eq:objective}
+\end{equation}
+
+Equation~\eqref{eq:objective} is a placeholder objective function.
+
+\section{Results}
+Present quantitative findings with self-contained tables and figures.
+
+\begin{table}[htbp]
+\centering
+\caption{Sample experimental comparison}
+\label{tab:wiley-sample}
+\begin{tabular}{lcc}
+\	oprule
+Model & Accuracy & F1 \\
+\midrule
+Baseline & 0.88 & 0.86 \\
+Ours & 0.92 & 0.91 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Discussion}
+Interpret the results, acknowledge limitations, and outline future work.
+
+\section{Conclusion}
+Restate the problem, method, and main finding in a short closing paragraph.
+
+\section*{Acknowledgements}
+We thank anonymous reviewers and colleagues for constructive feedback.
+
+\section*{Conflict of interest}
+The authors declare no conflict of interest.
+
+\section*{Data availability statement}
+Supporting data can be requested from the corresponding author.
+
+\begin{thebibliography}{99}
+\bibitem{ref1}
+Author A. Title of the article. \	extit{Journal Name}. Year;Volume(Issue):Pages.
+
+\bibitem{ref2}
+Author B, Author C. Title of the paper. In: \	extit{Proceedings of the Conference}; Year; Pages.
+
+\bibitem{ref3}
+Author D. \	extit{Book Title}. Publisher; Year.
+\end{thebibliography}
+
+\end{document}

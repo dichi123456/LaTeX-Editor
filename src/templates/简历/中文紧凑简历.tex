@@ -1,0 +1,81 @@
+\documentclass[UTF8,a4paper,10pt]{ctexart}
+\usepackage[margin=1.35cm]{geometry}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{fontawesome5}
+\usepackage{titlesec}
+
+\setCJKmainfont{SimSun}
+\setCJKsansfont{Microsoft YaHei}
+\setCJKmonofont{FangSong}
+
+\definecolor{accent}{HTML}{0F766E}
+\definecolor{ink}{HTML}{111827}
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\setlist[itemize]{leftmargin=1.05em, itemsep=0.08em, parsep=0pt, topsep=0.1em}
+\	itleformat{\section}{\
+ormalsize\bfseries\sffamily\color{accent}}{}{0em}{}[\	itlerule]
+\	itlespacing*{\section}{0pt}{0.55em}{0.28em}
+
+\begin{document}
+\color{ink}
+
+\begin{center}
+  {\LARGE\bfseries\sffamily 李~~~~四} \quad {\small 姓名示例}
+  \quad\	extbar\quad {\small 求职意向：数据分析师}
+  \\[0.28em]
+  {\small
+    \faPhone~~138-0000-0000 \\;
+    \faEnvelope~~lisi@mail.com \\;
+    \faMapMarker~~深圳 \\;
+    \faGithub~~github.com/lisi}
+\end{center}
+
+\vspace{0.35em}
+{\color{accent}\hrule height 1.1pt}
+\vspace{0.15em}
+
+\section{教育背景}
+\	extbf{XX大学} \hfill 统计学 · 硕士 \hfill 2020.09 -- 2023.06 \\
+GPA 3.8/4.0；主修：应用统计、机器学习、因果推断、大数据处理
+
+\section{专业技能}
+\begin{itemize}
+  \item 统计与建模：回归、树模型、A/B 实验、因果推断基础
+  \item 编程与工具：Python（Pandas/NumPy/scikit-learn）、SQL、Tableau
+  \item 工程协作：Git、Airflow 调度、数仓分层概念（ODS/DWD/DWS）
+\end{itemize}
+
+\section{实习经历}
+\	extbf{某电商公司 · 数据分析实习生} \hfill 2022.06 -- 2022.12 \\
+\begin{itemize}
+  \item 搭建核心转化漏斗看板，定位结算页流失点，推动改版后转化 +2.1pp
+  \item 设计并跟进 6 组 A/B 实验，输出可复用实验规范文档
+  \item 清洗并建模用户分层标签，支撑运营人群触达策略
+\end{itemize}
+
+\	extbf{某咨询公司 · 商业分析实习生} \hfill 2021.07 -- 2021.10 \\
+\begin{itemize}
+  \item 完成行业数据抓取与清洗，输出 15+ 页分析报告
+  \item 参与客户访谈纪要整理与指标体系草图设计
+\end{itemize}
+
+\section{项目经历}
+\	extbf{用户流失预警模型} \hfill 2023.01 -- 2023.04 \\
+\begin{itemize}
+  \item 基于 RFM 与行为特征训练 XGBoost，AUC 0.86
+  \item 将模型输出接入运营触达流程，高危用户召回率提升 12\\%
+\end{itemize}
+
+\section{奖项}
+\begin{itemize}
+  \item 2022 年 研究生学业奖学金一等奖
+  \item 2021 年 数学建模竞赛省一等奖
+\end{itemize}
+
+\vspace{0.4em}
+{\small\color{gray}紧凑单页：适合投递时控制在一页内，请精简真实内容。}
+
+\end{document}

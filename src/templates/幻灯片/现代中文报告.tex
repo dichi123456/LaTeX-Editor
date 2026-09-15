@@ -1,0 +1,88 @@
+%% 现代中文报告（Metropolis 浅色变体 + 简洁结构）
+%% 依赖 TeX Live 自带 beamertheme-metropolis
+%% 编译: xelatex
+\documentclass[UTF8,aspectratio=169,10pt]{ctexbeamer}
+\usetheme{metropolis}
+\usepackage{ctex}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{booktabs}
+
+\setCJKmainfont{SimSun}
+\setCJKsansfont{Microsoft YaHei}
+\setCJKmonofont{FangSong}
+
+\metroset{numbering=fraction}
+\metroset{block=fill}
+\metroset{progressbar=frametitle}
+\definecolor{primary}{HTML}{0EA5E9}
+\definecolor{primaryDark}{HTML}{0369A1}
+\setbeamercolor{structure}{fg=primaryDark}
+\setbeamercolor{frametitle}{bg=primaryDark,fg=white}
+
+\title{项目进展汇报}
+\subtitle{阶段成果与下一步计划}
+\author{汇报人}
+\institute{团队 / 部门}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{frame}{本次汇报提纲}
+  \tableofcontents
+\end{frame}
+
+\section{进展概览}
+
+\begin{frame}{已完成事项}
+  \begin{itemize}
+    \item 需求梳理与方案评审
+    \item 原型搭建与关键路径验证
+    \item 数据管线与基线实验
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{关键指标}
+  \begin{table}
+    \centering
+    \begin{tabular}{lccc}
+      \toprule
+      指标 & 上期 & 本期 & 目标 \\
+      \midrule
+      完成度 & 40\% & 75\% & 100\% \\
+      缺陷数 & 12 & 5 & 0 \\
+      文档覆盖 & 50\% & 80\% & 95\% \\
+      \bottomrule
+    \end{tabular}
+  \end{table}
+\end{frame}
+
+\section{问题与风险}
+
+\begin{frame}{主要风险}
+  \begin{alertblock}{高优先级}
+    外部依赖接口不稳定，可能影响联调进度。
+  \end{alertblock}
+  \begin{itemize}
+    \item 资源：算力与人力仍偏紧
+    \item 时间：里程碑节点不变，需并行推进
+  \end{itemize}
+\end{frame}
+
+\section{下一步}
+
+\begin{frame}{计划}
+  \begin{enumerate}
+    \item 完成联调与回归测试
+    \item 补齐用户文档与演示材料
+    \item 下周评审会前提交验收包
+  \end{enumerate}
+\end{frame}
+
+\begin{frame}[standout]
+  讨论与决策
+\end{frame}
+
+\end{document}

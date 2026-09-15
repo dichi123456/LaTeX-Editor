@@ -7,6 +7,7 @@ const emit = defineEmits<{
   (e: 'new-file'): void
   (e: 'open-file'): void
   (e: 'open-folder'): void
+  (e: 'open-template-library'): void
 }>()
 
 const recentFiles = ref<string[]>([])
@@ -148,6 +149,19 @@ function shortPath(path: string): string {
             </div>
           </div>
         </section>
+
+        <!-- 模板库入口 -->
+        <section class="welcome-section">
+          <h2 class="section-title">模板库</h2>
+          <button class="tpl-entry" @click="emit('open-template-library')">
+            <span class="tpl-entry-icon">📋</span>
+            <div class="tpl-entry-body">
+              <div class="tpl-entry-title">浏览模板库</div>
+              <div class="tpl-entry-desc">中文论文 · 简历 · 幻灯片 · 实验报告等内置模板</div>
+            </div>
+            <span class="tpl-entry-arrow">→</span>
+          </button>
+        </section>
       </div>
 
       <!-- 右侧：演练 / 提示 -->
@@ -262,6 +276,61 @@ function shortPath(path: string): string {
 
 .welcome-section {
   margin-bottom: 32px;
+}
+
+/* 模板库入口（毛玻璃） */
+.tpl-entry {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius);
+  background: rgba(30, 30, 46, 0.3);
+  backdrop-filter: blur(20px) saturate(1.6);
+  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+.tpl-entry:hover {
+  border-color: var(--accent);
+  background: rgba(30, 30, 46, 0.45);
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.08);
+}
+[data-theme="light"] .tpl-entry {
+  background: rgba(255, 255, 255, 0.3);
+  border-color: rgba(0, 0, 0, 0.06);
+}
+[data-theme="light"] .tpl-entry:hover {
+  background: rgba(255, 255, 255, 0.45);
+}
+.tpl-entry-icon {
+  font-size: 22px;
+  flex-shrink: 0;
+}
+.tpl-entry-body {
+  flex: 1;
+  min-width: 0;
+}
+.tpl-entry-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+.tpl-entry-desc {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+.tpl-entry-arrow {
+  font-size: 16px;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+.tpl-entry:hover .tpl-entry-arrow {
+  color: var(--accent);
 }
 
 .section-title {
