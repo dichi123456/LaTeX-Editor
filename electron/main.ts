@@ -387,7 +387,17 @@ ipcMain.handle('check-update', async () => {
       req.setTimeout(10000, () => { req.destroy(); reject(new Error('请求超时')) })
     })
     const latest = String(data.tag_name || '').replace(/^v/, '')
-    const hasUpdate = latest && latest !== current
+    // 语义化版本比较，避免 1.0.10 < 1.0.5 误判
+    const parseVer = (v: string) => v.split('.').map((n) => parseInt(n, 10) || 0)
+    const lv = parseVer(latest)
+    const cv = parseVer(current)
+    let hasUpdate = false
+    for (let i = 0; i < Math.max(lv.length, cv.length); i++) {
+      const a = lv[i] || 0
+      const b = cv[i] || 0
+      if (a > b) { hasUpdate = true; break }
+      if (a < b) { hasUpdate = false; break }
+    }
     // 找 exe 安装包下载地址
     const assets = Array.isArray(data.assets) ? data.assets : []
     const exeAsset = assets.find((a: any) => /\.exe$/i.test(a.name || ''))

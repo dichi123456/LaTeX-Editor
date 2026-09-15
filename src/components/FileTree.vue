@@ -105,6 +105,32 @@ async function openExtraEntry(entry: DirEntry) {
   }
 }
 
+function createParentDir(): string {
+  // 若选中的是目录，则在该目录下新建；否则用工作区根
+  const sel = selectedPath.value
+  if (!sel || !docStore.projectRoot) return docStore.projectRoot || ''
+  const entry = findEntryByPath(tree.value, sel)
+  if (entry?.isDirectory) return entry.path
+  // 选中文件时，在其父目录创建
+  return sel.replace(/[^\\/]+$/, '').replace(/[\\/]+$/, '') || docStore.projectRoot
+}
+
+function findEntryByPath(entries: DirEntry[], path: string): DirEntry | null {
+  for (const e of entries) {
+    if (e.path === path) return e
+    if (e.children) {
+      const hit = findEntryByPath(e.children, path)
+      if (hit) return hit
+    }
+  }
+  return null
+}
+
+function parentDirOf(path: string): string {
+  const p = path.replace(/[^\\/]+$/, '').replace(/[\\/]+$/, '')
+  return p || path
+}
+
 async function createNewFile() {
   showNewInput.value = true
   newIsDir.value = false
@@ -128,14 +154,31 @@ async function focusNewInput() {
 
 async function createNew() {
   const name = newFileName.value.trim()
-  if (!name || !docStore.projectRoot) return
+  if (!name) return
+  const parent = createParentDir()
+  if (!parent) {
+    alert('请先打开工作区')
+    return
+  }
   if (newIsDir.value) {
-    await window.electronAPI.createDir(docStore.projectRoot, name)
+    const created = await window.electronAPI.createDir(parent, name)
+    if (!created) {
+      alert('创建文件夹失败：可能已存在或无权限')
+      return
+    }
   } else {
-    const path = await window.electronAPI.createFile(docStore.projectRoot, name)
-    if (path) await docStore.openFile(path)
+    const path = await window.electronAPI.createFile(parent, name)
+    if (!path) {
+      alert('创建文件失败：可能已存在或无权限')
+      return
+    }
+    await docStore.openFile(path)
+    selectedPath.value = path
   }
   await loadTree()
+  // 若在子目录创建，展开父目录
+  const parentEntry = tree.value.find((e) => e.path === parent || parent.startsWith(e.path))
+  if (parentEntry?.isDirectory) toggleDir(parentEntry.path)
   showNewInput.value = false
   newFileName.value = ''
   newIsDir.value = false
@@ -162,7 +205,16 @@ async function deleteEntry(entry: DirEntry) {
     : `确定删除文件「${entry.name}」？`
   if (!confirm(msg)) return
   await window.electronAPI.deleteFile(entry.path)
+  // 若删除的是已打开的 PDF，关闭对应预览标签
+  if (!entry.isDirectory && /\.pdf$/i.test(entry.name)) {
+    compileStore.closePdfTabByPath(entry.path)
+  }
   await loadTree()
+  for (const folder of docStore.extraFolders) {
+    if (folder === entry.path || entry.path.startsWith(folder)) {
+      await loadExtraTree(folder)
+    }
+  }
 }
 
 function startRename(entry: DirEntry) {
@@ -175,7 +227,19 @@ async function confirmRename(entry: DirEntry) {
   const newName = renameValue.value.trim()
   if (!newName || newName === entry.name) return
   const newPath = entry.path.replace(/[^\\/]+$/, newName)
-  await window.electronAPI.renameFile(entry.path, newPath)
+  const ok = await window.electronAPI.renameFile(entry.path, newPath)
+  if (!ok) {
+    alert('重命名失败：可能已存在同名文件或无权限')
+    return
+  }
+  if (docStore.mainTexPath === entry.path) {
+    docStore.setMainTex(newPath)
+  }
+  const tab = docStore.tabs.find((t) => t.path === entry.path)
+  if (tab) {
+    tab.path = newPath
+    tab.name = newName
+  }
   await loadTree()
 }
 

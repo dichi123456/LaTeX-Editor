@@ -236,7 +236,11 @@ function execWriteFile(id: string, path: string, content: string): ToolResult {
   try {
     const dir = dirname(path)
     if (!existsSync(dir)) {
-      return { toolCallId: id, name: 'write_file', result: `错误: 目录不存在: ${dir}`, success: false }
+      try {
+        require('fs').mkdirSync(dir, { recursive: true })
+      } catch (e: any) {
+        return { toolCallId: id, name: 'write_file', result: `错误: 无法创建目录 ${dir}: ${e.message}`, success: false }
+      }
     }
     // 备份
     if (existsSync(path)) {

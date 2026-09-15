@@ -349,7 +349,10 @@ async function useTemplate(payload: { template: TemplateMeta }) {
     }
 
     // 切换工作区（若所选目录不在当前工作区内）
-    if (!docStore.projectRoot || !projectDir.startsWith(docStore.projectRoot)) {
+    // 用「路径前缀 + 分隔符」判断，避免 D:\Work 误匹配 D:\Work2
+    const root = docStore.projectRoot
+    const underRoot = !!root && (projectDir === root || projectDir.startsWith(root.endsWith('\\') || root.endsWith('/') ? root : root + (projectDir.includes('\\') ? '\\' : '/')))
+    if (!underRoot) {
       await docStore.openProjectFolder(projectDir)
       showSidebar.value = true
     } else {
@@ -447,7 +450,14 @@ async function saveAs(): Promise<boolean> {
 }
 
 async function compileDoc(mode: CompileMode = 'quick') {
-  if (docStore.activeTab?.isDirty) {
+  // 未保存的新文件：先引导另存为，再编译
+  const activeTab0 = docStore.activeTab
+  if (activeTab0 && !activeTab0.path && /\.tex$/i.test(activeTab0.name)) {
+    const goSave = confirm('当前文件尚未保存到磁盘。\n\n点击「确定」先另存为，再继续编译。')
+    if (!goSave) return
+    const ok = await saveAs()
+    if (!ok) return
+  } else if (docStore.activeTab?.isDirty) {
     const ok = await save()
     if (!ok) return
   }
@@ -476,13 +486,22 @@ async function compileDoc(mode: CompileMode = 'quick') {
   let engine = cfg?.engine || 'xelatex'
   try {
     const { content } = await window.electronAPI.readFile(mainPath)
-    const head = content.slice(0, 800)
+    const head = content.slice(0, 1200)
     if (/\\documentclass[^%]*\{[^}]*IEEEtran\}/.test(head) || /elsarticle/.test(head)) {
       engine = 'pdflatex'
-    } else if (/\\documentclass[^%]*\{[^}]*ctex/.test(head) || /cumcmthesis/.test(head) || /\\setCJKmainfont/.test(head)) {
+    } else if (
+      /\\documentclass[^%]*\{[^}]*ctex/.test(head) ||
+      /cumcmthesis/.test(head) ||
+      /\\setCJKmainfont/.test(head) ||
+      /\\usepackage\{ctex\}/.test(head)
+    ) {
       engine = 'xelatex'
-    } else if (/Wiley|article/.test(head) && !/ctex/.test(head)) {
-      // Wiley 骨架用 article，pdflatex/xelatex 均可，默认跟配置
+    } else if (/\\documentclass[^%]*\{article\}/.test(head) || /Wiley/i.test(head)) {
+      engine = 'pdflatex'
+    }
+    // 持久化纠正后的引擎，避免下次仍用错
+    if (cfg && engine !== cfg.engine) {
+      await configStore.save({ engine })
     }
   } catch { /* ignore read fail */ }
 
@@ -680,7 +699,7 @@ function toggleSidebar() {
 }
 
 const hasProject = computed(() => !!docStore.projectRoot)
-const showWelcome = computed(() => docStore.tabs.length === 0 && !docStore.projectRoot)
+const showWelcome = computed(() => docStore.tabs.length === 0)
 const errorCount = computed(() => compileStore.lastResult?.errors.length || 0)
 const warningCount = computed(() => compileStore.lastResult?.warnings.length || 0)
 

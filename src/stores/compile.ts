@@ -109,17 +109,14 @@ export const useCompileStore = defineStore('compile', () => {
         liveLog.value += compileResult.log + '\n'
 
       } else if (mode === 'quick') {
-        // ===== 快速编译：draft 模式单次编译 =====
+        // ===== 快速编译：单次编译（不跑 bibtex/多遍）=====
         compileProgress.value = '快速编译中…'
-        liveLog.value += '===== 快速编译（draft 模式） =====\n'
+        liveLog.value += '===== 快速编译（单次） =====\n'
 
-        // 注入 [draft] 到 documentclass，跳过图片等重资源
         const draftArgs = [...extraArgs]
         compileResult = await window.electronAPI.compile({
           filePath, engine, extraArgs: draftArgs, timeout: timeoutSec * 1000, texlivePath: texLivePath.value
         })
-        // 如果文档类没有 draft 选项，用 -draftmode 替代（注意：不生成 PDF，仅用于语法检查）
-        // 这里选择保留 PDF 输出，只在文档类层面加 draft
         liveLog.value += compileResult.log + '\n'
 
       } else {
@@ -210,6 +207,11 @@ export const useCompileStore = defineStore('compile', () => {
     }
   }
 
+  function closePdfTabByPath(path: string): void {
+    const tab = pdfTabs.value.find((t) => t.path === path)
+    if (tab) closePdfTab(tab.id)
+  }
+
   function activatePdfTab(id: string): void {
     activePdfTabId.value = id
   }
@@ -240,6 +242,7 @@ export const useCompileStore = defineStore('compile', () => {
     cleanAux,
     openPdfTab,
     closePdfTab,
+    closePdfTabByPath,
     activatePdfTab,
     movePdfTab
   }
