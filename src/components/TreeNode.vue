@@ -20,6 +20,7 @@ const emit = defineEmits<{
   (e: 'start-rename', entry: DirEntry): void
   (e: 'confirm-rename', entry: DirEntry): void
   (e: 'update-rename', value: string): void
+  (e: 'item-context', payload: { entry: DirEntry; x: number; y: number }): void
 }>()
 </script>
 
@@ -33,6 +34,7 @@ const emit = defineEmits<{
       }"
       :style="{ paddingLeft: depth * 14 + 8 + 'px' }"
       @click="emit('open', entry)"
+      @contextmenu.stop="emit('item-context', { entry, x: ($event as MouseEvent).clientX, y: ($event as MouseEvent).clientY })"
     >
       <span
         class="tree-icon"
@@ -82,6 +84,7 @@ const emit = defineEmits<{
         @start-rename="emit('start-rename', $event)"
         @confirm-rename="emit('confirm-rename', $event)"
         @update-rename="emit('update-rename', $event)"
+        @item-context="emit('item-context', $event)"
       />
     </template>
   </div>

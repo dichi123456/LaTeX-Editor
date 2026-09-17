@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useCompileStore } from '../stores/compile'
 import type { CompileIssue } from '../stores/compile'
 
@@ -14,6 +14,10 @@ const emit = defineEmits<{
 }>()
 
 const mode = computed(() => props.mode || 'log')
+
+// 右键菜单
+const ctxMenu = ref({ show: false, x: 0, y: 0, text: '', issue: null as CompileIssue | null })
+const selectedIssue = ref<CompileIssue | null>(null)
 
 const filteredIssues = computed<CompileIssue[]>(() => {
   const result = compileStore.lastResult
@@ -57,11 +61,97 @@ function clearLog() {
   compileStore.lastResult = null
   compileStore.liveLog = ''
 }
+
+function issueSummary(issue: CompileIssue): string {
+  const loc = issue.line ? `第 ${issue.line} 行` : ''
+  const file = issue.file ? `（${issue.file}）` : ''
+  return `编译${issue.type === 'error' ? '错误' : '警告'}${loc}${file}：\n${issue.message}`
+}
+
+function onIssueContext(e: MouseEvent, issue: CompileIssue) {
+  e.preventDefault()
+  window.dispatchEvent(new CustomEvent('close-all-menus'))
+  selectedIssue.value = issue
+  const x = Math.max(8, Math.min(e.clientX, window.innerWidth - 180))
+  const y = Math.max(8, Math.min(e.clientY, window.innerHeight - 80))
+  ctxMenu.value = {
+    show: true,
+    x,
+    y,
+    text: issueSummary(issue),
+    issue
+  }
+}
+
+function onLogContext(e: MouseEvent) {
+  const sel = window.getSelection()?.toString().trim()
+  if (!sel || sel.length < 8) return
+  e.preventDefault()
+  window.dispatchEvent(new CustomEvent('close-all-menus'))
+  selectedIssue.value = null
+  ctxMenu.value = { show: true, x: e.clientX, y: e.clientY, text: sel, issue: null }
+}
+
+function closeCtx() {
+  ctxMenu.value.show = false
+  selectedIssue.value = null
+}
+
+function onGlobalClick(e: MouseEvent) {
+  if (!(e.target as HTMLElement).closest('.log-ctx-menu')) closeCtx()
+}
+
+function onCloseAllMenus() {
+  closeCtx()
+}
+
+function sendToMoling() {
+  const text = ctxMenu.value.text
+  if (!text) return
+  const result = compileStore.lastResult
+  window.dispatchEvent(new CustomEvent('send-to-moling', {
+    detail: {
+      text,
+      filePath: ctxMenu.value.issue?.file || docMainPath(),
+      fileName: '编译日志',
+      lineRange: ctxMenu.value.issue?.line ? String(ctxMenu.value.issue.line) : undefined,
+      source: 'compile-error'
+    }
+  }))
+  closeCtx()
+}
+
+function docMainPath(): string {
+  // 交给 App 侧处理；此处仅占位
+  return ''
+}
+
+function onIssueDblClick(issue: CompileIssue) {
+  // 双击快速发送
+  selectedIssue.value = issue
+  ctxMenu.value = {
+    show: false,
+    x: 0,
+    y: 0,
+    text: issueSummary(issue),
+    issue
+  }
+  sendToMoling()
+}
+
+onMounted(() => {
+  document.addEventListener('click', onGlobalClick)
+  window.addEventListener('close-all-menus', onCloseAllMenus)
+})
+onUnmounted(() => {
+  document.removeEventListener('click', onGlobalClick)
+  window.removeEventListener('close-all-menus', onCloseAllMenus)
+})
 </script>
 
 <template>
   <div class="log-panel">
-    <!-- 问题模式：无子标签，直接列问题 -->
+    <!-- 问题模式 -->
     <template v-if="mode === 'problems'">
       <div class="log-body">
         <div v-if="filteredIssues.length > 0" class="issues-list">
@@ -70,7 +160,10 @@ function clearLog() {
             :key="idx"
             class="issue-item"
             :class="issue.type"
+            title="单击跳转 · 右键发送至墨灵 · 双击直接发送"
             @click="jump(issue)"
+            @contextmenu="onIssueContext($event, issue)"
+            @dblclick="onIssueDblClick(issue)"
           >
             <span class="issue-badge">{{ issue.type === 'error' ? '错误' : '警告' }}</span>
             <span class="issue-line" v-if="issue.line">L{{ issue.line }}</span>
@@ -85,16 +178,20 @@ function clearLog() {
       </div>
     </template>
 
-    <!-- 输出模式：实时编译输出流 -->
+    <!-- 输出模式 -->
     <template v-else-if="mode === 'output'">
       <div class="log-body">
-        <pre v-if="compileStore.liveLog" class="output-pre">{{ compileStore.liveLog }}</pre>
+        <pre
+          v-if="compileStore.liveLog"
+          class="output-pre"
+          @contextmenu="onLogContext"
+        >{{ compileStore.liveLog }}</pre>
         <div v-else-if="compileStore.isCompiling" class="log-compiling">正在编译，等待输出…</div>
         <div v-else class="log-empty">暂无输出。编译时此处显示实时日志。</div>
       </div>
     </template>
 
-    <!-- 日志模式：带过滤标签的完整日志 -->
+    <!-- 日志模式 -->
     <template v-else>
       <div class="log-header">
         <div class="log-tabs">
@@ -122,7 +219,10 @@ function clearLog() {
             :key="idx"
             class="issue-item"
             :class="issue.type"
+            title="单击跳转 · 右键发送至墨灵 · 双击直接发送"
             @click="jump(issue)"
+            @contextmenu="onIssueContext($event, issue)"
+            @dblclick="onIssueDblClick(issue)"
           >
             <span class="issue-badge">{{ issue.type === 'error' ? '错误' : '警告' }}</span>
             <span class="issue-line" v-if="issue.line">L{{ issue.line }}</span>
@@ -131,8 +231,8 @@ function clearLog() {
         </div>
 
         <details v-if="compileStore.lastResult?.log" class="raw-log" open>
-          <summary>原始编译日志</summary>
-          <pre>{{ compileStore.lastResult.log }}</pre>
+          <summary>原始编译日志（可选中后右键发送至墨灵）</summary>
+          <pre @contextmenu="onLogContext">{{ compileStore.lastResult.log }}</pre>
         </details>
 
         <div v-if="!compileStore.lastResult && !compileStore.isCompiling" class="log-empty">
@@ -141,6 +241,23 @@ function clearLog() {
         <div v-if="compileStore.isCompiling" class="log-compiling">正在编译…</div>
       </div>
     </template>
+
+    <!-- 右键菜单 -->
+    <Teleport to="body">
+      <div
+        v-if="ctxMenu.show"
+        class="log-ctx-menu"
+        :style="{ left: ctxMenu.x + 'px', top: ctxMenu.y + 'px' }"
+        @click.stop
+      >
+        <button class="ctx-item highlight" @click="sendToMoling">
+          <span class="ctx-icon">💬</span> 发送至墨灵
+        </button>
+        <button v-if="ctxMenu.issue" class="ctx-item" @click="jump(ctxMenu.issue!); closeCtx()">
+          <span class="ctx-icon">📍</span> 跳转到源码
+        </button>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -188,12 +305,14 @@ function clearLog() {
   flex: 1;
   overflow: auto;
   padding: 6px 8px;
+  user-select: text;
 }
 .issues-list {
   display: flex;
   flex-direction: column;
   gap: 2px;
   margin-bottom: 8px;
+  user-select: none;
 }
 .issue-item {
   display: flex;
@@ -203,6 +322,7 @@ function clearLog() {
   border-radius: var(--radius-sm);
   cursor: pointer;
   line-height: 1.5;
+  user-select: none;
 }
 .issue-item:hover { background: var(--bg-hover); }
 .issue-item.error { background: var(--error-bg); }
@@ -240,6 +360,7 @@ function clearLog() {
   word-break: break-all;
   color: var(--text-secondary);
   margin: 0;
+  user-select: text;
 }
 .raw-log {
   margin-top: 4px;
@@ -266,6 +387,7 @@ function clearLog() {
   padding: 8px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
+  user-select: text;
 }
 .log-empty, .log-compiling {
   text-align: center;
@@ -274,4 +396,51 @@ function clearLog() {
   font-size: 12px;
 }
 .log-compiling { color: var(--accent); }
+</style>
+
+<style>
+/* teleport 到 body，不能 scoped */
+.log-ctx-menu {
+  position: fixed;
+  z-index: 10000;
+  background: rgba(30, 30, 46, 0.92);
+  backdrop-filter: blur(16px) saturate(1.4);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+  min-width: 160px;
+  padding: 4px 0;
+}
+[data-theme="light"] .log-ctx-menu {
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(0, 0, 0, 0.08);
+}
+.log-ctx-menu .ctx-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 14px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+}
+.log-ctx-menu .ctx-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+[data-theme="light"] .log-ctx-menu .ctx-item:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+.log-ctx-menu .ctx-item.highlight {
+  color: #82aaff;
+  font-weight: 500;
+}
+.log-ctx-menu .ctx-icon {
+  font-size: 13px;
+  width: 16px;
+  text-align: center;
+}
 </style>

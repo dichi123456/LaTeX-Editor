@@ -233,6 +233,16 @@ function execWriteFile(id: string, path: string, content: string): ToolResult {
   if (!path || content === undefined) {
     return { toolCallId: id, name: 'write_file', result: '错误: 缺少 path 或 content 参数', success: false }
   }
+  // 限制可写扩展名，避免误写系统/二进制文件
+  const allowed = /\.(tex|bib|sty|cls|md|txt|bbl|bst|dtx|ins|json|yml|yaml)$/i
+  if (!allowed.test(path)) {
+    return {
+      toolCallId: id,
+      name: 'write_file',
+      result: `错误: 不支持写入该类型文件: ${path}\n允许: .tex/.bib/.sty/.cls/.md/.txt 等文本类`,
+      success: false
+    }
+  }
   try {
     const dir = dirname(path)
     if (!existsSync(dir)) {

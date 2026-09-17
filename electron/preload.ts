@@ -71,6 +71,9 @@ const api = {
   openExternal: (url: string): Promise<void> => ipcRenderer.invoke('open-external', url),
   openPdfExternal: (pdfPath: string): Promise<void> =>
     ipcRenderer.invoke('open-pdf-external', pdfPath),
+  showInExplorer: (targetPath: string): Promise<boolean> =>
+    ipcRenderer.invoke('show-in-explorer', targetPath),
+  openTexLiveGuide: (): Promise<boolean> => ipcRenderer.invoke('open-texlive-guide'),
   exportPdf: (srcPath: string): Promise<string | null> =>
     ipcRenderer.invoke('export-pdf-dialog', srcPath),
   showNotification: (title: string, body: string): Promise<void> =>

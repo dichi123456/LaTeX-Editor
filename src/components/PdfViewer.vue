@@ -343,7 +343,7 @@ function onContainerDblClick(e: MouseEvent) {
   triggerInverseSearch(e)
 }
 
-function triggerInverseSearch(e: MouseEvent) {
+async function triggerInverseSearch(e: MouseEvent) {
   if (!pdfDoc) return
   const target = e.target as HTMLElement
   const wrapper = target.closest('.pdf-page-wrapper') as HTMLElement
@@ -354,12 +354,35 @@ function triggerInverseSearch(e: MouseEvent) {
   const rect = canvas.getBoundingClientRect()
   const clickX = e.clientX - rect.left
   const clickY = e.clientY - rect.top
-  // synctex edit 的坐标：x 从左，y 从页面顶部算起（pt）
+  // 将屏幕坐标换算为 PDF 原始 pt，并处理旋转
+  let x = clickX / scale.value
+  let y = clickY / scale.value
+  const rot = ((rotation.value % 360) + 360) % 360
+  let pdfW = 0
+  let pdfH = 0
+  try {
+    const page = await pdfDoc.getPage(pageNum)
+    const base = page.getViewport({ scale: 1, rotation: 0 })
+    pdfW = base.width
+    pdfH = base.height
+  } catch { /* ignore */ }
+  if (rot === 90) {
+    const ny = pdfW - x
+    x = y
+    y = ny
+  } else if (rot === 180) {
+    x = pdfW - x
+    y = pdfH - y
+  } else if (rot === 270) {
+    const nx = pdfH - y
+    y = x
+    x = nx
+  }
   window.dispatchEvent(new CustomEvent('synctex-backward', {
     detail: {
       page: pageNum,
-      x: clickX / scale.value,
-      y: clickY / scale.value
+      x: Math.max(0, x),
+      y: Math.max(0, y)
     }
   }))
 }
@@ -937,11 +960,33 @@ onUnmounted(() => {
 .pdf-scroll-container {
   flex: 1;
   overflow-y: auto;
-  overflow-x: hidden;
-  padding: 12px;
+  overflow-x: auto;
+  padding: 12px 12px 8px;
   scroll-behavior: smooth;
   min-width: 0;
   cursor: default;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+  scrollbar-width: thin;
+}
+.pdf-scroll-container::-webkit-scrollbar {
+  height: 10px;
+  width: 10px;
+}
+.pdf-scroll-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+.pdf-scroll-container::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 5px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.pdf-scroll-container::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+  background-clip: padding-box;
+}
+.pdf-scroll-container::-webkit-scrollbar-corner {
+  background: transparent;
 }
 .pdf-pages {
   display: flex;
@@ -949,13 +994,17 @@ onUnmounted(() => {
   align-items: center;
   gap: 12px;
   min-height: 100px;
+  width: max-content;
+  min-width: 100%;
+  margin: 0 auto;
 }
 .pdf-page-wrapper { position: relative; flex-shrink: 0; line-height: 0; cursor: default; }
 .pdf-page-canvas {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   background: #fff;
   display: block;
-  max-width: 100%;
+  /* 放大后允许横向溢出出现滚动条 */
+  max-width: none;
   pointer-events: auto;
   user-select: none;
   -webkit-user-select: none;

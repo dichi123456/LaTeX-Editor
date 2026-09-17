@@ -100,6 +100,11 @@ onMounted(async () => {
   setupAutoSave()
   // 窗口标题跟随文件名
   setupWindowTitle()
+  // 启动后静默检查更新（约 8 秒）；发现新版本才弹窗
+  setTimeout(() => {
+    console.log('[update] auto check start')
+    void checkForUpdates(false)
+  }, 8000)
 
   document.addEventListener('dragover', onDragOver)
   document.addEventListener('drop', onDrop)
@@ -161,11 +166,17 @@ function toggleHelpMenu() {
 async function onCheckUpdate() {
   closeFileMenu()
   closeHelpMenu()
+  await checkForUpdates(true)
+}
+
+// silent=true：仅在发现新版本时提示；silent=false：手动检查（含已是最新提示）
+async function checkForUpdates(interactive: boolean): Promise<void> {
   try {
     const result = await window.electronAPI.checkUpdate()
     if (result.success && result.hasUpdate) {
-      const buttons = result.downloadUrl ? ['下载并安装', '前往网页', '稍后'] : ['前往网页', '稍后']
-      const choice = confirm(`发现新版本 v${result.latest}（当前 v${result.current}）\n\n点击「确定」在应用内下载并安装，点击「取消」前往 GitHub 页面。`)
+      const choice = confirm(
+        `发现新版本 v${result.latest}（当前 v${result.current}）\n\n点击「确定」在应用内下载并安装，点击「取消」前往 GitHub 页面。`
+      )
       if (choice && result.downloadUrl) {
         const ok = confirm(`将下载安装包并自动启动安装程序，安装完成后当前应用会退出。\n\n确认下载？`)
         if (ok) {
@@ -174,18 +185,23 @@ async function onCheckUpdate() {
           if (!dl.success) {
             alert(`下载失败：${dl.error}`)
           }
-          // 成功时应用会自动退出并启动安装器
         }
       } else if (result.url) {
         window.electronAPI.openExternal(result.url)
       }
-    } else if (result.success) {
-      alert(`已是最新版本（v${result.current}）`)
-    } else {
-      alert(`检查更新失败：${result.error || '未知错误'}`)
+    } else if (interactive) {
+      if (result.success) {
+        alert(`已是最新版本（v${result.current}）`)
+      } else {
+        alert(`检查更新失败：${result.error || '未知错误'}`)
+      }
     }
   } catch (err: any) {
-    alert(`检查更新异常：${err.message}`)
+    if (interactive) {
+      alert(`检查更新异常：${err.message}`)
+    } else {
+      console.warn('[update] auto check failed:', err)
+    }
   }
 }
 
@@ -588,7 +604,12 @@ function onSendToMoling(e: CustomEvent) {
   if (!text) return
   showAi.value = true
   window.dispatchEvent(new CustomEvent('moling-prefill', {
-    detail: { text, filePath, fileName, lineRange }
+    detail: {
+      text,
+      filePath: filePath || docStore.mainTexPath || docStore.activeTab?.path || '',
+      fileName: fileName || '选中文本',
+      lineRange
+    }
   }))
 }
 
@@ -699,7 +720,7 @@ function toggleSidebar() {
 }
 
 const hasProject = computed(() => !!docStore.projectRoot)
-const showWelcome = computed(() => docStore.tabs.length === 0)
+const showWelcome = computed(() => docStore.tabs.length === 0 && !docStore.projectRoot)
 const errorCount = computed(() => compileStore.lastResult?.errors.length || 0)
 const warningCount = computed(() => compileStore.lastResult?.warnings.length || 0)
 
@@ -924,7 +945,7 @@ function editorAction(action: string) {
       <!-- 默认布局：工作区在左 -->
       <template v-if="layoutMode === 'default'">
         <aside v-if="showSidebar && !distractionFree" class="panel sidebar-panel" :style="{ width: sidebarWidth + 'px' }">
-          <FileTree />
+          <FileTree @open-template-library="openTemplateLibrary" />
         </aside>
         <div v-if="showSidebar && !distractionFree" class="panel-divider v" @mousedown="startSidebarResize"></div>
       </template>
@@ -1005,7 +1026,7 @@ function editorAction(action: string) {
       <template v-if="layoutMode === 'swap'">
         <div v-if="showSidebar && !distractionFree" class="panel-divider v" @mousedown="startSidebarResize"></div>
         <aside v-if="showSidebar && !distractionFree" class="panel sidebar-panel" :style="{ width: sidebarWidth + 'px' }">
-          <FileTree />
+          <FileTree @open-template-library="openTemplateLibrary" />
         </aside>
       </template>
     </div>

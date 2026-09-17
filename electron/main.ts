@@ -350,6 +350,40 @@ ipcMain.handle('open-pdf-external', async (_event, pdfPath: string) => {
   await shell.openPath(pdfPath)
 })
 
+// 在系统文件资源管理器中打开文件/文件夹
+ipcMain.handle('show-in-explorer', async (_event, targetPath: string) => {
+  if (!targetPath) return false
+  const fs = require('fs')
+  try {
+    if (!fs.existsSync(targetPath)) return false
+    shell.showItemInFolder(targetPath)
+    return true
+  } catch (err: any) {
+    console.error('[show-in-explorer]', err)
+    return false
+  }
+})
+
+// 打开内置 TeX Live 安装说明 PDF
+ipcMain.handle('open-texlive-guide', async () => {
+  const fs = require('fs')
+  const candidates = [
+    is.dev
+      ? join(app.getAppPath(), 'resources', 'texlive-install-guide.pdf')
+      : join(process.resourcesPath || '', 'texlive-install-guide.pdf'),
+    join(app.getAppPath(), 'resources', 'texlive-install-guide.pdf')
+  ]
+  for (const p of candidates) {
+    if (p && fs.existsSync(p)) {
+      const err = await shell.openPath(p)
+      if (!err) return true
+    }
+  }
+  // 兜底：打开官方下载页
+  await shell.openExternal('https://tug.org/texlive/windows.html')
+  return false
+})
+
 ipcMain.handle('show-notification', async (_event, title: string, body: string) => {
   if (Notification.isSupported()) {
     new Notification({ title, body }).show()
@@ -363,29 +397,36 @@ ipcMain.handle('set-title', async (_event, title: string) => {
 // 检查更新（GitHub API）
 ipcMain.handle('check-update', async () => {
   const current = app.getVersion()
-  try {
-    const https = require('https')
-    const data: any = await new Promise((resolve, reject) => {
-      const req = https.get(
-        'https://api.github.com/repos/dichi123456/LaTeX-Editor/releases/latest',
-        {
-          headers: {
-            'User-Agent': 'MoLingTeX-Updater',
-            'Accept': 'application/vnd.github+json'
-          },
-          rejectUnauthorized: false
+  const https = require('https')
+  const fetchRelease = (secure: boolean) => new Promise<any>((resolve, reject) => {
+    const req = https.get(
+      'https://api.github.com/repos/dichi123456/LaTeX-Editor/releases/latest',
+      {
+        headers: {
+          'User-Agent': 'MoLingTeX-Updater',
+          'Accept': 'application/vnd.github+json'
         },
-        (res: any) => {
-          let body = ''
-          res.on('data', (chunk: string) => { body += chunk })
-          res.on('end', () => {
-            try { resolve(JSON.parse(body)) } catch { reject(new Error('解析响应失败')) }
-          })
-        }
-      )
-      req.on('error', reject)
-      req.setTimeout(10000, () => { req.destroy(); reject(new Error('请求超时')) })
-    })
+        rejectUnauthorized: secure
+      },
+      (res: any) => {
+        let body = ''
+        res.on('data', (chunk: string) => { body += chunk })
+        res.on('end', () => {
+          try { resolve(JSON.parse(body)) } catch { reject(new Error('解析响应失败')) }
+        })
+      }
+    )
+    req.on('error', reject)
+    req.setTimeout(10000, () => { req.destroy(); reject(new Error('请求超时')) })
+  })
+  try {
+    let data: any
+    try {
+      data = await fetchRelease(true)
+    } catch {
+      // 系统证书异常时降级重试
+      data = await fetchRelease(false)
+    }
     const latest = String(data.tag_name || '').replace(/^v/, '')
     // 语义化版本比较，避免 1.0.10 < 1.0.5 误判
     const parseVer = (v: string) => v.split('.').map((n) => parseInt(n, 10) || 0)

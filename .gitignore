@@ -5,6 +5,7 @@ release/
 .DS_Store
 Thumbs.db
 截图/
+知乎发布/
 
 # build/export artifacts
 .export-build/
@@ -17,3 +18,5 @@ win-unpacked/
 *.zip
 *.blockmap
 electron.vite.config.*.mjs
+*.aux
+*.out

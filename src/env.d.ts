@@ -62,6 +62,8 @@ interface Window {
     saveAs: (defaultName: string) => Promise<string | null>
     openExternal: (url: string) => Promise<void>
     openPdfExternal: (pdfPath: string) => Promise<void>
+    showInExplorer: (targetPath: string) => Promise<boolean>
+    openTexLiveGuide: () => Promise<boolean>
     exportPdf: (srcPath: string) => Promise<string | null>
     showNotification: (title: string, body: string) => Promise<void>
     setTitle: (title: string) => Promise<void>

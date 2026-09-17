@@ -61,6 +61,12 @@
       "out/**/*",
       "resources/**/*"
     ],
+    "extraResources": [
+      {
+        "from": "resources/texlive-install-guide.pdf",
+        "to": "texlive-install-guide.pdf"
+      }
+    ],
     "win": {
       "target": [
         {

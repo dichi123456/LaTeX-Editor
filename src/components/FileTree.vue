@@ -6,6 +6,10 @@ import TreeNode from './TreeNode.vue'
 import Outline from './Outline.vue'
 import type { DirEntry } from '../types'
 
+const emit = defineEmits<{
+  (e: 'open-template-library'): void
+}>()
+
 const docStore = useDocStore()
 const compileStore = useCompileStore()
 
@@ -24,6 +28,7 @@ const showOutline = ref(false)
 
 // 右键菜单
 const ctxMenu = ref({ show: false, x: 0, y: 0 })
+const itemCtx = ref({ show: false, x: 0, y: 0, entry: null as DirEntry | null })
 
 const workspaceName = computed(() => {
   if (!docStore.projectRoot) return ''
@@ -261,9 +266,53 @@ function iconFor(entry: DirEntry): string {
 // 右键菜单
 function onContextMenu(e: MouseEvent) {
   e.preventDefault()
-  // 关闭其他菜单
   window.dispatchEvent(new CustomEvent('close-all-menus'))
+  itemCtx.value = { show: false, x: 0, y: 0, entry: null }
   ctxMenu.value = { show: true, x: e.clientX, y: e.clientY }
+}
+
+function onItemContextMenu(payload: { entry: DirEntry; x: number; y: number }) {
+  window.dispatchEvent(new CustomEvent('close-all-menus'))
+  ctxMenu.value = { show: false, x: 0, y: 0 }
+  selectedPath.value = payload.entry.path
+  // 避免菜单贴边溢出屏幕
+  const menuW = 200
+  const menuH = 160
+  const x = Math.max(8, Math.min(payload.x, window.innerWidth - menuW - 8))
+  const y = Math.max(8, Math.min(payload.y, window.innerHeight - menuH - 8))
+  itemCtx.value = { show: true, x, y, entry: payload.entry }
+}
+
+function closeItemCtx() {
+  itemCtx.value = { show: false, x: 0, y: 0, entry: null }
+}
+
+async function revealInExplorer(entry: DirEntry) {
+  closeItemCtx()
+  try {
+    await window.electronAPI.showInExplorer(entry.path)
+  } catch (err: any) {
+    alert(`打开资源管理器失败：${err.message}`)
+  }
+}
+
+function itemCtxAction(action: string) {
+  const entry = itemCtx.value.entry
+  if (!entry) return
+  closeItemCtx()
+  if (action === 'reveal') {
+    void revealInExplorer(entry)
+  } else if (action === 'open') {
+    void openEntry(entry)
+  } else if (action === 'delete') {
+    void deleteEntry(entry)
+  } else if (action === 'rename') {
+    startRename(entry)
+  } else if (action === 'set-main') {
+    if (!entry.isDirectory && /\.tex$/i.test(entry.name)) {
+      docStore.setMainTex(entry.path)
+    }
+  }
 }
 
 function closeCtxMenu() {
@@ -302,6 +351,7 @@ function ctxAction(action: string) {
       case 'new-file': createNewFile(); break
       case 'new-folder': createNewFolder(); break
       case 'add-folder': addFolderToWorkspace(); break
+      case 'from-template': emit('open-template-library'); break
       case 'remove-last-folder':
         if (docStore.extraFolders.length > 0) {
           removeFolderFromWorkspace(docStore.extraFolders[docStore.extraFolders.length - 1])
@@ -319,13 +369,15 @@ function cancelNewInput() {
 
 function onGlobalClick(e: Event) {
   const target = e.target as HTMLElement
-  if (!target.closest('.ctx-menu')) {
+  if (!target.closest('.ctx-menu') && !target.closest('.item-ctx-menu')) {
     closeCtxMenu()
+    closeItemCtx()
   }
   if (
     showNewInput.value &&
     !target.closest('.new-input-row') &&
     !target.closest('.ctx-menu') &&
+    !target.closest('.item-ctx-menu') &&
     !target.closest('.ws-icon-btn') &&
     !target.closest('[data-new-input-trigger]')
   ) {
@@ -335,6 +387,7 @@ function onGlobalClick(e: Event) {
 
 function onCloseAllMenus() {
   closeCtxMenu()
+  closeItemCtx()
   showNewInput.value = false
 }
 
@@ -439,6 +492,7 @@ onUnmounted(() => {
               @start-rename="startRename"
               @confirm-rename="confirmRename"
               @update-rename="(v: string) => (renameValue = v)"
+              @item-context="onItemContextMenu"
             />
           </template>
         </div>
@@ -475,6 +529,7 @@ onUnmounted(() => {
               @start-rename="startRename"
               @confirm-rename="confirmRename"
               @update-rename="(v: string) => (renameValue = v)"
+              @item-context="onItemContextMenu"
             />
           </template>
         </div>
@@ -508,6 +563,9 @@ onUnmounted(() => {
         <button class="ctx-item" @click="ctxAction('new-folder')">
           <span class="ctx-icon">📁</span> 新建文件夹
         </button>
+        <button class="ctx-item" @click="ctxAction('from-template')">
+          <span class="ctx-icon">📋</span> 从模板导入…
+        </button>
         <div class="ctx-divider"></div>
         <button class="ctx-item" @click="ctxAction('add-folder')">
           <span class="ctx-icon">➕</span> 将文件夹加入工作区
@@ -518,6 +576,37 @@ onUnmounted(() => {
           @click="ctxAction('remove-last-folder')"
         >
           <span class="ctx-icon">➖</span> 将文件夹从工作区删除
+        </button>
+      </div>
+    </Teleport>
+
+    <!-- 文件/文件夹右键菜单 -->
+    <Teleport to="body">
+      <div
+        v-if="itemCtx.show && itemCtx.entry"
+        class="ctx-menu item-ctx-menu"
+        :style="{ left: itemCtx.x + 'px', top: itemCtx.y + 'px' }"
+        @click.stop
+      >
+        <button class="ctx-item" @click="itemCtxAction('open')">
+          <span class="ctx-icon">📂</span> {{ itemCtx.entry.isDirectory ? '打开文件夹' : '打开文件' }}
+        </button>
+        <button
+          v-if="!itemCtx.entry.isDirectory && /\.tex$/i.test(itemCtx.entry.name)"
+          class="ctx-item"
+          @click="itemCtxAction('set-main')"
+        >
+          <span class="ctx-icon">★</span> 设为编译主文档
+        </button>
+        <button class="ctx-item" @click="itemCtxAction('reveal')">
+          <span class="ctx-icon">🗂</span> 在文件资源管理器中打开
+        </button>
+        <div class="ctx-divider"></div>
+        <button class="ctx-item" @click="itemCtxAction('rename')">
+          <span class="ctx-icon">✎</span> 重命名
+        </button>
+        <button class="ctx-item danger" @click="itemCtxAction('delete')">
+          <span class="ctx-icon">🗑</span> 删除
         </button>
       </div>
     </Teleport>
@@ -744,6 +833,12 @@ onUnmounted(() => {
 }
 .ctx-item:hover {
   background: var(--bg-hover);
+}
+.ctx-item.danger {
+  color: var(--error);
+}
+.ctx-item.danger:hover {
+  background: var(--error-bg);
 }
 .ctx-icon {
   font-size: 14px;

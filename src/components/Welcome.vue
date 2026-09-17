@@ -17,10 +17,15 @@ const recentWorkspaces = ref<string[]>([])
 const ctxMenu = ref({ show: false, x: 0, y: 0 })
 function onContextMenu(e: MouseEvent) {
   e.preventDefault()
+  // 先关掉工作区/编辑器等其它菜单
   window.dispatchEvent(new CustomEvent('close-all-menus'))
+  // 再打开起始页菜单（避免被 close-all-menus 误关）
   ctxMenu.value = { show: true, x: e.clientX, y: e.clientY }
 }
 function closeCtx() { ctxMenu.value.show = false }
+function onCloseAllMenus() {
+  closeCtx()
+}
 function onGlobalClick(e: MouseEvent) {
   if (!(e.target as HTMLElement).closest('.welcome-ctx')) closeCtx()
 }
@@ -36,9 +41,11 @@ onMounted(async () => {
   recentFiles.value = docStore.recentFiles
   recentWorkspaces.value = docStore.recentWorkspaces
   document.addEventListener('click', onGlobalClick)
+  window.addEventListener('close-all-menus', onCloseAllMenus)
 })
 onUnmounted(() => {
   document.removeEventListener('click', onGlobalClick)
+  window.removeEventListener('close-all-menus', onCloseAllMenus)
 })
 
 async function openRecentFile(path: string) {
@@ -47,6 +54,17 @@ async function openRecentFile(path: string) {
 
 async function openRecentWorkspace(path: string) {
   await docStore.openProjectFolder(path)
+}
+
+async function onOpenTexLiveGuide() {
+  try {
+    const ok = await window.electronAPI.openTexLiveGuide()
+    if (!ok) {
+      // 未找到 PDF 时已打开官方页，可给轻提示
+    }
+  } catch (err: any) {
+    alert(`无法打开安装说明：${err.message}`)
+  }
 }
 
 function shortName(path: string): string {
@@ -150,7 +168,7 @@ function shortPath(path: string): string {
           </div>
         </section>
 
-        <!-- 模板库入口 -->
+        <!-- 模板库入口（最近下方） -->
         <section class="welcome-section">
           <h2 class="section-title">模板库</h2>
           <button class="tpl-entry" @click="emit('open-template-library')">
@@ -200,29 +218,17 @@ function shortPath(path: string): string {
                 </div>
               </div>
             </div>
-            <div class="tip-item">
+            <div class="tip-item tip-clickable" @click="onOpenTexLiveGuide" title="点击查看 TeX Live 安装说明 PDF">
               <span class="tip-icon">⚙️</span>
               <div class="tip-body">
-                <div class="tip-title">TeX Live 配置</div>
+                <div class="tip-title">TeX Live 配置 <span class="tip-link">查看安装说明 →</span></div>
                 <div class="tip-desc">
                   需要本机安装 TeX Live 2024。<br />
-                  未检测到时可在设置中手动指定路径。
+                  点击打开安装说明 PDF；未检测到时也可在设置中手动指定路径。
                 </div>
               </div>
             </div>
           </div>
-        </section>
-
-        <section class="welcome-section">
-          <h2 class="section-title">内置模板</h2>
-          <div class="template-list">
-            <span class="template-tag">中文论文</span>
-            <span class="template-tag">实验报告</span>
-            <span class="template-tag">中文简历</span>
-            <span class="template-tag">Beamer 幻灯片</span>
-            <span class="template-tag">英文论文</span>
-          </div>
-          <p class="template-hint">新建文档时可从模板开始</p>
         </section>
       </div>
     </div>
@@ -462,6 +468,26 @@ function shortPath(path: string): string {
   display: flex;
   gap: 10px;
   align-items: flex-start;
+}
+
+.tip-clickable {
+  cursor: pointer;
+  border-radius: 8px;
+  padding: 6px 8px;
+  margin: -6px -8px;
+  transition: background 0.12s;
+}
+.tip-clickable:hover {
+  background: var(--bg-hover);
+}
+.tip-clickable:hover .tip-link {
+  text-decoration: underline;
+}
+.tip-link {
+  color: var(--accent);
+  font-weight: 500;
+  margin-left: 6px;
+  font-size: 12px;
 }
 
 .tip-icon {

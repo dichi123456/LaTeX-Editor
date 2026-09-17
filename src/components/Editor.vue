@@ -829,9 +829,9 @@ function onApplyEdit(e: Event) {
 // ===== 右键菜单 =====
 function onEditorContextMenu(e: MouseEvent) {
   e.preventDefault()
-  // 关闭其他菜单
   window.dispatchEvent(new CustomEvent('close-all-menus'))
-  // 记录右键时的光标行，供「跳转到 PDF」使用
+  // 记录右键时的光标行，供「跳转到 PDF」使用；点在空白处则清空
+  ctxMenuLine = null
   if (view) {
     const pos = view.posAtCoords({ x: e.clientX, y: e.clientY })
     if (pos != null) {
@@ -851,12 +851,48 @@ function onCloseAllMenus() {
   closeCtxMenu()
 }
 
+// 从磁盘重新加载当前文件（其他软件修改后刷新）
+async function ctxRefreshFromDisk() {
+  closeCtxMenu()
+  const tab = docStore.activeTab
+  if (!tab?.path) {
+    alert('当前文件尚未保存，无法从磁盘刷新')
+    return
+  }
+  if (tab.isDirty) {
+    if (!confirm('当前文件有未保存的修改。\n\n刷新将丢弃编辑器中的修改并覆盖为磁盘内容。继续？')) {
+      return
+    }
+  }
+  try {
+    const { content, encoding } = await window.electronAPI.readFile(tab.path)
+    tab.content = content
+    tab.originalContent = content
+    tab.encoding = encoding
+    tab.isDirty = false
+    window.dispatchEvent(new CustomEvent('reload-tab', {
+      detail: { tabId: tab.id, content }
+    }))
+    window.dispatchEvent(new CustomEvent('refresh-file-tree'))
+  } catch (err: any) {
+    alert(`刷新失败：${err.message}`)
+  }
+}
+
 function ctxJumpToPdf() {
   const line = ctxMenuLine
   closeCtxMenu()
   if (line != null) {
     window.dispatchEvent(new CustomEvent('synctex-forward', { detail: { line } }))
   }
+}
+
+function ctxSetMainTex() {
+  const tab = docStore.activeTab
+  if (tab?.path && /\\.tex$/i.test(tab.path)) {
+    docStore.setMainTex(tab.path)
+  }
+  closeCtxMenu()
 }
 
 function getSelectedText(): string {
@@ -1031,6 +1067,17 @@ onUnmounted(() => {
         <button class="ctx-item" @click="ctxSelectAll">
           <span class="ctx-icon">⬚</span> 全选
           <span class="ctx-key">Ctrl+A</span>
+        </button>
+        <button class="ctx-item" @click="ctxRefreshFromDisk" title="从磁盘重新加载当前文件">
+          <span class="ctx-icon">🔄</span> 从磁盘刷新
+        </button>
+        <button
+          v-if="docStore.activeTab?.path && /\.tex$/i.test(docStore.activeTab.path)"
+          class="ctx-item"
+          @click="ctxSetMainTex"
+          title="将当前文件设为编译主文档"
+        >
+          <span class="ctx-icon">★</span> 设为编译主文档
         </button>
         <button class="ctx-item" @click="ctxJumpToPdf">
           <span class="ctx-icon">📄</span> 跳转到 PDF

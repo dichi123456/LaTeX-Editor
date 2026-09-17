@@ -1,0 +1,187 @@
+%% TeX Live 安装说明（墨灵TeX 附带）— 详细版
+\documentclass[UTF8,11pt]{article}
+\usepackage[margin=1.8cm,top=1.6cm]{geometry}
+\usepackage{ctex}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{booktabs}
+
+\setCJKmainfont{SimSun}
+\setCJKsansfont{Microsoft YaHei}
+\setCJKmonofont{FangSong}
+
+\definecolor{accent}{HTML}{2563EB}
+\definecolor{warn}{HTML}{B45309}
+\definecolor{ok}{HTML}{047857}
+\pagestyle{plain}
+\setlength{\parindent}{0pt}
+\setlist{itemsep=0.15em,topsep=0.25em,parsep=0pt}
+\hypersetup{colorlinks=true,linkcolor=accent,urlcolor=accent}
+
+\title{\textcolor{accent}{\sffamily\bfseries TeX Live 安装与配置指南}\\[0.4em]
+\large 墨灵TeX 附带说明 · Windows}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+\vspace{-1.6em}
+
+\begin{center}
+\colorbox{accent!8}{\parbox{0.96\textwidth}{%
+\textbf{适用环境：}Windows 10 / 11（64 位）\\
+\textbf{推荐版本：}TeX Live 2024（2022 / 2023 亦可）\\
+\textbf{安装完成后：}墨灵TeX 会自动检测 \texttt{bin} 目录；未检测到时可在「设置 $\rightarrow$ 编译」中手动填写。
+}}
+\end{center}
+
+\vspace{0.6em}
+\section*{一、为什么需要 TeX Live}
+墨灵TeX 的\textbf{编辑}与\textbf{PDF 预览}可以独立使用，但要把 \texttt{.tex} 编译成 PDF，必须依赖本机 TeX 发行版。
+
+\begin{itemize}
+  \item 编译引擎：默认 \textbf{XeLaTeX}（中文友好），期刊/部分模板可能用 \textbf{pdfLaTeX}
+  \item 宏包管理：ctex、amsmath、geometry、hyperref 等均由发行版提供
+  \item 首次安装约需磁盘 \textbf{5--8 GB}（完整方案），网络较差时请预留更久时间
+\end{itemize}
+
+\section*{二、下载安装包}
+
+\subsection*{方式 A：官方安装器（推荐新手）}
+\begin{enumerate}
+  \item 打开官网：\url{https://tug.org/texlive/}
+  \item 进入 \textbf{Getting TeX Live} 页面
+  \item Windows 用户下载 \textbf{install-tl-windows.exe}（在线安装器，体积较小）
+  \item 若网络较慢，可改用 \textbf{install-tl-w64.exe} 或从页面中的 CTAN 镜像站获取 ISO
+\end{enumerate}
+
+\subsection*{方式 B：完整 ISO（适合离线/校园网）}
+\begin{enumerate}
+  \item 在 \textbf{Getting TeX Live} 页选择 \textbf{on DVD / ISO image}
+  \item 从国内镜像下载完整 ISO（清华、中科大等），体积约数 GB
+  \item 用资源管理器挂载 ISO（Windows 10/11 可直接双击挂载）
+\end{enumerate}
+
+\textcolor{warn}{\textbf{提示：}请务必从 TUG 或可信镜像下载，避免第三方捆绑安装包。}
+
+\section*{三、Windows 安装步骤（逐步）}
+
+\begin{enumerate}
+  \item 右键安装程序 $\rightarrow$ \textbf{以管理员身份运行}（可减少权限问题）
+  \item 安装语言可选 \textbf{English} 或简体中文界面
+  \item 安装类型：
+    \begin{itemize}
+      \item \textbf{Advanced / Custom}（推荐）：可核对路径与组件
+      \item \textbf{Default}：适合不想改配置的用户
+    \end{itemize}
+  \item \textbf{安装目录}建议保持默认，例如：
+    \begin{quote}
+      \texttt{C:\textbackslash texlive\textbackslash 2024}
+    \end{quote}
+    自定义时请记住最终 \texttt{bin\textbackslash windows} 路径，稍后要在墨灵里使用。
+  \item 组件选择：
+    \begin{itemize}
+      \item 保持默认全选，即可包含中文支持（XeTeX / LuaTeX / ctex 相关包）
+      \item 磁盘紧张时可取消部分文档与多语言包，但务必保留 \textbf{XeTeX}、\textbf{LuaTeX}、\textbf{宏包集合}
+    \end{itemize}
+  \item 点击 \textbf{Install}，等待进度条走完（约 20--60 分钟，视网速而定）
+  \item 结束页若提示「安装完成」即可关闭安装器
+\end{enumerate}
+
+\section*{四、验证安装是否成功}
+按 \textbf{Win+R}，输入 \texttt{cmd} 回车，依次尝试：
+
+\begin{enumerate}
+  \item 输入 \texttt{xelatex -version}
+  \item 若提示「不是内部或外部命令」，说明 PATH 未生效：
+    \begin{itemize}
+      \item 关闭并重新打开终端窗口再试
+      \item 或重启电脑
+    \end{itemize}
+  \item 若显示版本号（如 TeX Live 2024），表示命令行已可用
+\end{enumerate}
+
+也可直接打开墨灵TeX，看状态栏/设置里是否自动识别到 TeX Live。
+
+\section*{五、在墨灵TeX 中配置路径}
+
+\begin{enumerate}
+  \item 启动墨灵TeX，软件启动后约数秒会自动探测 TeX Live
+  \item 若右上角/状态提示已就绪，可直接打开模板或文件按 \textbf{F5} 编译
+  \item 若未检测到：
+    \begin{enumerate}
+      \item 菜单栏 \textbf{设置}（或命令面板搜「设置」）
+      \item 切到 \textbf{编译} 分区
+      \item 在 \textbf{TeX Live 路径} 中填入 bin 目录，例如：
+\begin{quote}
+\texttt{C:\textbackslash texlive\textbackslash 2024\textbackslash bin\textbackslash windows}
+\end{quote}
+      \item 保存设置，重新编译
+    \end{enumerate}
+\end{enumerate}
+
+\section*{六、常用编译引擎选择}
+
+\begin{center}
+\begin{tabular}{@{}p{3.2cm}p{5.2cm}p{4.8cm}@{}}
+\toprule
+文档类型 & 推荐引擎 & 说明 \\
+\midrule
+中文论文 / 简历 / 幻灯片 & XeLaTeX & 支持系统中文字体（如宋体、雅黑） \\
+国赛 CUMCM & XeLaTeX & 模板要求 xelatex \\
+IEEE / Elsevier & pdfLaTeX & 英文期刊常见 \\
+纯英文 article & 两者皆可 & 默认跟墨灵设置 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textcolor{ok}{\textbf{提示：}墨灵在编译时会根据 \texttt{documentclass} 自动纠正引擎；也可在设置中手动指定。}
+
+\section*{七、常见问题排查}
+
+\begin{enumerate}
+  \item \textbf{找不到 xelatex / pdflatex}
+  \begin{itemize}
+    \item 确认路径是否指向 \texttt{...bin\textbackslash windows}（不是 texlive 根目录）
+    \item 该目录下应能看到 \texttt{xelatex.exe}
+  \end{itemize}
+  \item \textbf{中文乱码或无法编译}
+  \begin{itemize}
+    \item 引擎务必用 XeLaTeX
+    \item 文档类使用 ctexart/ctexbeamer 时不要用 pdfLaTeX
+  \end{itemize}
+  \item \textbf{缺少宏包（如 fontawesome5）}
+  \begin{itemize}
+    \item 完整 TeX Live 一般已含
+    \item MiKTeX 会提示按需安装，允许即可
+  \end{itemize}
+  \item \textbf{杀毒/防火墙拦截}
+  \begin{itemize}
+    \item 首次编译可能被拦截，请将墨灵TeX 与 TeX Live 目录加入信任
+  \end{itemize}
+  \item \textbf{安装很慢或中断}
+  \begin{itemize}
+    \item 改用国内镜像，或改用 ISO 离线安装
+    \item 中断后重新运行安装器，通常可续装
+  \end{itemize}
+\end{enumerate}
+
+\section*{八、可选：MiKTeX 替代方案}
+若不想安装体积很大的 TeX Live，可安装 \textbf{MiKTeX}（\url{https://miktex.org/}）：
+\begin{itemize}
+  \item 体积更小，缺包时可自动下载
+  \item 安装后同样需要在墨灵「设置 $\rightarrow$ 编译」中指定其 \texttt{miktex\textbackslash bin} 路径
+  \item 部分中文模板仍更推荐 TeX Live + XeLaTeX
+\end{itemize}
+
+\vspace{1em}
+\begin{center}
+\colorbox{accent!8}{\parbox{0.96\textwidth}{%
+完成安装并配置路径后，可从起始页「浏览模板库」选择模板，或打开已有 \texttt{.tex} 按 \textbf{F5} 编译。
+若仍失败，请查看底部日志面板中的完整错误信息。
+}}
+\end{center}
+
+\end{document}
