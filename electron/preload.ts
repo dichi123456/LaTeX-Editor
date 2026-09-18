@@ -25,6 +25,8 @@ const api = {
   deleteFile: (filePath: string): Promise<boolean> => ipcRenderer.invoke('delete-file', filePath),
   renameFile: (oldPath: string, newPath: string): Promise<boolean> =>
     ipcRenderer.invoke('rename-file', oldPath, newPath),
+  copyPathToDir: (srcPath: string, destDir: string): Promise<string | null> =>
+    ipcRenderer.invoke('copy-path-to-dir', srcPath, destDir),
   getFileStats: (filePath: string): Promise<{ size: number; mtime: number } | null> =>
     ipcRenderer.invoke('file-stats', filePath),
   getRecentFiles: (): Promise<string[]> => ipcRenderer.invoke('get-recent-files'),
@@ -107,9 +109,11 @@ const api = {
     workspaceRoot?: string | null
     texlivePath?: string | null
     enableTools?: boolean
+    permissionMode?: string
+    maxSteps?: number
   }): Promise<{ success: boolean; content?: string; error?: string; reasoning?: string }> =>
     ipcRenderer.invoke('ai-chat', options),
-  onAiStream: (cb: (data: { type: string; text?: string; toolName?: string; args?: string; result?: string; success?: boolean }) => void): (() => void) => {
+  onAiStream: (cb: (data: { type: string; text?: string; toolName?: string; args?: string; result?: string; success?: boolean; current?: number; max?: number; final?: boolean }) => void): (() => void) => {
     const handler = (_e: unknown, data: any): void => cb(data)
     ipcRenderer.on('ai-stream', handler)
     return () => ipcRenderer.removeListener('ai-stream', handler)

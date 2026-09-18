@@ -41,6 +41,8 @@ export interface AiConfig {
   systemPrompt: string
   temperature: number
   permissionMode: 'ask' | 'full'
+  /** Agent 最大迭代步数（Kilo Code agent.steps），1–100 */
+  maxSteps: number
 }
 
 export interface EditProposal {
@@ -56,7 +58,8 @@ const DEFAULT_AI_CONFIG: AiConfig = {
   selectedModels: [],
   systemPrompt: '你是「墨灵」，一个专业的 LaTeX 写作助手。回答使用 Markdown，LaTeX 代码用 ```latex 块。中文优先，简洁专业。',
   temperature: 0.7,
-  permissionMode: 'ask'
+  permissionMode: 'ask',
+  maxSteps: 30
 }
 
 let streamUnsubscribe: (() => void) | null = null
@@ -72,11 +75,21 @@ export const useAiStore = defineStore('ai', () => {
   const streamingReasoning: Ref<string> = ref('')
   const toolSteps: Ref<ToolStep[]> = ref([])
   const cancelled: Ref<boolean> = ref(false)
+  // 当前 agent 步进（Kilo 风格：第 N / 共 M 步）
+  const stepCurrent: Ref<number> = ref(0)
+  const stepMax: Ref<number> = ref(0)
+  const stepIsFinal: Ref<boolean> = ref(false)
   // 本轮处理耗时
   const turnStartedAt: Ref<number | null> = ref(null)
   const turnElapsedMs: Ref<number> = ref(0)
   // 待批准的写操作
   const pendingWrite: Ref<{ toolName: string; args: string; resolve: (approved: boolean) => void } | null> = ref(null)
+
+  function resetStepProgress(): void {
+    stepCurrent.value = 0
+    stepMax.value = 0
+    stepIsFinal.value = false
+  }
 
   function cancelStream(): void {
     cancelled.value = true
@@ -98,6 +111,7 @@ export const useAiStore = defineStore('ai', () => {
     streamingContent.value = ''
     streamingReasoning.value = ''
     toolSteps.value = []
+    resetStepProgress()
   }
 
   function setupStream() {
@@ -107,6 +121,10 @@ export const useAiStore = defineStore('ai', () => {
         streamingReasoning.value += data.text || ''
       } else if (data.type === 'content') {
         streamingContent.value += data.text || ''
+      } else if (data.type === 'step') {
+        stepCurrent.value = data.current || 0
+        stepMax.value = data.max || 0
+        stepIsFinal.value = !!data.final
       } else if (data.type === 'tool_call') {
         toolSteps.value.push({
           id: `tool-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -139,6 +157,7 @@ export const useAiStore = defineStore('ai', () => {
         streamingContent.value = ''
         streamingReasoning.value = ''
         toolSteps.value = []
+        resetStepProgress()
         turnStartedAt.value = null
         turnElapsedMs.value = 0
         isThinking.value = false
@@ -162,6 +181,7 @@ export const useAiStore = defineStore('ai', () => {
         streamingContent.value = ''
         streamingReasoning.value = ''
         toolSteps.value = []
+        resetStepProgress()
         turnStartedAt.value = null
         turnElapsedMs.value = 0
         isThinking.value = false
@@ -176,6 +196,7 @@ export const useAiStore = defineStore('ai', () => {
         streamingContent.value = ''
         streamingReasoning.value = ''
         toolSteps.value = []
+        resetStepProgress()
         turnStartedAt.value = null
         turnElapsedMs.value = 0
         isThinking.value = false
@@ -188,7 +209,13 @@ export const useAiStore = defineStore('ai', () => {
     try {
       const saved = localStorage.getItem('ai-config')
       if (saved) {
-        aiConfig.value = { ...DEFAULT_AI_CONFIG, ...JSON.parse(saved) }
+        const parsed = JSON.parse(saved)
+        aiConfig.value = { ...DEFAULT_AI_CONFIG, ...parsed }
+        // 旧配置无 maxSteps 时兜底
+        if (!Number.isFinite(aiConfig.value.maxSteps) || aiConfig.value.maxSteps < 1) {
+          aiConfig.value.maxSteps = DEFAULT_AI_CONFIG.maxSteps
+        }
+        aiConfig.value.maxSteps = Math.min(100, Math.max(1, Math.floor(aiConfig.value.maxSteps)))
       }
     } catch { /* ignore */ }
     // 恢复对话历史
@@ -357,22 +384,40 @@ export const useAiStore = defineStore('ai', () => {
     streamingContent.value = ''
     streamingReasoning.value = ''
     toolSteps.value = []
+    resetStepProgress()
     turnStartedAt.value = Date.now()
     turnElapsedMs.value = 0
 
-    // 超时兜底：120 秒无结果则复位，避免永久卡在思考中
-    const safetyTimer = setTimeout(() => {
-      if (isThinking.value && !streamingContent.value && !streamingReasoning.value) {
-        messages.value.push({
-          id: msgId(),
-          role: 'assistant',
-          content: '❌ 请求超时（120 秒无响应）。请检查 API 地址、Key、模型名，或稍后重试。',
-          timestamp: Date.now(),
-          error: true
-        })
-        isThinking.value = false
+    // 超时兜底：120 秒无任何流式/工具进展则复位。
+    // 每次 step/tool/content/reasoning 事件都会 rearm，长任务不会被误杀。
+    let safetyTimer: ReturnType<typeof setTimeout> | null = null
+    let lastProgressAt = Date.now()
+    const armSafetyTimer = () => {
+      lastProgressAt = Date.now()
+      if (safetyTimer) clearTimeout(safetyTimer)
+      safetyTimer = setTimeout(() => {
+        if (!isThinking.value) return
+        // 120s 内无新事件 → 判定卡死
+        if (Date.now() - lastProgressAt >= 119000) {
+          messages.value.push({
+            id: msgId(),
+            role: 'assistant',
+            content: '❌ 请求超时（120 秒无进展）。请检查 API 地址、Key、模型名，或稍后重试。',
+            timestamp: Date.now(),
+            error: true
+          })
+          isThinking.value = false
+          persistHistory()
+        }
+      }, 120000)
+    }
+    armSafetyTimer()
+    // 步进/工具有进展时续期，防止长任务被误杀
+    const rearmUnsub = window.electronAPI.onAiStream((d: any) => {
+      if (d.type === 'step' || d.type === 'tool_call' || d.type === 'tool_result' || d.type === 'content' || d.type === 'reasoning' || d.type === 'done' || d.type === 'error' || d.type === 'cancelled') {
+        armSafetyTimer()
       }
-    }, 120000)
+    })
 
     try {
       // 构建完整系统提示词（含工作区上下文）
@@ -461,7 +506,8 @@ ${wsContext}
         workspaceRoot: (await import('./docs')).useDocStore().projectRoot,
         texlivePath: (await import('./compile')).useCompileStore().texLivePath,
         enableTools: true,
-        permissionMode: aiConfig.value.permissionMode
+        permissionMode: aiConfig.value.permissionMode,
+        maxSteps: aiConfig.value.maxSteps
       })
 
       // IPC 返回失败且流式未推送错误时，兜底显示错误并复位
@@ -490,7 +536,8 @@ ${wsContext}
       })
       isThinking.value = false
     } finally {
-      clearTimeout(safetyTimer)
+      if (safetyTimer) clearTimeout(safetyTimer)
+      rearmUnsub()
     }
   }
 
@@ -536,6 +583,9 @@ ${wsContext}
     streamingContent,
     streamingReasoning,
     toolSteps,
+    stepCurrent,
+    stepMax,
+    stepIsFinal,
     turnStartedAt,
     turnElapsedMs,
     pendingWrite,

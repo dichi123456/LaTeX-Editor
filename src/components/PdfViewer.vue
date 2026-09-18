@@ -519,8 +519,9 @@ onUnmounted(() => {
       <span v-else class="pdf-tabs-placeholder">PDF 预览</span>
     </div>
 
-    <!-- 工具栏：编译按钮在最左 -->
-    <div class="pdf-toolbar">
+    <!-- 悬浮毛玻璃工具栏（不与编辑器共用） -->
+    <div class="pdf-stage">
+      <div class="pdf-toolbar glass-toolbar">
       <!-- 编译：主按钮直接编译，箭头改模式 -->
       <div class="compile-dropdown">
         <button
@@ -601,7 +602,7 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- 主体：大纲侧栏 + PDF 内容 -->
+    <!-- 主体：大纲侧栏 + PDF 内容（真悬浮，不预留高度） -->
     <div class="pdf-main">
       <!-- 大纲侧栏 -->
       <aside v-if="showOutline && outline.length > 0" class="pdf-outline-panel">
@@ -656,6 +657,7 @@ onUnmounted(() => {
         <div ref="pagesRef" class="pdf-pages"></div>
       </div>
     </div>
+    </div><!-- /.pdf-stage -->
   </div>
 </template>
 
@@ -745,31 +747,26 @@ onUnmounted(() => {
   height: 100%;
 }
 
-/* 工具栏 — 分割线内缩 */
-.pdf-toolbar {
-  display: flex;
-  align-items: center;
-  padding: 4px 12px;
-  background: transparent;
-  flex-shrink: 0;
-  gap: 8px;
-  flex-wrap: wrap;
+/* PDF 舞台：毛玻璃工具条悬浮在内容上方 */
+.pdf-stage {
   position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
-.pdf-toolbar::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 10px;
-  right: 10px;
-  height: 1px;
-  background: var(--border);
+
+/* 工具栏定位/毛玻璃见全局 .glass-toolbar */
+.pdf-toolbar {
+  flex-wrap: wrap;
+  overflow: hidden;
 }
 .toolbar-sep {
   width: 1px;
   height: 16px;
   background: var(--border);
   margin: 0 2px;
+  opacity: 0.7;
 }
 
 /* 编译：毛玻璃主按钮 + 箭头分体 */
@@ -779,7 +776,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 5px;
   padding: 4px 10px;
-  background: rgba(37, 99, 235, 0.45);
+  background: rgba(37, 99, 235, 0.8);
   backdrop-filter: blur(14px) saturate(1.6);
   -webkit-backdrop-filter: blur(14px) saturate(1.6);
   color: #fff;
@@ -792,7 +789,7 @@ onUnmounted(() => {
   transition: background 0.15s, border-color 0.15s;
 }
 .compile-main-btn:hover:not(:disabled) {
-  background: rgba(37, 99, 235, 0.65);
+  background: rgba(37, 99, 235, 0.8);
   border-color: rgba(255, 255, 255, 0.28);
 }
 .compile-main-btn:disabled { opacity: 0.6; cursor: not-allowed; }
@@ -801,7 +798,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   padding: 4px 6px;
-  background: rgba(37, 99, 235, 0.45);
+  background: rgba(37, 99, 235, 0.8);
   backdrop-filter: blur(14px) saturate(1.6);
   -webkit-backdrop-filter: blur(14px) saturate(1.6);
   color: #fff;
@@ -813,7 +810,7 @@ onUnmounted(() => {
   transition: background 0.15s, border-color 0.15s;
 }
 .compile-arrow-btn:hover:not(:disabled) {
-  background: rgba(37, 99, 235, 0.65);
+  background: rgba(37, 99, 235, 0.8);
   border-color: rgba(255, 255, 255, 0.28);
 }
 .compile-arrow-btn:disabled { opacity: 0.6; cursor: not-allowed; }
@@ -825,7 +822,7 @@ onUnmounted(() => {
   top: calc(100% + 4px);
   left: 0;
   z-index: 100;
-  background: rgba(30, 30, 46, 0.3);
+  background: rgba(30, 30, 46, 0.8);
   backdrop-filter: blur(20px) saturate(1.6);
   -webkit-backdrop-filter: blur(20px) saturate(1.6);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -836,7 +833,7 @@ onUnmounted(() => {
   animation: menuPop 0.14s ease;
 }
 [data-theme="light"] .compile-menu {
-  background: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.8);
   border-color: rgba(0, 0, 0, 0.06);
 }
 @keyframes menuPop {
@@ -904,7 +901,7 @@ onUnmounted(() => {
 .page-total { font-size: 12px; color: var(--text-secondary); min-width: 32px; }
 .zoom-info { font-size: 12px; color: var(--text-secondary); min-width: 36px; text-align: center; }
 
-/* 主体：大纲 + 内容 */
+/* 主体：大纲 + 内容（玻璃条已由 .glass-float-body 留位） */
 .pdf-main {
   display: flex;
   flex: 1;

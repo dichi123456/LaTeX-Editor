@@ -1,6 +1,6 @@
 {
   "name": "latex-editor",
-  "version": "1.0.5",
+  "version": "2.0.0",
   "description": "本地 LaTeX 编辑器 — Windows 桌面应用（编辑·编译·预览）",
   "main": "./out/main/main.js",
   "author": "墨灵TeX",
@@ -14,7 +14,8 @@
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
     "start": "electron-vite preview",
     "postinstall": "electron-builder install-app-deps",
-    "build:win": "electron-vite build && electron-builder --win dir --config.win.signAndEditExecutable=false"
+    "build:win": "electron-vite build && electron-builder --win dir nsis zip --config.win.signAndEditExecutable=false",
+    "build:win:release": "electron-vite build && electron-builder --win nsis zip --config.win.signAndEditExecutable=false"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.18.4",

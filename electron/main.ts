@@ -7,7 +7,8 @@ import { detectTexLive, getEnginePath } from './texlive'
 import { compileDocument, cancelCompile, isCompiling, cleanAuxFiles, runBibtex } from './compiler'
 import { synctexForward, synctexBackward } from './synctex'
 import { loadConfig, saveConfig } from './config'
-import { TOOLS, executeTool, setWorkspace, setTexlivePath, getToolPermission, type ToolCall, type ToolResult } from './tools'
+import { setWorkspace, setTexlivePath } from './tools'
+import { runAgentLoop, setAgentLoopWindow } from './agent-loop'
 import {
   readTextFile,
   writeTextFile,
@@ -17,6 +18,7 @@ import {
   createDir,
   deletePath,
   renamePath,
+  copyPathToDir,
   getFileStats,
   getRecentFiles,
   addRecentFile,
@@ -45,6 +47,8 @@ function createWindow(): void {
       nodeIntegration: false
     }
   })
+
+  setAgentLoopWindow(mainWindow)
 
   mainWindow.on('ready-to-show', () => {
     mainWindow?.show()
@@ -272,6 +276,9 @@ ipcMain.handle('create-dir', async (_event, dirPath: string, dirName: string) =>
 ipcMain.handle('delete-file', async (_event, filePath: string) => deletePath(filePath))
 ipcMain.handle('rename-file', async (_event, oldPath: string, newPath: string) =>
   renamePath(oldPath, newPath)
+)
+ipcMain.handle('copy-path-to-dir', async (_event, srcPath: string, destDir: string) =>
+  copyPathToDir(srcPath, destDir)
 )
 ipcMain.handle('file-stats', async (_event, filePath: string) => getFileStats(filePath))
 ipcMain.handle('get-recent-files', async () => getRecentFiles())
@@ -601,7 +608,7 @@ ipcMain.handle('ai-cancel', () => {
   return false
 })
 
-// AI 助手：支持工具调用的流式响应
+// AI 助手：Kilo Code 风格 agent 循环（用户可配步数 + doom loop + 末轮收束）
 ipcMain.handle('ai-chat', async (_event, options: {
   apiKey: string
   apiBase: string
@@ -612,261 +619,42 @@ ipcMain.handle('ai-chat', async (_event, options: {
   texlivePath?: string | null
   enableTools?: boolean
   permissionMode?: string
+  maxSteps?: number
 }) => {
   const {
     apiKey, apiBase, model, messages,
     temperature = 0.7,
     workspaceRoot, texlivePath: tlPath,
-    enableTools = true, permissionMode = 'full'
+    enableTools = true, permissionMode = 'full',
+    maxSteps
   } = options
-  const url = apiBase.replace(/\/+$/, '') + '/chat/completions'
 
   if (workspaceRoot) setWorkspace(workspaceRoot)
   if (tlPath) setTexlivePath(tlPath)
 
-  const maxIterations = 8 // 给 agent 足够空间完成多步任务
-  let allMessages = [...messages]
-  let fullReasoning = ''
   aiAbortController = new AbortController()
+  const signal = aiAbortController.signal
 
-  // 上下文溢出自动压缩（Kilo Code 风格）
-  function compactMessages(msgs: any[]): any[] {
-    if (msgs.length <= 6) return msgs
-    // 保留 system + 最后 4 条用户/助手消息，中间压缩为摘要
-    const system = msgs[0]
-    const rest = msgs.slice(1)
-    if (rest.length <= 4) return msgs
-    const older = rest.slice(0, rest.length - 4)
-    const newer = rest.slice(-4)
-    const summaryContent = `【上下文摘要】此前对话已压缩。共 ${older.length} 条历史消息已省略。用户之前的请求和工具结果已处理完毕，如有需要可重新 read_file 获取文件当前状态。`
-    const summary = { role: 'user', content: summaryContent }
-    return [system, summary, ...newer]
-  }
-
-  // 每次迭代前检查是否需要压缩
-  function maybeCompact(): void {
-    const approxChars = allMessages.reduce((sum, m) => sum + (m.content?.length || 0), 0)
-    if (approxChars > 80000) {
-      allMessages = compactMessages(allMessages)
-    }
-  }
-
-  for (let iter = 0; iter < maxIterations; iter++) {
-    // 检查是否被中断
-    if (aiAbortController.signal.aborted) {
-      mainWindow?.webContents.send('ai-stream', { type: 'cancelled' })
-      return { success: false, error: '已取消' }
-    }
-
-    // 上下文过长时自动压缩
-    maybeCompact()
-
-    const useTools = enableTools && iter < maxIterations - 1
-
-    const body: any = {
+  try {
+    const result = await runAgentLoop({
+      apiKey,
+      apiBase,
       model,
-      messages: allMessages,
+      messages: messages as any[],
       temperature,
-      stream: true
-      // 不传 max_tokens：让 API 使用模型自身支持的上下文/输出上限
-    }
-    if (useTools) {
-      body.tools = TOOLS
-      body.tool_choice = 'auto'
-    }
-
-    try {
-      const resp = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        },
-        body: JSON.stringify(body),
-        signal: aiAbortController.signal
-      })
-
-      if (!resp.ok) {
-        const errText = await resp.text().catch(() => '')
-        const hint = resp.status === 401
-          ? 'API Key 无效或已过期，请检查设置中的 Key。'
-          : resp.status === 404
-            ? '接口地址错误，请检查 API 地址是否包含 /v1（如 https://api.deepseek.com/v1）。'
-            : resp.status === 429
-              ? '请求过于频繁或额度不足，请稍后再试。'
-              : ''
-        const errMsg = `API 错误 ${resp.status}: ${errText.slice(0, 300)}${hint ? `\n${hint}` : ''}`
-        mainWindow?.webContents.send('ai-stream', { type: 'error', text: errMsg })
-        return { success: false, error: errMsg }
+      enableTools,
+      permissionMode,
+      maxSteps,
+      signal,
+      send: (payload) => {
+        mainWindow?.webContents.send('ai-stream', payload)
+      },
+      onFileChanged: (path) => {
+        mainWindow?.webContents.send('file-changed', { path })
       }
-
-      if (!resp.body) {
-        const errMsg = 'API 未返回响应流（body 为空）'
-        mainWindow?.webContents.send('ai-stream', { type: 'error', text: errMsg })
-        return { success: false, error: errMsg }
-      }
-
-      // 流式读取 SSE
-      const reader = resp.body.getReader()
-      const decoder = new TextDecoder()
-      let buffer = ''
-      let fullContent = ''
-      const toolCallsMap: Map<number, any> = new Map()
-
-      while (true) {
-        // 检查中断
-        if (aiAbortController.signal.aborted) {
-          try { reader.cancel() } catch { /* */ }
-          mainWindow?.webContents.send('ai-stream', { type: 'cancelled' })
-          return { success: false, error: '已取消' }
-        }
-
-        const { done, value } = await reader.read()
-        if (done) break
-
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n')
-        buffer = lines.pop() || ''
-
-        for (const line of lines) {
-          const trimmed = line.trim()
-          if (!trimmed || !trimmed.startsWith('data:')) continue
-          const data = trimmed.slice(5).trim()
-          if (data === '[DONE]') continue
-
-          try {
-            const json = JSON.parse(data)
-            const delta = json.choices?.[0]?.delta
-            const finishReason = json.choices?.[0]?.finish_reason
-
-            if (delta?.content) {
-              fullContent += delta.content
-              mainWindow?.webContents.send('ai-stream', { type: 'content', text: delta.content })
-            }
-            // 思考过程：兼容 reasoning_content / reasoning / thinking 等字段
-            const reasoningText = delta?.reasoning_content ?? delta?.reasoning ?? delta?.thinking
-            if (reasoningText) {
-              fullReasoning += reasoningText
-              mainWindow?.webContents.send('ai-stream', { type: 'reasoning', text: reasoningText })
-            }
-            // 工具调用（流式增量）
-            if (delta?.tool_calls) {
-              for (const tc of delta.tool_calls) {
-                const idx = tc.index || 0
-                if (!toolCallsMap.has(idx)) {
-                  toolCallsMap.set(idx, { id: tc.id || '', type: 'function', function: { name: '', arguments: '' } })
-                }
-                const existing = toolCallsMap.get(idx)
-                if (tc.id) existing.id = tc.id
-                if (tc.function?.name) existing.function.name += tc.function.name
-                if (tc.function?.arguments) existing.function.arguments += tc.function.arguments
-              }
-            }
-          } catch { /* skip */ }
-        }
-      }
-
-      // 检查是否有工具调用
-      if (toolCallsMap.size > 0) {
-        const toolCalls: ToolCall[] = Array.from(toolCallsMap.values())
-
-        // 将 assistant 消息（含 tool_calls）加入历史
-        allMessages.push({
-          role: 'assistant',
-          content: fullContent || '',
-          // @ts-ignore - tool_calls 字段
-          tool_calls: toolCalls
-        } as any)
-
-        // 执行每个工具
-        for (const tc of toolCalls) {
-          mainWindow?.webContents.send('ai-stream', {
-            type: 'tool_call',
-            toolName: tc.function.name,
-            args: tc.function.arguments
-          })
-
-          // 写操作：请求批准模式下先弹确认框
-          let result
-          const isWrite = tc.function.name === 'write_file' || tc.function.name === 'replace_text'
-          if (isWrite && permissionMode === 'ask') {
-            let detail = ''
-            try {
-              const args = JSON.parse(tc.function.arguments)
-              if (tc.function.name === 'replace_text') {
-                detail = `将修改文件：\n${args.path || '(未知)'}\n\n查找：\n${String(args.find || '').slice(0, 200)}\n\n替换为：\n${String(args.replace || '').slice(0, 200)}`
-              } else {
-                detail = `将写入文件：\n${args.path || '(未知)'}\n\n内容长度：${String(args.content || '').length} 字符`
-              }
-            } catch { detail = tc.function.arguments.slice(0, 300) }
-
-            const choice = dialog.showMessageBoxSync(mainWindow!, {
-              type: 'question',
-              buttons: ['允许', '拒绝'],
-              defaultId: 0,
-              cancelId: 1,
-              title: '墨灵请求写入',
-              message: tc.function.name === 'replace_text' ? '允许替换文件内容？' : '允许写入文件？',
-              detail
-            })
-            if (choice === 1) {
-              mainWindow?.webContents.send('ai-stream', {
-                type: 'tool_result',
-                toolName: tc.function.name,
-                result: '用户拒绝了此次写入操作。',
-                success: false
-              })
-              allMessages.push({
-                role: 'tool',
-                tool_call_id: tc.id,
-                content: '用户拒绝了此次写入操作。请告知用户已取消，不要重试写入。'
-              } as any)
-              continue
-            }
-          }
-
-          result = await executeTool(tc)
-
-          mainWindow?.webContents.send('ai-stream', {
-            type: 'tool_result',
-            toolName: tc.function.name,
-            result: result.result.slice(0, 500),
-            success: result.success
-          })
-
-          // 写操作成功后，通知前端刷新对应文件
-          if (result.success && (tc.function.name === 'write_file' || tc.function.name === 'replace_text')) {
-            try {
-              const args = JSON.parse(tc.function.arguments)
-              if (args.path) {
-                mainWindow?.webContents.send('file-changed', { path: args.path })
-              }
-            } catch { /* ignore */ }
-          }
-
-          // 将工具结果加入消息历史
-          allMessages.push({
-            role: 'tool',
-            tool_call_id: tc.id,
-            content: result.result
-          } as any)
-        }
-
-        // 继续下一轮迭代，获取 AI 的最终回复
-        continue
-      }
-
-      // 无工具调用，完成
-      mainWindow?.webContents.send('ai-stream', { type: 'done' })
-      return { success: true, content: fullContent, reasoning: fullReasoning }
-
-    } catch (err: any) {
-      mainWindow?.webContents.send('ai-stream', { type: 'error', text: err.message })
-      return { success: false, error: `请求失败: ${err.message}` }
-    }
+    })
+    return result
+  } finally {
+    aiAbortController = null
   }
-
-  // 超过最大迭代次数
-  mainWindow?.webContents.send('ai-stream', { type: 'done' })
-  return { success: true, content: '（已达到最大工具调用轮次）', reasoning: fullReasoning }
 })

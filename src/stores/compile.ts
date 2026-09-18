@@ -142,6 +142,8 @@ export const useCompileStore = defineStore('compile', () => {
       if (compileResult.success && compileResult.pdfPath) {
         pdfReloadToken.value++
       }
+      // 编译会生成/更新 PDF 与辅助文件：始终刷新文件树
+      window.dispatchEvent(new CustomEvent('refresh-file-tree'))
       return compileResult.success
     } catch (err: any) {
       lastResult.value = {
@@ -152,6 +154,7 @@ export const useCompileStore = defineStore('compile', () => {
         warnings: [],
         duration: Date.now() - startTime
       }
+      window.dispatchEvent(new CustomEvent('refresh-file-tree'))
       return false
     } finally {
       isCompiling.value = false

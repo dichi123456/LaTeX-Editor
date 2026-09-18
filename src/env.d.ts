@@ -25,6 +25,7 @@ interface Window {
     createDir: (dirPath: string, dirName: string) => Promise<string | null>
     deleteFile: (filePath: string) => Promise<boolean>
     renameFile: (oldPath: string, newPath: string) => Promise<boolean>
+    copyPathToDir: (srcPath: string, destDir: string) => Promise<string | null>
     getFileStats: (filePath: string) => Promise<{ size: number; mtime: number } | null>
     getRecentFiles: () => Promise<string[]>
     addRecentFile: (filePath: string) => Promise<void>
@@ -87,8 +88,9 @@ interface Window {
       texlivePath?: string | null
       enableTools?: boolean
       permissionMode?: string
+      maxSteps?: number
     }) => Promise<{ success: boolean; content?: string; error?: string; reasoning?: string }>
-    onAiStream: (cb: (data: { type: string; text?: string; toolName?: string; args?: string; result?: string; success?: boolean }) => void) => () => void
+    onAiStream: (cb: (data: { type: string; text?: string; toolName?: string; args?: string; result?: string; success?: boolean; current?: number; max?: number; final?: boolean }) => void) => () => void
     onFileChanged: (cb: (data: { path: string }) => void) => () => void
     notifyCompileDone: (success: boolean) => Promise<void>
 

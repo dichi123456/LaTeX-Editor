@@ -32,9 +32,17 @@
   --font-mono: "Consolas", "JetBrains Mono", "Fira Code", "Courier New", monospace;
   --titlebar-height: 36px;
   --statusbar-height: 28px;
-  --tab-height: 30px;
+  --tab-height: 26px;
   --scrollbar-thumb: rgba(255, 255, 255, 0.12);
   --scrollbar-thumb-hover: rgba(255, 255, 255, 0.22);
+  /* 毛玻璃统一：不透明度 80% + 背后高斯模糊 */
+  --glass-fill: rgba(30, 30, 46, 0.8);
+  --glass-stroke: rgba(255, 255, 255, 0.12);
+  --glass-shadow: 0 4px 18px rgba(0, 0, 0, 0.28);
+  --toolbar-float-h: 40px;
+  /* 侧栏强调字：深色白字 */
+  --sidebar-strong: #ffffff;
+  --panel-radius: 12px;
 }
 
 [data-theme="light"],
@@ -63,6 +71,13 @@
   --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.12);
   --scrollbar-thumb: rgba(0, 0, 0, 0.18);
   --scrollbar-thumb-hover: rgba(0, 0, 0, 0.32);
+  --glass-fill: rgba(255, 255, 255, 0.8);
+  --glass-stroke: rgba(0, 0, 0, 0.08);
+  --glass-shadow: 0 4px 18px rgba(0, 0, 0, 0.08);
+  --toolbar-float-h: 40px;
+  /* 侧栏强调字：浅色黑字 */
+  --sidebar-strong: #111111;
+  --panel-radius: 12px;
 }
 
 * {
@@ -186,6 +201,40 @@ input[type="checkbox"] {
   width: 14px;
   height: 14px;
   cursor: pointer;
+}
+
+/* ===== 毛玻璃悬浮工具条（TeX / PDF 各自一条，叠在内容上方） ===== */
+.glass-toolbar {
+  position: absolute;
+  top: 8px;
+  left: 10px;
+  right: 10px;
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  min-height: 32px;
+  padding: 4px 10px;
+  gap: 6px 8px;
+  border-radius: 8px;
+  background: var(--glass-fill);
+  backdrop-filter: blur(16px) saturate(1.5);
+  -webkit-backdrop-filter: blur(16px) saturate(1.5);
+  border: 1px solid var(--glass-stroke);
+  box-shadow: var(--glass-shadow);
+  flex-shrink: 0;
+  pointer-events: auto;
+}
+.glass-toolbar::after {
+  display: none;
+}
+/* TeX 编辑器：左端避开行号+折叠栏（36+14+1border ≈ 51px，再留 8px） */
+.editor-toolbar.glass-toolbar {
+  left: calc(36px + 14px + 1px + 8px);
+}
+/* 真悬浮：正文从顶开始，不给工具条预留整块高度；窄时工具条自身换行 */
+.glass-float-body {
+  padding-top: 0;
 }
 
 /* CodeMirror 编辑器适配主题 */

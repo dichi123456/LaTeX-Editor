@@ -17,6 +17,8 @@ export const useDocStore = defineStore('doc', () => {
   const activeTabId: Ref<string | null> = ref(null)
   const projectRoot: Ref<string | null> = ref(null)
   const extraFolders: Ref<string[]> = ref([])
+  /** 侧栏项目显示顺序（路径列表；与 projectRoot/extraFolders 同步） */
+  const projectOrder: Ref<string[]> = ref([])
   const mainTexPath: Ref<string | null> = ref(null)
   const recentFiles: Ref<string[]> = ref([])
   const recentWorkspaces: Ref<string[]> = ref([])
@@ -157,20 +159,100 @@ export const useDocStore = defineStore('doc', () => {
     projectRoot.value = folderPath
     await window.electronAPI.addRecentWorkspace(folderPath)
     recentWorkspaces.value = await window.electronAPI.getRecentWorkspaces()
+    syncOrderFromStores()
+    if (!projectOrder.value.includes(folderPath)) {
+      projectOrder.value = [...projectOrder.value, folderPath]
+    }
     // 切换到不同工作区时清空主文档指针，避免编译指向旧项目
     if (prev && prev !== folderPath) {
       mainTexPath.value = null
     }
   }
 
+  /**
+   * 打开工作区：无主工作区则设为主；已有主工作区且 path 不同则**追加**到列表下方，不替换。
+   * 返回 'opened' | 'added' | 'exists'
+   */
+  async function openOrAddWorkspace(folderPath: string): Promise<'opened' | 'added' | 'exists'> {
+    if (projectRoot.value === folderPath || extraFolders.value.includes(folderPath)) {
+      await window.electronAPI.addRecentWorkspace(folderPath)
+      recentWorkspaces.value = await window.electronAPI.getRecentWorkspaces()
+      return 'exists'
+    }
+    await window.electronAPI.addRecentWorkspace(folderPath)
+    recentWorkspaces.value = await window.electronAPI.getRecentWorkspaces()
+    syncOrderFromStores()
+    if (!projectRoot.value) {
+      projectRoot.value = folderPath
+      projectOrder.value = [...projectOrder.value, folderPath]
+      return 'opened'
+    }
+    // 已有 A：B 追加在 A 下方（extraFolders 顺序即侧栏顺序）
+    extraFolders.value = [...extraFolders.value, folderPath]
+    projectOrder.value = [...projectOrder.value.filter((p) => p !== folderPath), folderPath]
+    return 'added'
+  }
+
   function addExtraFolder(path: string): void {
     if (!extraFolders.value.includes(path)) {
       extraFolders.value.push(path)
+      if (!projectOrder.value.includes(path)) {
+        projectOrder.value = [...projectOrder.value, path]
+      }
     }
   }
 
   function removeExtraFolder(path: string): void {
     extraFolders.value = extraFolders.value.filter((p) => p !== path)
+    projectOrder.value = projectOrder.value.filter((p) => p !== path)
+  }
+
+  /** 同步显示顺序与 store 中的 root/extra（内部一致性） */
+  function syncOrderFromStores(): void {
+    const known = new Set<string>()
+    if (projectRoot.value) known.add(projectRoot.value)
+    for (const f of extraFolders.value) known.add(f)
+    const kept = projectOrder.value.filter((p) => known.has(p))
+    const missing: string[] = []
+    if (projectRoot.value && !kept.includes(projectRoot.value)) missing.push(projectRoot.value)
+    for (const f of extraFolders.value) {
+      if (!kept.includes(f)) missing.push(f)
+    }
+    projectOrder.value = [...kept, ...missing]
+  }
+
+  /**
+   * 互换两个项目在侧栏中的显示位置。
+   * 不分主次：只交换 projectOrder 中的位置；projectRoot 编译根角色不变。
+   */
+  function swapProjects(pathA: string, pathB: string): void {
+    if (!pathA || !pathB || pathA === pathB) return
+    syncOrderFromStores()
+    const order = [...projectOrder.value]
+    const i = order.indexOf(pathA)
+    const j = order.indexOf(pathB)
+    if (i < 0 || j < 0) return
+
+    // 先记录原 extras 集合
+    const origExtras = new Set(extraFolders.value)
+    const root = projectRoot.value
+    // 若有一方是 root，另一方必须在 extras 中（否则先补上）
+    if (root === pathA && pathB !== root && !origExtras.has(pathB)) origExtras.add(pathB)
+    if (root === pathB && pathA !== root && !origExtras.has(pathA)) origExtras.add(pathA)
+
+    const tmp = order[i]
+    order[i] = order[j]
+    order[j] = tmp
+    projectOrder.value = order
+
+    // extras 内容集合不变（仍排除 root），仅按新 order 排序
+    extraFolders.value = order.filter((p) => p !== root && origExtras.has(p))
+    // order 里有但不在 extras 的非 root（异常）补回
+    for (const p of order) {
+      if (p !== root && !extraFolders.value.includes(p) && origExtras.has(p)) {
+        extraFolders.value.push(p)
+      }
+    }
   }
 
   return {
@@ -179,6 +261,7 @@ export const useDocStore = defineStore('doc', () => {
     activeTab,
     projectRoot,
     extraFolders,
+    projectOrder,
     mainTexPath,
     recentFiles,
     recentWorkspaces,
@@ -196,6 +279,9 @@ export const useDocStore = defineStore('doc', () => {
     loadRecent,
     addExtraFolder,
     removeExtraFolder,
-    openProjectFolder
+    openProjectFolder,
+    openOrAddWorkspace,
+    swapProjects,
+    syncOrderFromStores
   }
 })

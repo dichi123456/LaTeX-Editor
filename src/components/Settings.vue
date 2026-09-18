@@ -289,6 +289,21 @@ function scrollToSection(id: string) {
             <input type="range" v-model.number="aiLocal.temperature" min="0" max="2" step="0.1" style="width:100%;" />
             <small style="display:block;margin-top:4px;color:var(--text-tertiary);font-size:11px;">输出长度由所选模型的上下文能力自动决定，无需手动限制</small>
           </div>
+          <div class="setting-row">
+            <label>最大迭代步数 ({{ aiLocal.maxSteps }})</label>
+            <input
+              type="range"
+              v-model.number="aiLocal.maxSteps"
+              min="1"
+              max="100"
+              step="1"
+              style="width:100%;"
+            />
+            <small class="setting-hint">
+              Agent 单轮最多执行多少步工具调用（Kilo Code 风格）。步数用尽时会自动关闭工具并让模型总结进展，而不是中途硬断。
+              复杂改稿建议 30–50；太小容易「没做完就停」。
+            </small>
+          </div>
         </section>
         </div><!-- /settings-content -->
       </div>
@@ -315,7 +330,7 @@ function scrollToSection(id: string) {
   animation: fadeIn 0.15s ease;
 }
 .settings-modal {
-  background: rgba(30, 30, 46, 0.55);
+  background: rgba(30, 30, 46, 0.8);
   backdrop-filter: blur(24px) saturate(1.6);
   -webkit-backdrop-filter: blur(24px) saturate(1.6);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -329,7 +344,7 @@ function scrollToSection(id: string) {
   animation: modalPop 0.18s ease;
 }
 [data-theme="light"] .settings-modal {
-  background: rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.8);
   border-color: rgba(0, 0, 0, 0.06);
 }
 @keyframes fadeIn {

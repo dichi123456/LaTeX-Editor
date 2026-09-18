@@ -128,8 +128,8 @@ watch(
   justify-content: space-between;
   height: var(--statusbar-height);
   padding: 0 6px 0 4px;
-  background: var(--bg-secondary);
-  border-top: 1px solid var(--border);
+  background: var(--bg-primary);
+  border-top: none;
   font-size: 12px;
   color: var(--text-secondary);
   flex-shrink: 0;

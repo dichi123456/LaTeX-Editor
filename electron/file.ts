@@ -218,6 +218,50 @@ export async function renamePath(oldPath: string, newPath: string): Promise<bool
   }
 }
 
+/** 复制文件或文件夹到目标目录（返回新路径；失败 null） */
+export async function copyPathToDir(srcPath: string, destDir: string): Promise<string | null> {
+  try {
+    if (!existsSync(srcPath) || !existsSync(destDir)) return null
+    const st = statSync(srcPath)
+    const base = basename(srcPath)
+    let dest = join(destDir, base)
+    // 重名则自动加后缀
+    if (dest === srcPath || existsSync(dest)) {
+      const ext = st.isDirectory() ? '' : extname(base)
+      const stem = st.isDirectory() ? base : base.slice(0, base.length - ext.length)
+      let i = 1
+      while (existsSync(dest)) {
+        dest = join(destDir, `${stem} - 副本${i > 1 ? i : ''}${ext}`)
+        i++
+      }
+    }
+    if (st.isDirectory()) {
+      copyDirRecursive(srcPath, dest)
+    } else {
+      const { copyFileSync } = require('fs')
+      copyFileSync(srcPath, dest)
+    }
+    return dest
+  } catch (err) {
+    console.error('复制失败:', err)
+    return null
+  }
+}
+
+function copyDirRecursive(src: string, dest: string): void {
+  const { mkdirSync: mk, copyFileSync, readdirSync: rd } = require('fs')
+  mk(dest, { recursive: true })
+  for (const item of rd(src)) {
+    const s = join(src, item)
+    const d = join(dest, item)
+    if (statSync(s).isDirectory()) {
+      copyDirRecursive(s, d)
+    } else {
+      copyFileSync(s, d)
+    }
+  }
+}
+
 export async function getFileStats(filePath: string): Promise<{ size: number; mtime: number } | null> {
   try {
     const st = statSync(filePath)

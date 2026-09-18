@@ -403,7 +403,7 @@ onUnmounted(() => {
 .log-ctx-menu {
   position: fixed;
   z-index: 10000;
-  background: rgba(30, 30, 46, 0.92);
+  background: rgba(30, 30, 46, 0.8);
   backdrop-filter: blur(16px) saturate(1.4);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
@@ -412,7 +412,7 @@ onUnmounted(() => {
   padding: 4px 0;
 }
 [data-theme="light"] .log-ctx-menu {
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.8);
   border-color: rgba(0, 0, 0, 0.08);
 }
 .log-ctx-menu .ctx-item {

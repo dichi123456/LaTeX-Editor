@@ -723,6 +723,14 @@ onUnmounted(() => {
             <span class="chip-spinner"></span>
             <span class="trace-label">已处理</span>
             <span class="trace-duration">{{ formatDuration(streamElapsed) }}</span>
+            <span
+              v-if="aiStore.stepMax > 0"
+              class="trace-steps"
+              :class="{ final: aiStore.stepIsFinal }"
+              :title="aiStore.stepIsFinal ? '已达最大步数，正在收束总结' : `Agent 步进 ${aiStore.stepCurrent}/${aiStore.stepMax}`"
+            >
+              步 {{ aiStore.stepCurrent }}/{{ aiStore.stepMax }}<template v-if="aiStore.stepIsFinal"> · 收束</template>
+            </span>
           </div>
 
           <!-- 工具执行列表 -->
@@ -1374,7 +1382,7 @@ export default {
 }
 .input-float-box {
   position: relative;
-  background: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.8);
   backdrop-filter: blur(20px) saturate(1.6);
   -webkit-backdrop-filter: blur(20px) saturate(1.6);
   border: 1px solid rgba(255, 255, 255, 0.25);
@@ -1383,12 +1391,12 @@ export default {
   box-shadow:
     0 4px 24px rgba(0, 0, 0, 0.06),
     0 1px 3px rgba(0, 0, 0, 0.04),
-    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    inset 0 1px 0 rgba(255, 255, 255, 0.85);
   transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
 }
 [data-theme="dark"] .input-float-box,
 .theme-dark .input-float-box {
-  background: rgba(30, 30, 46, 0.3);
+  background: rgba(30, 30, 46, 0.8);
   border-color: rgba(255, 255, 255, 0.06);
   box-shadow:
     0 4px 24px rgba(0, 0, 0, 0.25),
@@ -1466,7 +1474,7 @@ export default {
   right: 0;
   left: auto;
   z-index: 100;
-  background: rgba(30, 30, 46, 0.88);
+  background: rgba(30, 30, 46, 0.8);
   backdrop-filter: blur(24px) saturate(1.8);
   -webkit-backdrop-filter: blur(24px) saturate(1.8);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -1479,7 +1487,7 @@ export default {
   animation: menuPop 0.14s ease;
 }
 [data-theme="light"] .model-menu {
-  background: rgba(255, 255, 255, 0.88);
+  background: rgba(255, 255, 255, 0.8);
   border-color: rgba(0, 0, 0, 0.08);
 }
 @keyframes menuPop {
@@ -1837,6 +1845,20 @@ export default {
 .trace-duration {
   color: var(--text-tertiary);
   font-variant-numeric: tabular-nums;
+}
+.trace-steps {
+  margin-left: auto;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+  background: var(--accent-light, rgba(99, 102, 241, 0.12));
+  border: 1px solid transparent;
+}
+.trace-steps.final {
+  color: var(--warning, #f59e0b);
+  background: rgba(245, 158, 11, 0.12);
 }
 .trace-count {
   color: var(--text-tertiary);

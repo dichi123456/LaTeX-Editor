@@ -27,6 +27,28 @@ import {
   upload_png as cumcmUpload
 } from '../templates/cumcm/assets.base64'
 
+// Elsevier CAS 官方双栏
+import casDcMain from '../templates/英文论文/Elsevier_CAS_双栏/cas-dc-template.tex?raw'
+import casDcCls from '../templates/英文论文/Elsevier_CAS_双栏/cas-dc.cls?raw'
+import casCommonSty from '../templates/英文论文/Elsevier_CAS_双栏/cas-common.sty?raw'
+import casRefsDc from '../templates/英文论文/Elsevier_CAS_双栏/cas-refs.bib?raw'
+import casBst from '../templates/英文论文/Elsevier_CAS_双栏/model1-num-names.bst?raw'
+import { cas_dc_assets } from '../templates/英文论文/Elsevier_CAS_双栏/assets.base64'
+
+// Elsevier CAS 官方单栏
+import casScMain from '../templates/英文论文/Elsevier_CAS_单栏/cas-sc-template.tex?raw'
+import casScCls from '../templates/英文论文/Elsevier_CAS_单栏/cas-sc.cls?raw'
+import casRefsSc from '../templates/英文论文/Elsevier_CAS_单栏/cas-refs.bib?raw'
+import { cas_sc_assets } from '../templates/英文论文/Elsevier_CAS_单栏/assets.base64'
+
+// IEEE 官方会议模板
+import ieeeConfMain from '../templates/英文论文/IEEE_Conference_Official/conference_101719.tex?raw'
+import ieeeTranCls from '../templates/英文论文/IEEE_Conference_Official/IEEEtran.cls?raw'
+import { ieee_conf_assets } from '../templates/英文论文/IEEE_Conference_Official/assets.base64'
+
+// IEEE 官方期刊模板
+import ieeeJrnlMain from '../templates/英文论文/IEEE_Journal_Official/bare_jrnl.tex?raw'
+
 export type TemplateCategory =
   | '中文论文'
   | '英文论文'
@@ -180,6 +202,58 @@ export const BUILTIN_TEMPLATES: TemplateMeta[] = [
     description: 'Wiley 常见期刊结构骨架；正式提交请按目标期刊下载 Wiley class',
     content: wileyJournal,
     preview: makePreview('Wiley', 'journal', '#9B0000')
+  },
+  {
+    id: 'elsevier-cas-dc',
+    name: 'Elsevier CAS 双栏',
+    category: '英文论文',
+    engine: 'pdflatex',
+    description: 'Elsevier 官方 CAS 双栏模板（cas-dc），含类文件、示例图与参考文献',
+    content: casDcMain,
+    extraFiles: [
+      { name: 'cas-dc.cls', content: casDcCls },
+      { name: 'cas-common.sty', content: casCommonSty },
+      { name: 'cas-refs.bib', content: casRefsDc },
+      { name: 'model1-num-names.bst', content: casBst }
+    ],
+    assetFiles: cas_dc_assets,
+    preview: makePreview('CAS 双栏', 'Elsevier', '#FF6600', 'column')
+  },
+  {
+    id: 'elsevier-cas-sc',
+    name: 'Elsevier CAS 单栏',
+    category: '英文论文',
+    engine: 'pdflatex',
+    description: 'Elsevier 官方 CAS 单栏模板（cas-sc），含类文件、示例图与参考文献',
+    content: casScMain,
+    extraFiles: [
+      { name: 'cas-sc.cls', content: casScCls },
+      { name: 'cas-common.sty', content: casCommonSty },
+      { name: 'cas-refs.bib', content: casRefsSc },
+      { name: 'model1-num-names.bst', content: casBst }
+    ],
+    assetFiles: cas_sc_assets,
+    preview: makePreview('CAS 单栏', 'Elsevier', '#FF6600')
+  },
+  {
+    id: 'ieee-conference-official',
+    name: 'IEEE 会议论文（官方）',
+    category: '英文论文',
+    engine: 'pdflatex',
+    description: 'IEEE 官方会议模板 conference_101719，自带 IEEEtran.cls 与示例图',
+    content: ieeeConfMain,
+    extraFiles: [{ name: 'IEEEtran.cls', content: ieeeTranCls }],
+    assetFiles: ieee_conf_assets,
+    preview: makePreview('IEEE 会议', 'conference', '#00629B')
+  },
+  {
+    id: 'ieee-journal-official',
+    name: 'IEEE 期刊论文（官方）',
+    category: '英文论文',
+    engine: 'pdflatex',
+    description: 'IEEE 官方期刊骨架 bare_jrnl（IEEEtran journal），依赖 TeX Live 自带类文件',
+    content: ieeeJrnlMain,
+    preview: makePreview('IEEE 期刊', 'journal', '#00629B')
   },
   {
     id: 'resume-undergrad',

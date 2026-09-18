@@ -137,7 +137,7 @@ onUnmounted(() => {})
 .palette-box {
   width: min(560px, 90vw);
   max-height: 400px;
-  background: rgba(30, 30, 46, 0.55);
+  background: rgba(30, 30, 46, 0.8);
   backdrop-filter: blur(24px) saturate(1.6);
   -webkit-backdrop-filter: blur(24px) saturate(1.6);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -150,7 +150,7 @@ onUnmounted(() => {})
   animation: modalPop 0.18s ease;
 }
 [data-theme="light"] .palette-box {
-  background: rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.8);
   border-color: rgba(0, 0, 0, 0.06);
 }
 @keyframes fadeIn {

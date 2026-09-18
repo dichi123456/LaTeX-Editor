@@ -44,6 +44,10 @@ const editorWidth = ref(50)
 const panelHeight = ref(200)
 const showCommandPalette = ref(false)
 const showSearch = ref(false)
+/** 环境插入下拉（与搜索面板同位，贴工具栏下方） */
+const showEnvMenu = ref(false)
+/** 强制显示起始页（菜单「起始页」）；打开文件/项目时自动关闭 */
+const forceWelcome = ref(false)
 const openFileMenu = ref(false)
 const openRecentMenu = ref(false)
 const openHelpMenu = ref(false)
@@ -118,6 +122,12 @@ onMounted(async () => {
 
   // 发送到墨灵
   window.addEventListener('send-to-moling', onSendToMoling as unknown as EventListener)
+  // 起始页打开工作区
+  window.addEventListener('workspace-opened', onWorkspaceOpened as unknown as EventListener)
+  // 工具栏环境菜单：外点关闭 / Esc
+  document.addEventListener('click', onToolbarGlobalClick, true)
+  window.addEventListener('keydown', onToolbarGlobalKeydown, true)
+  window.addEventListener('close-all-menus', closeEnvMenu)
 })
 
 onUnmounted(() => {
@@ -130,6 +140,10 @@ onUnmounted(() => {
   window.removeEventListener('synctex-forward', onSyncTexForward as unknown as EventListener)
   window.removeEventListener('synctex-backward', onSyncTexBackward as unknown as EventListener)
   window.removeEventListener('send-to-moling', onSendToMoling as unknown as EventListener)
+  window.removeEventListener('workspace-opened', onWorkspaceOpened as unknown as EventListener)
+  document.removeEventListener('click', onToolbarGlobalClick, true)
+  window.removeEventListener('keydown', onToolbarGlobalKeydown, true)
+  window.removeEventListener('close-all-menus', closeEnvMenu)
   if (autoCompileTimer) clearTimeout(autoCompileTimer)
   if (autoSaveTimer) clearInterval(autoSaveTimer)
   titleCleanup?.()
@@ -323,9 +337,13 @@ async function handleMenuAction(action: string) {
   }
 }
 
-function openTemplateLibrary() {
+/** 模板目标目录：工作区右键时为选中项目；起始页/菜单为 null（继续弹选目录） */
+const templateTargetDir = ref<string | null>(null)
+
+function openTemplateLibrary(targetDir?: unknown) {
   closeFileMenu()
   closeHelpMenu()
+  templateTargetDir.value = typeof targetDir === 'string' && targetDir ? targetDir : null
   showTemplateLibrary.value = true
 }
 
@@ -333,13 +351,17 @@ async function useTemplate(payload: { template: TemplateMeta }) {
   const { template } = payload
   const mainFile = 'main.tex'
 
-  const projectDir = await window.electronAPI.chooseDirectory({
-    title: `为「${template.name}」选择或新建项目文件夹`,
-    defaultPath: docStore.projectRoot || undefined
-  })
+  let projectDir = templateTargetDir.value
+  if (!projectDir) {
+    projectDir = await window.electronAPI.chooseDirectory({
+      title: `为「${template.name}」选择或新建项目文件夹`,
+      defaultPath: docStore.projectRoot || undefined
+    })
+  }
   if (!projectDir) return
 
   showTemplateLibrary.value = false
+  templateTargetDir.value = null
 
   try {
     const sep = projectDir.includes('\\') ? '\\' : '/'
@@ -369,11 +391,13 @@ async function useTemplate(payload: { template: TemplateMeta }) {
     const root = docStore.projectRoot
     const underRoot = !!root && (projectDir === root || projectDir.startsWith(root.endsWith('\\') || root.endsWith('/') ? root : root + (projectDir.includes('\\') ? '\\' : '/')))
     if (!underRoot) {
-      await docStore.openProjectFolder(projectDir)
+      // 已有工作区 A：模板目录 B 追加在 A 下方，不替换
+      await docStore.openOrAddWorkspace(projectDir)
       showSidebar.value = true
-    } else {
-      window.dispatchEvent(new CustomEvent('refresh-file-tree'))
+      forceWelcome.value = false
     }
+    // 目标已在工作区 / 新加入：都刷新文件树
+    window.dispatchEvent(new CustomEvent('refresh-file-tree'))
 
     // 固定主文档与引擎，避免模板创建后无法编译
     await docStore.openFile(mainPath)
@@ -382,7 +406,7 @@ async function useTemplate(payload: { template: TemplateMeta }) {
       await configStore.save({ engine: template.engine })
     }
     compileStore.appendLiveLog(
-      `[模板] 已创建「${template.name}」，主文档 ${mainPath}，引擎 ${template.engine}\n`
+      `[模板] 已导入「${template.name}」→ ${projectDir}，主文档 ${mainPath}，引擎 ${template.engine}\n`
     )
   } catch (err: any) {
     alert(`创建项目失败：${err.message}`)
@@ -390,6 +414,7 @@ async function useTemplate(payload: { template: TemplateMeta }) {
 }
 
 function newFile() {
+  forceWelcome.value = false
   const tpl = `\\documentclass[UTF8,a4paper,12pt]{ctexart}
 \\usepackage{ctex}
 \\setCJKmainfont{SimSun}
@@ -415,26 +440,39 @@ function newFile() {
 
 async function openFile() {
   const path = await window.electronAPI.openFile()
-  if (path) await docStore.openFile(path)
+  if (path) {
+    forceWelcome.value = false
+    await docStore.openFile(path)
+  }
 }
 
 async function openFolder() {
   const path = await window.electronAPI.openFolder()
-  if (path) {
-    await docStore.openProjectFolder(path)
-    showSidebar.value = true
-    // 自动扫描项目中的 .bib 文件
+  if (!path) return
+  showSidebar.value = true
+  forceWelcome.value = false
+
+  // 已有 A → B 追加在下方；无 A → B 作主工作区
+  const result = await docStore.openOrAddWorkspace(path)
+
+  if (result === 'exists') {
+    compileStore.appendLiveLog(`[工作区] 项目已在列表中：${path}\n`)
+    return
+  }
+
+  if (result === 'opened') {
     scanProjectBibs(path).then((count) => {
       if (count > 0) {
         compileStore.appendLiveLog(`[BibTeX] 已扫描到 ${count} 个引用键\n`)
       }
     })
-    // 自动扫描项目中的图片文件
     scanProjectImages(path).then((imgs) => {
       if (imgs.length > 0) {
         compileStore.appendLiveLog(`[图片] 已扫描到 ${imgs.length} 个图片文件\n`)
       }
     })
+  } else {
+    compileStore.appendLiveLog(`[工作区] 已在下方添加项目：${path}\n`)
   }
 }
 
@@ -532,6 +570,10 @@ async function compileDoc(mode: CompileMode = 'quick') {
     lastPdfPath = compileStore.lastResult.pdfPath
     if (lastPdfPath) {
       compileStore.appendLiveLog('[SyncTeX] 已就绪（双击编辑器/PDF 可双向跳转）\n')
+      // 首次编译生成 PDF：确保预览面板可见，便于自动打开
+      if (!showPreview.value && !distractionFree.value) {
+        showPreview.value = true
+      }
     }
   }
 }
@@ -720,9 +762,32 @@ function toggleSidebar() {
 }
 
 const hasProject = computed(() => !!docStore.projectRoot)
-const showWelcome = computed(() => docStore.tabs.length === 0 && !docStore.projectRoot)
+const showWelcome = computed(
+  () => forceWelcome.value || (docStore.tabs.length === 0 && !docStore.projectRoot)
+)
 const errorCount = computed(() => compileStore.lastResult?.errors.length || 0)
 const warningCount = computed(() => compileStore.lastResult?.warnings.length || 0)
+
+// 打开文件、主工作区或追加新项目后退出起始页
+watch(
+  () => [docStore.tabs.length, docStore.activeTabId, docStore.projectRoot, docStore.extraFolders.length] as const,
+  ([tabCount, activeId, root, extraCount]) => {
+    if (tabCount > 0 || activeId || root || extraCount > 0) {
+      forceWelcome.value = false
+    }
+  }
+)
+
+// 起始页里打开最近工作区等事件
+function onWorkspaceOpened() {
+  forceWelcome.value = false
+}
+
+function goWelcome() {
+  closeFileMenu()
+  closeHelpMenu()
+  forceWelcome.value = true
+}
 
 function onTogglePanel(tab: 'problems' | 'log' | 'output') {
   if (panelOpen.value && panelTab.value === tab) {
@@ -763,16 +828,125 @@ function onTitlebarDblclick(e: MouseEvent) {
 function editorAction(action: string) {
   window.dispatchEvent(new CustomEvent('editor-action', { detail: { action } }))
 }
+
+// ===== 工具栏：保存 / 同步 PDF / 环境插入 =====
+const hasDirtyTab = computed(() => docStore.activeTab?.isDirty === true)
+const canSyncPdf = computed(
+  () => !!(lastPdfPath || compileStore.lastResult?.pdfPath) && !!(docStore.activeTab?.path || docStore.mainTexPath)
+)
+
+async function toolbarSave() {
+  await save()
+}
+
+function toolbarSyncPdf() {
+  const line = docStore.cursorLine || 1
+  window.dispatchEvent(new CustomEvent('synctex-forward', { detail: { line } }))
+}
+
+/** 常用环境：name → 插入片段（光标落在 $1 由 insert-text 放到末尾，尽量短） */
+const ENV_SNIPPETS: Array<{ group: string; name: string; info: string; snippet: string }> = [
+  { group: '结构', name: 'figure', info: '图片浮动体', snippet: '\\begin{figure}[htbp]\n  \\centering\n  \\includegraphics[width=0.8\\textwidth]{}\n  \\caption{}\n  \\label{fig:}\n\\end{figure}' },
+  { group: '结构', name: 'table', info: '表格浮动体', snippet: '\\begin{table}[htbp]\n  \\centering\n  \\caption{}\n  \\label{tab:}\n  \\begin{tabular}{l c r}\n    \\hline\n     &  &  \\\\\n    \\hline\n  \\end{tabular}\n\\end{table}' },
+  { group: '结构', name: 'tabular', info: '表格', snippet: '\\begin{tabular}{l c r}\n  \\hline\n   &  &  \\\\\n  \\hline\n\\end{tabular}' },
+  { group: '结构', name: 'center', info: '居中', snippet: '\\begin{center}\n  \n\\end{center}' },
+  { group: '结构', name: 'quote', info: '引文', snippet: '\\begin{quote}\n  \n\\end{quote}' },
+  { group: '结构', name: 'abstract', info: '摘要', snippet: '\\begin{abstract}\n  \n\\end{abstract}' },
+  { group: '结构', name: 'minipage', info: '小页', snippet: '\\begin{minipage}{0.45\\textwidth}\n  \n\\end{minipage}' },
+  { group: '列表', name: 'itemize', info: '无序列表', snippet: '\\begin{itemize}\n  \\item \n\\end{itemize}' },
+  { group: '列表', name: 'enumerate', info: '有序列表', snippet: '\\begin{enumerate}\n  \\item \n\\end{enumerate}' },
+  { group: '列表', name: 'description', info: '描述列表', snippet: '\\begin{description}\n  \\item[项] \n\\end{description}' },
+  { group: '数学', name: 'equation', info: '编号公式', snippet: '\\begin{equation}\n  \n  \\label{eq:}\n\\end{equation}' },
+  { group: '数学', name: 'align', info: '对齐公式', snippet: '\\begin{align}\n  \n  \\label{eq:}\n\\end{align}' },
+  { group: '数学', name: 'equation*', info: '无编号公式', snippet: '\\begin{equation*}\n  \n\\end{equation*}' },
+  { group: '数学', name: 'align*', info: '无编号对齐', snippet: '\\begin{align*}\n  \n\\end{align*}' },
+  { group: '数学', name: 'cases', info: '分段函数', snippet: '\\begin{cases}\n  x, & x \\ge 0 \\\\\n  -x, & x < 0\n\\end{cases}' },
+  { group: '数学', name: 'matrix', info: '矩阵', snippet: '\\begin{matrix}\n  a & b \\\\\n  c & d\n\\end{matrix}' },
+  { group: '代码与定理', name: 'lstlisting', info: '代码块', snippet: '\\begin{lstlisting}\n  \n\\end{lstlisting}' },
+  { group: '代码与定理', name: 'verbatim', info: '原样输出', snippet: '\\begin{verbatim}\n  \n\\end{verbatim}' },
+  { group: '代码与定理', name: 'theorem', info: '定理', snippet: '\\begin{theorem}\n  \n\\end{theorem}' },
+  { group: '代码与定理', name: 'proof', info: '证明', snippet: '\\begin{proof}\n  \n\\end{proof}' },
+  { group: 'Beamer', name: 'frame', info: '幻灯片帧', snippet: '\\begin{frame}{}\n  \n\\end{frame}' },
+  { group: 'Beamer', name: 'block', info: 'Beamer 块', snippet: '\\begin{block}{}\n  \n\\end{block}' },
+  { group: 'Beamer', name: 'columns', info: '多栏', snippet: '\\begin{columns}\n  \\begin{column}{0.48\\textwidth}\n  \\end{column}\n  \\begin{column}{0.48\\textwidth}\n  \\end{column}\n\\end{columns}' }
+]
+
+const envGroups = computed(() => {
+  const map = new Map<string, typeof ENV_SNIPPETS>()
+  for (const e of ENV_SNIPPETS) {
+    if (!map.has(e.group)) map.set(e.group, [])
+    map.get(e.group)!.push(e)
+  }
+  return [...map.entries()].map(([group, items]) => ({ group, items }))
+})
+
+function toggleEnvMenu() {
+  showEnvMenu.value = !showEnvMenu.value
+  if (showEnvMenu.value) showSearch.value = false
+}
+
+function closeEnvMenu() {
+  showEnvMenu.value = false
+}
+
+function insertEnv(env: { name: string; snippet: string }) {
+  showEnvMenu.value = false
+  window.dispatchEvent(new CustomEvent('insert-text', { detail: { text: env.snippet } }))
+}
+
+function onToolbarGlobalClick(e: Event) {
+  const t = e.target as HTMLElement | null
+  if (!showEnvMenu.value) return
+  if (t?.closest('.env-dropdown') || t?.closest('.et-env-btn')) return
+  closeEnvMenu()
+}
+
+function onToolbarGlobalKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape' && showEnvMenu.value) {
+    e.stopPropagation()
+    closeEnvMenu()
+  }
+}
 </script>
 
 <template>
   <div class="app-root" :class="{ 'distraction-free': distractionFree }">
-    <!-- 顶部工具栏（无边框标题栏） -->
+    <div class="app-shell">
+      <!-- ===== 左通栏侧栏（贯穿顶底，默认布局） ===== -->
+      <template v-if="!distractionFree && layoutMode === 'default' && showSidebar">
+        <aside class="left-rail" :style="{ width: sidebarWidth + 'px' }">
+          <!-- 品牌：顶部居中、稍大 -->
+          <div class="rail-brand drag-region">
+            <div class="rail-brand-inner">
+              <img class="rail-logo" :src="logoUrl" alt="墨灵TeX" draggable="false" />
+              <span class="rail-title">墨灵TeX</span>
+            </div>
+          </div>
+          <!-- 快捷入口（MiMo 风导航） -->
+          <div class="rail-actions">
+            <button class="rail-action" title="打开项目文件夹（可打开多个）" @click="openFolder">
+              <span class="rail-action-icon">＋</span>
+              <span>新建项目</span>
+            </button>
+            <button class="rail-action" title="从模板新建" @click="() => openTemplateLibrary()">
+              <span class="rail-action-icon">▣</span>
+              <span>模板库</span>
+            </button>
+          </div>
+          <div class="rail-body">
+            <FileTree @open-template-library="(dir?: string) => openTemplateLibrary(dir)" />
+          </div>
+        </aside>
+        <div class="rail-divider" @mousedown="startSidebarResize"></div>
+      </template>
+
+      <!-- ===== 右侧列：顶栏 + 主体 + 状态栏 ===== -->
+      <div class="right-column">
+    <!-- 顶部工具栏（无边框标题栏，仅主区） -->
     <header v-if="!distractionFree" class="toolbar" @dblclick="onTitlebarDblclick">
       <div class="toolbar-left drag-region">
         <!-- VS Code 风格菜单栏 -->
         <div class="menu-bar">
-          <img class="app-logo" :src="logoUrl" alt="墨灵TeX" draggable="false" />
           <div class="menu-item-wrap">
             <button
               class="menu-btn"
@@ -851,6 +1025,12 @@ function editorAction(action: string) {
 
           <button class="menu-btn" title="命令面板 (Ctrl+Shift+P)" @click="showCommandPalette = true">命令</button>
           <button class="menu-btn" title="设置 (Ctrl+,)" @click="configStore.showSettings = true">设置</button>
+          <button
+            class="menu-btn"
+            :class="{ active: showWelcome }"
+            title="起始页"
+            @click="goWelcome"
+          >起始页</button>
           <!-- 帮助菜单 -->
           <div class="menu-item-wrap">
             <button class="menu-btn" :class="{ open: openHelpMenu }" @click.stop="toggleHelpMenu()">帮助</button>
@@ -942,14 +1122,6 @@ function editorAction(action: string) {
 
     <!-- 主体 -->
     <div class="main-body">
-      <!-- 默认布局：工作区在左 -->
-      <template v-if="layoutMode === 'default'">
-        <aside v-if="showSidebar && !distractionFree" class="panel sidebar-panel" :style="{ width: sidebarWidth + 'px' }">
-          <FileTree @open-template-library="openTemplateLibrary" />
-        </aside>
-        <div v-if="showSidebar && !distractionFree" class="panel-divider v" @mousedown="startSidebarResize"></div>
-      </template>
-
       <!-- 互换布局：墨灵在左 -->
       <template v-if="layoutMode === 'swap' && showAi && !distractionFree">
         <aside class="panel ai-panel" :style="{ width: aiWidth + 'px' }">
@@ -963,25 +1135,86 @@ function editorAction(action: string) {
           <!-- TEX 编辑器面板 -->
           <div class="panel editor-panel" :style="showPreview && !showWelcome ? { flex: editorWidth } : { flex: 1 }">
             <Tabs v-if="!showWelcome" />
-            <!-- 编辑器功能栏 -->
-            <div v-if="!showWelcome" class="editor-toolbar">
-              <div class="et-group">
-                <button class="et-btn" title="撤销 (Ctrl+Z)" @click="editorAction('undo')">
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 7h6a3 3 0 0 1 0 6H7" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><polyline points="5.5,4.5 3,7 5.5,9.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
-                </button>
-                <button class="et-btn" title="重做 (Ctrl+Y)" @click="editorAction('redo')">
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M11 7H5a3 3 0 0 0 0 6h2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><polyline points="8.5,4.5 11,7 8.5,9.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
-                </button>
+            <div class="editor-stage">
+              <!-- 悬浮毛玻璃工具条 -->
+              <div v-if="!showWelcome" class="editor-toolbar glass-toolbar">
+                <div class="et-group">
+                  <button class="et-btn" title="撤销 (Ctrl+Z)" @click="editorAction('undo')">
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 7h6a3 3 0 0 1 0 6H7" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><polyline points="5.5,4.5 3,7 5.5,9.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+                  </button>
+                  <button class="et-btn" title="重做 (Ctrl+Y)" @click="editorAction('redo')">
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M11 7H5a3 3 0 0 0 0 6h2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><polyline points="8.5,4.5 11,7 8.5,9.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+                  </button>
+                </div>
+                <div class="et-sep"></div>
+                <div class="et-group">
+                  <button
+                    class="et-btn"
+                    :class="{ dirty: hasDirtyTab }"
+                    :title="hasDirtyTab ? '保存 (Ctrl+S) · 有未保存更改' : '保存 (Ctrl+S)'"
+                    @click="toolbarSave"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2.5 2.5h7.5l2 2v7a1 1 0 0 1-1 1h-8.5a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M4.5 2.5v3.5h5V2.5" stroke="currentColor" stroke-width="1.2"/><rect x="4" y="8" width="6" height="3.5" stroke="currentColor" stroke-width="1.2"/></svg>
+                    <span v-if="hasDirtyTab" class="et-dirty-dot" aria-hidden="true"></span>
+                  </button>
+                  <button
+                    class="et-btn"
+                    :class="{ active: showSearch }"
+                    title="查找 / 替换 (Ctrl+F / Ctrl+H)"
+                    @click="showSearch = !showSearch; if (showSearch) closeEnvMenu()"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="1.3"/><line x1="9.5" y1="9.5" x2="13" y2="13" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+                  </button>
+                  <button
+                    class="et-btn et-env-btn"
+                    :class="{ active: showEnvMenu }"
+                    title="插入环境"
+                    @click.stop="toggleEnvMenu"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 3.5h8M3 7h8M3 10.5h5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M11 9.5l1.2 1.2L14 9" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" fill="none" transform="translate(-1.5,-0.5) scale(0.85)"/></svg>
+                  </button>
+                  <button
+                    class="et-btn"
+                    :disabled="!canSyncPdf"
+                    :title="canSyncPdf ? `同步到 PDF（当前第 ${docStore.cursorLine} 行）` : '请先编译生成 PDF'"
+                    @click="toolbarSyncPdf"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2.5 3.5h6.5v7H2.5z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M9 5.5h2.5v5H9" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M4.5 12.5h5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M7 8.5V6.2M7 6.2l-1.2 1.2M7 6.2l1.2 1.2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </button>
+                </div>
               </div>
-              <div class="et-sep"></div>
-              <div class="et-group">
-                <button class="et-btn" :class="{ active: showSearch }" title="查找 / 替换 (Ctrl+F / Ctrl+H)" @click="showSearch = !showSearch">
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="1.3"/><line x1="9.5" y1="9.5" x2="13" y2="13" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
-                </button>
+
+              <!-- 环境插入下拉：与搜索面板同位（工具栏下方） -->
+              <div
+                v-if="showEnvMenu && !showWelcome"
+                class="env-dropdown"
+                @click.stop
+              >
+                <div class="env-dropdown-head">
+                  <span>插入环境</span>
+                  <button class="env-close" title="关闭 (Esc)" @click="closeEnvMenu">✕</button>
+                </div>
+                <div class="env-groups">
+                  <div v-for="g in envGroups" :key="g.group" class="env-group">
+                    <div class="env-group-title">{{ g.group }}</div>
+                    <div class="env-chips">
+                      <button
+                        v-for="e in g.items"
+                        :key="e.name"
+                        class="env-chip"
+                        :title="e.info"
+                        @click="insertEnv(e)"
+                      >{{ e.name }}</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="editor-stage-body">
+                <Welcome v-if="showWelcome" @new-file="newFile" @open-file="openFile" @open-folder="openFolder" @open-template-library="() => openTemplateLibrary()" />
+                <Editor v-else :show-search="showSearch" @close-search="showSearch = false" />
               </div>
             </div>
-            <Welcome v-if="showWelcome" @new-file="newFile" @open-file="openFile" @open-folder="openFolder" @open-template-library="openTemplateLibrary" />
-            <Editor v-else :show-search="showSearch" @close-search="showSearch = false" />
           </div>
 
           <!-- TEX/PDF 分割线 -->
@@ -993,14 +1226,8 @@ function editorAction(action: string) {
           </div>
         </div>
 
-        <!-- VS Code 风格底部面板 -->
+        <!-- 底部日志面板：仅状态栏按钮控制，去掉中间把手 -->
         <div class="bottom-panel" :class="{ open: panelOpen }">
-          <!-- 细条把手（标签已移至状态栏） -->
-          <div class="panel-handle slim" @click="panelOpen = !panelOpen">
-            <span class="handle-chevron">{{ panelOpen ? '▼' : '▲' }}</span>
-          </div>
-
-          <!-- 面板内容：带展开过渡 -->
           <Transition name="panel-slide">
             <div v-if="panelOpen" class="panel-body" :style="{ height: panelHeight + 'px' }">
               <div class="panel-resize" @mousedown="startPanelResize"></div>
@@ -1022,11 +1249,11 @@ function editorAction(action: string) {
         </aside>
       </template>
 
-      <!-- 互换布局：工作区在右 -->
+      <!-- 互换布局：工作区在右（非通栏） -->
       <template v-if="layoutMode === 'swap'">
         <div v-if="showSidebar && !distractionFree" class="panel-divider v" @mousedown="startSidebarResize"></div>
         <aside v-if="showSidebar && !distractionFree" class="panel sidebar-panel" :style="{ width: sidebarWidth + 'px' }">
-          <FileTree @open-template-library="openTemplateLibrary" />
+          <FileTree @open-template-library="(dir?: string) => openTemplateLibrary(dir)" />
         </aside>
       </template>
     </div>
@@ -1039,11 +1266,14 @@ function editorAction(action: string) {
       :warning-count="warningCount"
       @toggle-panel="onTogglePanel"
     />
+      </div><!-- /.right-column -->
+    </div><!-- /.app-shell -->
+
     <Settings v-if="configStore.showSettings" />
 
     <TemplateLibrary
       v-if="showTemplateLibrary"
-      @close="showTemplateLibrary = false"
+      @close="showTemplateLibrary = false; templateTargetDir = null"
       @use="useTemplate"
     />
 
@@ -1073,6 +1303,128 @@ function editorAction(action: string) {
   flex-direction: column;
   height: 100%;
   background: var(--bg-primary);
+  overflow: hidden;
+}
+
+/* 外壳：左通栏 + 右列 */
+.app-shell {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+}
+
+.left-rail {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  min-width: 160px;
+  max-width: 400px;
+  background: var(--glass-fill, rgba(30, 30, 46, 0.8));
+  backdrop-filter: blur(16px) saturate(1.5);
+  -webkit-backdrop-filter: blur(16px) saturate(1.5);
+  border-right: 1px solid var(--glass-stroke, var(--border));
+  box-shadow: var(--glass-shadow);
+  overflow: hidden;
+}
+
+.rail-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 48px;
+  padding: 0 12px;
+  flex-shrink: 0;
+  user-select: none;
+  border-bottom: 1px solid var(--glass-stroke, var(--border));
+  background: transparent;
+}
+.rail-brand-inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.rail-logo {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  flex-shrink: 0;
+  pointer-events: none;
+}
+.rail-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--sidebar-strong);
+  letter-spacing: 0.04em;
+}
+
+.rail-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 8px 6px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--glass-stroke, var(--border));
+  background: transparent;
+}
+.rail-action {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--sidebar-strong);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s, color 0.12s;
+}
+.rail-action:hover {
+  background: var(--bg-hover);
+  color: var(--sidebar-strong);
+}
+.rail-action-icon {
+  font-size: 15px;
+  width: 16px;
+  text-align: center;
+  flex-shrink: 0;
+  opacity: 0.95;
+  color: var(--sidebar-strong);
+}
+
+.rail-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: transparent;
+}
+
+.rail-divider {
+  flex-shrink: 0;
+  width: 1px;
+  cursor: col-resize;
+  background: transparent;
+  margin-right: 2px;
+}
+.rail-divider:hover {
+  background: var(--accent);
+  opacity: 0.5;
+}
+
+.right-column {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
 }
 
 .toolbar {
@@ -1081,8 +1433,8 @@ function editorAction(action: string) {
   justify-content: space-between;
   height: var(--titlebar-height);
   padding: 0 10px;
-  background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border);
+  background: var(--bg-primary);
+  border-bottom: none;
   flex-shrink: 0;
   -webkit-app-region: drag;
   user-select: none;
@@ -1101,15 +1453,18 @@ function editorAction(action: string) {
   align-items: center;
   gap: 2px;
 }
-.app-logo {
-  width: 22px;
-  height: 22px;
-  margin-right: 6px;
-  border-radius: 5px;
-  flex-shrink: 0;
-  -webkit-user-select: none;
-  user-select: none;
-  pointer-events: none;
+/* 侧栏内嵌文件树：顶部分区与品牌/操作区对齐 */
+.rail-body .file-tree {
+  height: 100%;
+  background: transparent;
+}
+.rail-body .file-tree .tree-header {
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+.rail-body .file-tree .tree-header::after {
+  left: 8px;
+  right: 8px;
 }
 .menu-item-wrap {
   position: relative;
@@ -1133,7 +1488,7 @@ function editorAction(action: string) {
   top: calc(100% + 2px);
   left: 0;
   min-width: 220px;
-  background: rgba(30, 30, 46, 0.3);
+  background: rgba(30, 30, 46, 0.8);
   backdrop-filter: blur(20px) saturate(1.6);
   -webkit-backdrop-filter: blur(20px) saturate(1.6);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -1147,7 +1502,7 @@ function editorAction(action: string) {
   animation: menuPop 0.14s ease;
 }
 [data-theme="light"] .menu-dropdown {
-  background: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.8);
   border-color: rgba(0, 0, 0, 0.06);
 }
 @keyframes menuPop {
@@ -1207,7 +1562,7 @@ function editorAction(action: string) {
   left: 100%;
   min-width: 240px;
   margin-left: 2px;
-  background: rgba(30, 30, 46, 0.88);
+  background: rgba(30, 30, 46, 0.8);
   backdrop-filter: blur(24px) saturate(1.8);
   -webkit-backdrop-filter: blur(24px) saturate(1.8);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -1216,7 +1571,7 @@ function editorAction(action: string) {
   animation: menuPop 0.14s ease;
 }
 [data-theme="light"] .menu-dropdown.submenu {
-  background: rgba(255, 255, 255, 0.88);
+  background: rgba(255, 255, 255, 0.8);
   border-color: rgba(0, 0, 0, 0.08);
 }
 .menu-empty {
@@ -1358,10 +1713,16 @@ function editorAction(action: string) {
   background: var(--bg-primary);
 }
 
-/* 通用面板样式：圆角矩形 */
+/* 状态栏只占右列（侧栏通栏到底时不压状态栏） */
+.right-column > :last-child.status-bar,
+.right-column > .status-bar {
+  flex-shrink: 0;
+}
+
+/* 通用面板：圆角矩形（加大圆角，非微圆角） */
 .panel {
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--panel-radius, 12px);
   background: var(--bg-secondary);
   overflow: hidden;
   display: flex;
@@ -1370,10 +1731,21 @@ function editorAction(action: string) {
   min-height: 0;
 }
 
+/* TeX / PDF 主区域更明显圆角 */
+.editor-panel,
+.preview-panel {
+  border-radius: var(--panel-radius, 12px);
+}
+
 .sidebar-panel {
   flex-shrink: 0;
   min-width: 160px;
   max-width: 400px;
+  background: var(--glass-fill, rgba(30, 30, 46, 0.8));
+  backdrop-filter: blur(16px) saturate(1.5);
+  -webkit-backdrop-filter: blur(16px) saturate(1.5);
+  border-color: var(--glass-stroke, var(--border));
+  box-shadow: var(--glass-shadow);
 }
 
 .editor-panel {
@@ -1381,6 +1753,23 @@ function editorAction(action: string) {
   flex-direction: column;
   min-width: 0;
   min-height: 0;
+}
+
+/* 编辑器舞台：工具条真悬浮叠在代码上（不预留整块高度） */
+.editor-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.editor-stage-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  /* 正文贴顶，毛玻璃条盖在上方；半透明可透出代码 */
+  padding-top: 0;
 }
 
 .preview-panel {
@@ -1436,25 +1825,9 @@ function editorAction(action: string) {
   overflow: hidden;
 }
 
-/* 编辑器功能栏 — 分割线内缩 */
+/* 编辑器功能栏：毛玻璃悬浮由全局 .glass-toolbar 负责 */
 .editor-toolbar {
-  display: flex;
-  align-items: center;
-  padding: 4px 12px;
-  background: transparent;
-  flex-shrink: 0;
-  gap: 6px;
-  min-height: 32px;
-  position: relative;
-}
-.editor-toolbar::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 10px;
-  right: 10px;
-  height: 1px;
-  background: var(--border);
+  /* 定位/背景见 main.css .glass-toolbar */
 }
 .et-group {
   display: flex;
@@ -1483,6 +1856,30 @@ function editorAction(action: string) {
   background: var(--accent-light);
   color: var(--accent);
 }
+.et-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.et-btn:disabled:hover {
+  background: transparent;
+  color: var(--text-secondary);
+}
+.et-btn.dirty {
+  color: var(--accent);
+}
+.et-dirty-dot {
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--warning, #f59e0b);
+  top: 3px;
+  right: 3px;
+  pointer-events: none;
+}
+.et-btn {
+  position: relative;
+}
 .et-sep {
   width: 1px;
   height: 16px;
@@ -1490,7 +1887,85 @@ function editorAction(action: string) {
   margin: 0 2px;
 }
 
-/* ========== VS Code 风格底部面板 ========== */
+/* 环境插入下拉：与 Editor .search-panel 同一纵向位置（工具栏 top8 + 高约32 + 间距 → 50px） */
+.env-dropdown {
+  position: absolute;
+  top: 50px;
+  left: calc(36px + 14px + 1px + 8px);
+  right: 10px;
+  z-index: 50;
+  background: var(--glass-fill, rgba(30, 30, 46, 0.8));
+  backdrop-filter: blur(14px) saturate(1.4);
+  -webkit-backdrop-filter: blur(14px) saturate(1.4);
+  border: 1px solid var(--glass-stroke, rgba(255, 255, 255, 0.1));
+  border-radius: 8px;
+  box-shadow: var(--shadow-lg);
+  padding: 8px 10px 10px;
+  min-width: 240px;
+  max-height: min(420px, calc(100% - 60px));
+  overflow: auto;
+  animation: envPop 0.12s ease;
+}
+@keyframes envPop {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.env-dropdown-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.env-close {
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+.env-close:hover {
+  background: var(--bg-hover);
+  color: var(--error);
+}
+.env-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.env-group-title {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin-bottom: 4px;
+  letter-spacing: 0.02em;
+}
+.env-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.env-chip {
+  padding: 4px 10px;
+  font-size: 12px;
+  font-family: var(--font-mono, Consolas, monospace);
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: border-color 0.1s, background 0.1s, color 0.1s;
+}
+.env-chip:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-light);
+}
+
+/* ========== 底部日志面板（无把手，状态栏控制） ========== */
 .bottom-panel {
   flex-shrink: 0;
   display: flex;
@@ -1498,32 +1973,13 @@ function editorAction(action: string) {
   background: transparent;
   position: relative;
 }
-.bottom-panel::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 10px;
-  right: 10px;
-  height: 1px;
-  background: var(--border);
+.bottom-panel:not(.open) {
+  display: none;
 }
 
-.panel-handle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 18px;
-  background: transparent;
-  cursor: pointer;
-  user-select: none;
-  flex-shrink: 0;
-}
-.panel-handle.slim:hover {
-  background: var(--bg-hover);
-}
-.handle-chevron {
-  font-size: 9px;
-  color: var(--text-tertiary);
+.menu-btn.active {
+  background: var(--accent-light);
+  color: var(--accent);
 }
 
 .panel-body {
@@ -1562,6 +2018,7 @@ function editorAction(action: string) {
 }
 
 .distraction-free .main-body { padding: 0; }
+.distraction-free .app-shell { padding: 0; }
 
 .exit-fullscreen-btn {
   position: fixed;

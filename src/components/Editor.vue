@@ -72,6 +72,8 @@ const lineNoCompartment = new Compartment()
 const themeCompartment = new Compartment()
 // 保存每个标签的光标位置
 const cursorPositions = new Map<string, { anchor: number; head: number }>()
+// 保存每个标签的滚动位置
+const scrollPositions = new Map<string, { top: number; left: number }>()
 let currentTabId: string | null = null
 
 const highlightStyle = HighlightStyle.define([
@@ -313,6 +315,36 @@ function getExtensions() {
       {
         key: 'Enter',
         run: (v) => latexSmartIndent(v)
+      },
+      {
+        key: 'Mod-Alt-[',
+        run: (v) => { wrapSelection('\\textbf{', '}'); return true },
+        preventDefault: true
+      },
+      {
+        key: 'Mod-Alt-]',
+        run: (v) => { wrapSelection('\\textit{', '}'); return true },
+        preventDefault: true
+      },
+      {
+        key: 'Mod-Alt-e',
+        run: () => { wrapSelection('$', '$'); return true },
+        preventDefault: true
+      },
+      {
+        key: 'Mod-Alt-m',
+        run: () => { jumpMatchingEnv(); return true },
+        preventDefault: true
+      },
+      {
+        key: 'F3',
+        run: () => { doSearch('next'); return true },
+        preventDefault: true
+      },
+      {
+        key: 'Shift-F3',
+        run: () => { doSearch('prev'); return true },
+        preventDefault: true
       }
     ]),
     themeCompartment.of([]),
@@ -537,20 +569,30 @@ function createEditor() {
     content.addEventListener('compositionend', () => { imeComposing = false })
   }
 
-  // 初始化状态栏光标
+  // 初始化状态栏光标 + 恢复滚动
   if (view) {
     const sel = view.state.selection.main
     const line = view.state.doc.lineAt(sel.head)
     docStore.cursorLine = line.number
     docStore.cursorCol = sel.head - line.from + 1
+    if (tab && scrollPositions.has(tab.id)) {
+      const sp = scrollPositions.get(tab.id)!
+      requestAnimationFrame(() => {
+        view?.scrollDOM.scrollTo({ top: sp.top, left: sp.left })
+      })
+    }
   }
 }
 
 function destroyEditor() {
-  // 销毁前保存光标
+  // 销毁前保存光标与滚动
   if (view && currentTabId) {
     const sel = view.state.selection.main
     cursorPositions.set(currentTabId, { anchor: sel.anchor, head: sel.head })
+    scrollPositions.set(currentTabId, {
+      top: view.scrollDOM.scrollTop,
+      left: view.scrollDOM.scrollLeft
+    })
   }
   view?.destroy()
   view = null
@@ -574,6 +616,101 @@ function jumpToLine(line: number) {
     scrollIntoView: true
   })
   view.focus()
+}
+
+/** 选区两侧包裹文本；无选区则插入空包裹并把光标置于中间 */
+function wrapSelection(before: string, after: string) {
+  if (!view) return
+  const sel = view.state.selection.main
+  const selected = view.state.sliceDoc(sel.from, sel.to)
+  const insert = before + selected + after
+  const cursor = sel.from + before.length + selected.length
+  view.dispatch({
+    changes: { from: sel.from, to: sel.to, insert },
+    selection: { anchor: cursor, head: selected ? sel.from + before.length : cursor },
+    scrollIntoView: true
+  })
+  view.focus()
+}
+
+/** 跳到匹配的 \begin{env} ↔ \end{env}（光标所在环境） */
+function jumpMatchingEnv() {
+  if (!view) return
+  const state = view.state
+  const pos = state.selection.main.head
+  const doc = state.doc
+
+  // 从光标行向上/本行找最近 \begin{env}
+  let env = ''
+  let beginLine = -1
+  for (let i = doc.lineAt(pos).number; i >= 1; i--) {
+    const text = doc.line(i).text
+    // 若本行有 \end，则跳过（已闭合）
+    const ends = [...text.matchAll(/\\end\{([^}]+)\}/g)]
+    const begins = [...text.matchAll(/\\begin\{([^}]+)\}/g)]
+    if (begins.length > ends.length) {
+      const last = begins[begins.length - 1]
+      env = last[1]
+      beginLine = i
+      break
+    }
+    if (ends.length > begins.length) {
+      // 光标在 \end 内 → 先找对应 begin 再可反向；简单处理：从该 end 往上找
+      const last = ends[ends.length - 1]
+      env = last[1]
+      beginLine = -1
+      break
+    }
+  }
+  if (!env) {
+    alert('光标处未找到 \\begin / \\end 环境')
+    return
+  }
+
+  if (beginLine >= 0) {
+    // 往下找匹配 \end{env}
+    let depth = 0
+    for (let i = beginLine; i <= doc.lines; i++) {
+      const text = doc.line(i).text
+      depth += (text.match(new RegExp(`\\\\begin\\{${escapeRe(env)}\\}`, 'g')) || []).length
+      depth -= (text.match(new RegExp(`\\\\end\\{${escapeRe(env)}\\}`, 'g')) || []).length
+      if (depth === 0 && i > beginLine) {
+        jumpToLine(i)
+        return
+      }
+      if (depth === 0 && i === beginLine) {
+        // 单行 begin/end：跳到本行末环境
+        const line = doc.line(i)
+        const m = line.text.match(new RegExp(`\\\\end\\{${escapeRe(env)}\\}`))
+        if (m) {
+          view.dispatch({
+            selection: { anchor: line.from + m.index! },
+            scrollIntoView: true
+          })
+          view.focus()
+        }
+        return
+      }
+    }
+    alert(`未找到匹配的 \\end{${env}}`)
+  } else {
+    // 光标在 end 侧：往上找 begin
+    let depth = 0
+    for (let i = doc.lineAt(pos).number; i >= 1; i--) {
+      const text = doc.line(i).text
+      depth += (text.match(new RegExp(`\\\\end\\{${escapeRe(env)}\\}`, 'g')) || []).length
+      depth -= (text.match(new RegExp(`\\\\begin\\{${escapeRe(env)}\\}`, 'g')) || []).length
+      if (depth === 0 && text.includes(`\\begin{${env}}`)) {
+        jumpToLine(i)
+        return
+      }
+    }
+    alert(`未找到匹配的 \\begin{${env}}`)
+  }
+}
+
+function escapeRe(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 watch(
@@ -656,16 +793,6 @@ function buildSearchRegex(): RegExp | null {
   }
 }
 
-function countMatches(): number {
-  if (!view || !searchQuery.value) return 0
-  const re = buildSearchRegex()
-  if (!re) return 0
-  const doc = view.state.doc.toString()
-  let count = 0
-  while (re.exec(doc) !== null) count++
-  return count
-}
-
 function findMatches(): Array<{ from: number; to: number }> {
   if (!view || !searchQuery.value) return []
   const re = buildSearchRegex()
@@ -726,31 +853,45 @@ watch(searchQuery, () => { updateMatchInfo() })
 watch(matchCase, () => { updateMatchInfo() })
 watch(useRegex, () => { updateMatchInfo() })
 
+function expandReplace(m: string): string {
+  // 支持正则替换里的 $1 / $&（普通模式则原样）
+  if (!useRegex.value) return replaceQuery.value
+  let out = replaceQuery.value
+  out = out.replace(/\$(\d)/g, (_s, d: string) => m[Number(d)] ?? '')
+  return out.replace(/\$&/g, m)
+}
+
 function doReplace() {
   if (!view || !searchQuery.value) return
   const sel = view.state.selection.main
   const selected = view.state.sliceDoc(sel.from, sel.to)
-  const query = matchCase.value ? searchQuery.value : searchQuery.value.toLowerCase()
-  const selLower = matchCase.value ? selected : selected.toLowerCase()
-  if (selLower === query) {
+  const re = buildSearchRegex()
+  if (!re) return
+  re.lastIndex = 0
+  const whole = re.exec(selected)
+  const exact = whole !== null && whole[0] === selected
+  if (exact) {
+    const insert = expandReplace(selected)
     view.dispatch({
-      changes: { from: sel.from, to: sel.to, insert: replaceQuery.value },
-      selection: { anchor: sel.from + replaceQuery.value.length }
+      changes: { from: sel.from, to: sel.to, insert },
+      selection: { anchor: sel.from + insert.length }
     })
   }
+  updateMatchInfo()
   doSearchNext()
 }
 
 function doReplaceAll() {
   if (!view || !searchQuery.value) return
   const doc = view.state.doc.toString()
-  const flags = matchCase.value ? 'g' : 'gi'
-  const re = new RegExp(searchQuery.value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), flags)
-  const newDoc = doc.replace(re, replaceQuery.value)
+  const re = buildSearchRegex()
+  if (!re) return
+  const newDoc = doc.replace(re, (m) => expandReplace(m))
   if (newDoc !== doc) {
     view.dispatch({
       changes: { from: 0, to: doc.length, insert: newDoc }
     })
+    updateMatchInfo()
   }
 }
 
@@ -769,8 +910,20 @@ watch(
   () => props.showSearch,
   (val) => {
     if (val) {
-      nextTick(() => searchRef.value?.focus())
+      nextTick(() => {
+        searchRef.value?.focus()
+        searchRef.value?.select()
+        updateMatchInfo()
+      })
     }
+  }
+)
+
+// 文档变化后同步匹配计数（避免替换后仍显示旧计数）
+watch(
+  () => docStore.activeTab?.content,
+  () => {
+    if (props.showSearch) updateMatchInfo()
   }
 )
 
@@ -889,7 +1042,7 @@ function ctxJumpToPdf() {
 
 function ctxSetMainTex() {
   const tab = docStore.activeTab
-  if (tab?.path && /\\.tex$/i.test(tab.path)) {
+  if (tab?.path && /\.tex$/i.test(tab.path)) {
     docStore.setMainTex(tab.path)
   }
   closeCtxMenu()
@@ -972,6 +1125,21 @@ function ctxFormatLatex() {
   closeCtxMenu()
 }
 
+function ctxWrapMath() {
+  wrapSelection('$', '$')
+  closeCtxMenu()
+}
+
+function ctxWrapBold() {
+  wrapSelection('\\textbf{', '}')
+  closeCtxMenu()
+}
+
+function ctxJumpEnv() {
+  jumpMatchingEnv()
+  closeCtxMenu()
+}
+
 // 全局点击关闭菜单
 function onGlobalClick(e: Event) {
   const target = e.target as HTMLElement
@@ -1034,9 +1202,10 @@ onUnmounted(() => {
           v-model="replaceQuery"
           class="search-input"
           placeholder="替换为"
+          @keydown.enter.prevent="doReplace"
           @keydown.esc="closeSearch"
         />
-        <button class="search-action-btn" title="替换当前" @click="doReplace">替换</button>
+        <button class="search-action-btn" title="替换当前 (Enter)" @click="doReplace">替换</button>
         <button class="search-action-btn" title="全部替换" @click="doReplaceAll">全部</button>
       </div>
     </div>
@@ -1083,8 +1252,35 @@ onUnmounted(() => {
           <span class="ctx-icon">📄</span> 跳转到 PDF
           <span class="ctx-key">双击</span>
         </button>
-        <button class="ctx-item" @click="ctxFormatLatex">
+        <button
+          class="ctx-item"
+          @click="ctxFormatLatex"
+        >
           <span class="ctx-icon">✨</span> 格式化选区
+        </button>
+        <button
+          class="ctx-item"
+          @click="ctxWrapMath"
+          title="用 $ … $ 包裹选中内容"
+        >
+          <span class="ctx-icon">∑</span> 包裹为公式
+          <span class="ctx-key">Ctrl+Alt+E</span>
+        </button>
+        <button
+          class="ctx-item"
+          @click="ctxWrapBold"
+          title="用 \textbf{…} 包裹选中内容"
+        >
+          <span class="ctx-icon">B</span> 包裹为加粗
+          <span class="ctx-key">Ctrl+Alt+[</span>
+        </button>
+        <button
+          class="ctx-item"
+          @click="ctxJumpEnv"
+          title="跳到匹配的 \\begin / \\end"
+        >
+          <span class="ctx-icon">⇄</span> 跳到匹配环境
+          <span class="ctx-key">Ctrl+Alt+M</span>
         </button>
         <div class="ctx-divider"></div>
         <button class="ctx-item highlight" @click="ctxSendToMoling">
@@ -1114,21 +1310,24 @@ onUnmounted(() => {
   position: relative;
 }
 
-/* 搜索面板 */
+/* 搜索/替换面板：位于毛玻璃工具栏下方（工具栏 top8 + 高约32 + 间距） */
 .search-panel {
   position: absolute;
-  top: 4px;
-  right: 12px;
+  top: 50px;
+  left: calc(36px + 14px + 1px + 8px);
+  right: 10px;
   z-index: 50;
-  background: var(--bg-primary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  background: var(--glass-fill, rgba(30, 30, 46, 0.8));
+  backdrop-filter: blur(14px) saturate(1.4);
+  -webkit-backdrop-filter: blur(14px) saturate(1.4);
+  border: 1px solid var(--glass-stroke, rgba(255, 255, 255, 0.1));
+  border-radius: 8px;
   box-shadow: var(--shadow-lg);
   padding: 6px 8px;
   display: flex;
   flex-direction: column;
   gap: 4px;
-  min-width: 280px;
+  min-width: 240px;
 }
 .search-row {
   display: flex;
@@ -1228,7 +1427,7 @@ onUnmounted(() => {
 .editor-ctx-menu {
   position: fixed;
   z-index: 10000;
-  background: rgba(30, 30, 46, 0.3);
+  background: rgba(30, 30, 46, 0.8);
   backdrop-filter: blur(20px) saturate(1.6);
   -webkit-backdrop-filter: blur(20px) saturate(1.6);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -1239,7 +1438,7 @@ onUnmounted(() => {
   animation: menuPop 0.14s ease;
 }
 [data-theme="light"] .editor-ctx-menu {
-  background: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.8);
   border-color: rgba(0, 0, 0, 0.06);
 }
 @keyframes menuPop {
