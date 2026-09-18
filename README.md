@@ -6,7 +6,7 @@
 
 编辑 · 编译 · 预览 · AI 助手 — 一体化工作流，无需浏览器
 
-![Version](https://img.shields.io/badge/version-1.0.1-blue)
+![Version](https://img.shields.io/badge/version-2.0.0-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey)
 ![Electron](https://img.shields.io/badge/Electron-33-black)
 ![Vue](https://img.shields.io/badge/Vue-3-green)
@@ -91,8 +91,9 @@
 
 从 [Releases](../../releases) 下载最新版本：
 
-- **安装版**：`墨灵TeX Setup 1.0.1.exe` — 双击安装
-- **便携版**：`墨灵TeX-1.0.1-win.zip` — 解压即用
+- **安装版**：`MolingTeX-Setup-2.0.0.exe` — 双击安装
+- **便携版**：`MolingTeX-2.0.0-win.zip` — 解压即用
+- 直达：[Release v2.0.0](https://github.com/dichi123456/LaTeX-Editor/releases/tag/v2.0.0)
 
 ### 环境要求
 
