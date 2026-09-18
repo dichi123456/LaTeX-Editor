@@ -101,6 +101,9 @@ nav{position:fixed;top:0;width:100%;z-index:100;background:rgba(255,255,255,.8);
 .uc p{font-size:13px;color:#64748b;line-height:1.6}
 .uc-tags{display:flex;gap:5px;margin-top:10px;flex-wrap:wrap}
 .uc-tag{font-size:11px;padding:3px 10px;border-radius:10px;background:#eff6ff;color:#2563EB;font-weight:500}
+.uc-shot{margin:0 0 14px;border-radius:8px;overflow:hidden;border:1px solid #e2e8f0;background:#f8fafc}
+.uc-shot img{width:100%;display:block}
+.uc-shot .cap{padding:6px 10px;font-size:11px;color:#64748b;background:#f8fafc;border-top:1px solid #e2e8f0}
 
 .ct{max-width:760px;margin:0 auto;border-collapse:separate;border-spacing:0;width:100%;font-size:13px;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;background:#fff}
 .ct th,.ct td{padding:12px 14px;text-align:center;border-bottom:1px solid #f1f5f9}
@@ -171,10 +174,10 @@ footer a{color:#2563EB}
 
 <div class="shots">
   <div class="shot-card an d2">
-    <img src="ui-main.png" alt="墨灵TeX 主界面" onerror="this.parentElement.style.height='280px';this.parentElement.style.background='#f1f5f9';this.parentElement.innerHTML='<div style=\'color:#94a3b8;display:flex;align-items:center;justify-content:center;height:100%\'>主界面</div>'">
+    <img src="ui-main.png" alt="墨灵TeX 主界面 · 起始页" onerror="this.parentElement.style.height='280px';this.parentElement.style.background='#f1f5f9';this.parentElement.innerHTML='<div style=\'color:#94a3b8;display:flex;align-items:center;justify-content:center;height:100%\'>主界面</div>'">
   </div>
   <div class="shot-card an d3">
-    <img src="ui-compile.png" alt="编译示例" onerror="this.parentElement.style.height='280px';this.parentElement.style.background='#f1f5f9';this.parentElement.innerHTML='<div style=\'color:#94a3b8;display:flex;align-items:center;justify-content:center;height:100%\'>编译预览</div>'">
+    <img src="ui-compile.png" alt="墨灵TeX 编译文档示例 · 源码与 PDF 同步" onerror="this.parentElement.style.height='280px';this.parentElement.style.background='#f1f5f9';this.parentElement.innerHTML='<div style=\'color:#94a3b8;display:flex;align-items:center;justify-content:center;height:100%\'>编译预览</div>'">
   </div>
 </div>
 
@@ -238,12 +241,18 @@ footer a{color:#2563EB}
 </section>
 
 <section class="sec sec-alt" id="scenarios">
-  <div class="sh an"><div class="st">应用场景</div><h2 class="st2">全场景覆盖</h2></div>
+  <div class="sh an"><div class="st">应用场景 · 使用范例</div><h2 class="st2">全场景覆盖</h2><p class="ss">真实界面截图：IEEE 会议论文、国赛 CUMCM、中文简历，均在墨灵TeX 内一键编译预览。</p></div>
   <div class="ug">
-    <div class="uc an d1"><h3>📝 毕业论文写作</h3><p>ctex 中文模板开箱即用，SyncTeX 源码与 PDF 快速定位，AI 润色段落、检查引用。</p><div class="uc-tags"><span class="uc-tag">ctex</span><span class="uc-tag">SyncTeX</span><span class="uc-tag">AI 润色</span></div></div>
-    <div class="uc an d2"><h3>📚 学术论文投稿</h3><p>内置 IEEE / Elsevier / Wiley 投稿骨架。BibTeX 自动管理参考文献，编译日志精准定位错误。</p><div class="uc-tags"><span class="uc-tag">IEEE</span><span class="uc-tag">Elsevier</span><span class="uc-tag">Wiley</span></div></div>
-    <div class="uc an d3"><h3>🏆 数学建模竞赛</h3><p>国赛 CUMCM 完整模板：封面、承诺书、示例图与参考文献结构，一键生成可编译项目。</p><div class="uc-tags"><span class="uc-tag">CUMCM</span><span class="uc-tag">示例图齐全</span></div></div>
-    <div class="uc an d4"><h3>💼 简历 / 课件 / 汇报</h3><p>多套中文/英文简历与 Beamer 幻灯片。模板创建后自动固定主文档与编译引擎。</p><div class="uc-tags"><span class="uc-tag">简历</span><span class="uc-tag">Beamer</span><span class="uc-tag">自动引擎</span></div></div>
+    <div class="uc an d1">
+      <div class="uc-shot"><img src="example-ieee.png" alt="使用范例：IEEE 会议论文" onerror="this.parentElement.style.height='140px';this.parentElement.innerHTML='<div style=\'color:#94a3b8;display:flex;align-items:center;justify-content:center;height:100%\'>IEEE 范例</div>'"><div class="cap">使用范例 · IEEE 会议论文</div></div>
+      <h3>📚 学术论文投稿</h3><p>内置 IEEE / Elsevier / Wiley 投稿骨架。BibTeX 自动管理参考文献，编译日志精准定位错误。</p><div class="uc-tags"><span class="uc-tag">IEEE</span><span class="uc-tag">Elsevier</span><span class="uc-tag">Wiley</span></div></div>
+    <div class="uc an d2">
+      <div class="uc-shot"><img src="example-cumcm.png" alt="使用范例：国家数学建模比赛论文" onerror="this.parentElement.style.height='140px';this.parentElement.innerHTML='<div style=\'color:#94a3b8;display:flex;align-items:center;justify-content:center;height:100%\'>国赛范例</div>'"><div class="cap">使用范例 · 国家数学建模比赛论文</div></div>
+      <h3>🏆 数学建模竞赛</h3><p>国赛 CUMCM 完整模板：封面、承诺书、示例图与参考文献结构，一键生成可编译项目。</p><div class="uc-tags"><span class="uc-tag">CUMCM</span><span class="uc-tag">示例图齐全</span></div></div>
+    <div class="uc an d3">
+      <div class="uc-shot"><img src="example-resume.png" alt="使用范例：创建简历" onerror="this.parentElement.style.height='140px';this.parentElement.innerHTML='<div style=\'color:#94a3b8;display:flex;align-items:center;justify-content:center;height:100%\'>简历范例</div>'"><div class="cap">使用范例 · 创建简历</div></div>
+      <h3>💼 简历 / 课件 / 汇报</h3><p>多套中文/英文简历与 Beamer 幻灯片。模板创建后自动固定主文档与编译引擎。</p><div class="uc-tags"><span class="uc-tag">简历</span><span class="uc-tag">Beamer</span><span class="uc-tag">自动引擎</span></div></div>
+    <div class="uc an d4"><h3>📝 毕业论文写作</h3><p>ctex 中文模板开箱即用，SyncTeX 源码与 PDF 快速定位，AI 润色段落、检查引用。</p><div class="uc-tags"><span class="uc-tag">ctex</span><span class="uc-tag">SyncTeX</span><span class="uc-tag">AI 润色</span></div></div>
   </div>
 </section>
 
