@@ -34,9 +34,29 @@ export const useCompileStore = defineStore('compile', () => {
   const compileProgress: Ref<string> = ref('')
 
   async function detectTexLive(): Promise<void> {
-    const result = await window.electronAPI.detectTexLive()
-    texLiveFound.value = result.found
-    texLivePath.value = result.path
+    try {
+      const result = await window.electronAPI.detectTexLive()
+      if (result.found && result.path) {
+        texLiveFound.value = true
+        texLivePath.value = result.path
+        return
+      }
+    } catch { /* fall through to config */ }
+
+    // Detection can fail when TeX Live is only on a non-standard drive/path.
+    // Prefer a previously saved config path over declaring "not found".
+    try {
+      const { useConfigStore } = await import('./config')
+      const cfgPath = useConfigStore().config?.texlivePath
+      if (cfgPath) {
+        texLiveFound.value = true
+        texLivePath.value = cfgPath
+        return
+      }
+    } catch { /* ignore */ }
+
+    texLiveFound.value = false
+    texLivePath.value = null
   }
 
   async function compile(
@@ -46,87 +66,65 @@ export const useCompileStore = defineStore('compile', () => {
     timeoutSec: number,
     mode: CompileMode = 'quick'
   ): Promise<boolean> {
-    if (isCompiling.value) return false
+    if (isCompiling.value) {
+      liveLog.value += '[编译] 已有编译任务进行中，本次请求已忽略。可先取消再重试。\n'
+      return false
+    }
 
     isCompiling.value = true
     liveLog.value = ''
     const startTime = Date.now()
     let compileResult: any = null
 
+    const enginePass = async (passLabel: string, draft = false) => {
+      compileProgress.value = passLabel
+      liveLog.value += `===== ${passLabel} =====\n`
+      compileResult = await window.electronAPI.compile({
+        filePath,
+        engine,
+        extraArgs,
+        timeout: timeoutSec * 1000,
+        texlivePath: texLivePath.value,
+        draft
+      })
+      liveLog.value += compileResult.log + '\n'
+      return compileResult.success as boolean
+    }
+
+    /** 完整流程：tex → bibtex → tex → tex（共 4 步） */
+    const runFullPipeline = async (prefix: string) => {
+      if (!(await enginePass(`${prefix} 1/4 · tex（生成 .aux）`))) return false
+
+      compileProgress.value = `${prefix} 2/4 · bibtex…`
+      liveLog.value += `===== ${prefix} 2/4 · bibtex（参考文献） =====\n`
+      const bibtexResult = await window.electronAPI.runBibtex(filePath, texLivePath.value)
+      liveLog.value += (bibtexResult.log || '') + '\n'
+      // bibtex 失败不阻断（可能没有参考文献）
+
+      if (!(await enginePass(`${prefix} 3/4 · tex（合并引用）`))) return false
+      if (!(await enginePass(`${prefix} 4/4 · tex（交叉引用 / 目录）`))) return false
+      return true
+    }
+
     try {
-      // 清理模式：先删除辅助文件
+      // 从头编译：先删辅助文件，再走与完整编译相同的 4 步流程
       if (mode === 'clean') {
         compileProgress.value = '正在清理辅助文件…'
         const deleted = await window.electronAPI.cleanAuxFiles(filePath)
         if (deleted.length > 0) {
           liveLog.value += `[清理] 已删除 ${deleted.length} 个辅助文件：${deleted.join(', ')}\n\n`
-          // 通知文件树刷新
           window.dispatchEvent(new CustomEvent('refresh-file-tree'))
+        } else {
+          liveLog.value += '[清理] 无辅助文件需要删除\n\n'
         }
-      }
-
-      if (mode === 'full') {
-        // ===== 完整编译：引擎 → bibtex → 引擎 → 引擎 =====
-        // 第 1 遍：生成 .aux
-        compileProgress.value = '编译第 1/3 遍（生成 .aux）…'
-        liveLog.value += '===== 第 1 遍：生成 .aux =====\n'
-        compileResult = await window.electronAPI.compile({
-          filePath, engine, extraArgs, timeout: timeoutSec * 1000, texlivePath: texLivePath.value
-        })
-        liveLog.value += compileResult.log + '\n'
-        if (!compileResult.success) {
-          lastResult.value = { success: false, pdfPath: null, log: liveLog.value, errors: compileResult.errors, warnings: compileResult.warnings, duration: Date.now() - startTime }
-          await window.electronAPI.notifyCompileDone(false)
-          return false
-        }
-
-        // bibtex：处理参考文献
-        compileProgress.value = '正在运行 bibtex…'
-        liveLog.value += '===== bibtex：处理参考文献 =====\n'
-        const bibtexResult = await window.electronAPI.runBibtex(filePath, texLivePath.value)
-        liveLog.value += bibtexResult.log + '\n'
-        // bibtex 失败不阻断（可能没有参考文献）
-
-        // 第 2 遍：合并参考文献
-        compileProgress.value = '编译第 2/3 遍（合并引用）…'
-        liveLog.value += '===== 第 2 遍：合并引用 =====\n'
-        compileResult = await window.electronAPI.compile({
-          filePath, engine, extraArgs, timeout: timeoutSec * 1000, texlivePath: texLivePath.value
-        })
-        liveLog.value += compileResult.log + '\n'
-        if (!compileResult.success) {
-          lastResult.value = { success: false, pdfPath: null, log: liveLog.value, errors: compileResult.errors, warnings: compileResult.warnings, duration: Date.now() - startTime }
-          await window.electronAPI.notifyCompileDone(false)
-          return false
-        }
-
-        // 第 3 遍：解决交叉引用
-        compileProgress.value = '编译第 3/3 遍（解决交叉引用）…'
-        liveLog.value += '===== 第 3 遍：解决交叉引用 =====\n'
-        compileResult = await window.electronAPI.compile({
-          filePath, engine, extraArgs, timeout: timeoutSec * 1000, texlivePath: texLivePath.value
-        })
-        liveLog.value += compileResult.log + '\n'
-
-      } else if (mode === 'quick') {
-        // ===== 快速编译：单次编译（不跑 bibtex/多遍）=====
-        compileProgress.value = '快速编译中…'
-        liveLog.value += '===== 快速编译（单次） =====\n'
-
-        const draftArgs = [...extraArgs]
-        compileResult = await window.electronAPI.compile({
-          filePath, engine, extraArgs: draftArgs, timeout: timeoutSec * 1000, texlivePath: texLivePath.value
-        })
-        liveLog.value += compileResult.log + '\n'
-
+        await runFullPipeline('从头编译')
+      } else if (mode === 'full') {
+        // 完整编译：tex → bibtex → tex → tex
+        await runFullPipeline('完整编译')
       } else {
-        // ===== 从头编译：清理后单次编译 =====
-        compileProgress.value = '从头编译中…'
-        liveLog.value += '===== 从头编译（已清理辅助文件） =====\n'
-        compileResult = await window.electronAPI.compile({
-          filePath, engine, extraArgs, timeout: timeoutSec * 1000, texlivePath: texLivePath.value
-        })
-        liveLog.value += compileResult.log + '\n'
+        // 快速编译：draft 单次（图片占位，不跑 bibtex）
+        liveLog.value += '===== 快速编译（draft · 单次 · 图片占位）=====\n'
+        await enginePass('快速编译（draft）', true)
       }
 
       const duration = Date.now() - startTime
@@ -137,6 +135,13 @@ export const useCompileStore = defineStore('compile', () => {
         errors: compileResult.errors,
         warnings: compileResult.warnings,
         duration
+      }
+      if (!compileResult.success && compileResult.errors?.length) {
+        const top = compileResult.errors.slice(0, 5).map((e: CompileIssue) => {
+          const loc = e.line != null ? `${e.file || filePath}:${e.line}` : (e.file || filePath)
+          return `  · ${loc}: ${e.message}`
+        }).join('\n')
+        liveLog.value += `[错误摘要]\n${top}\n`
       }
       await window.electronAPI.notifyCompileDone(compileResult.success)
       if (compileResult.success && compileResult.pdfPath) {

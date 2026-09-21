@@ -33,6 +33,9 @@ export interface ChatSession {
   updatedAt: number
 }
 
+/** 思考深度：一般 / 高 / 最大（映射 OpenAI reasoning_effort 与 temperature） */
+export type ReasoningEffort = 'low' | 'medium' | 'high'
+
 export interface AiConfig {
   apiBase: string
   apiKey: string
@@ -43,6 +46,8 @@ export interface AiConfig {
   permissionMode: 'ask' | 'full'
   /** Agent 最大迭代步数（Kilo Code agent.steps），1–100 */
   maxSteps: number
+  /** 思考深度 */
+  reasoningEffort: ReasoningEffort
 }
 
 export interface EditProposal {
@@ -56,10 +61,26 @@ const DEFAULT_AI_CONFIG: AiConfig = {
   apiKey: '',
   model: 'deepseek-chat',
   selectedModels: [],
-  systemPrompt: '你是「墨灵」，一个专业的 LaTeX 写作助手。回答使用 Markdown，LaTeX 代码用 ```latex 块。中文优先，简洁专业。',
-  temperature: 0.7,
+  // Short base note; full Kilo-style prompt is assembled at send time in the renderer/agent loop
+  systemPrompt: '你是「墨灵」，专业的 LaTeX 写作工程师。回答使用 Markdown，LaTeX 代码用 ```latex 块。',
+  // Kilo coding agents: low temperature for deterministic tool use (faster, fewer hesitations)
+  temperature: 0.2,
   permissionMode: 'ask',
-  maxSteps: 30
+  // Kilo agent.steps
+  maxSteps: 15,
+  reasoningEffort: 'low'
+}
+
+/** 思考深度 → 请求参数（OpenAI reasoning_effort + 对应 temperature） */
+export function reasoningParams(effort: ReasoningEffort): { reasoningEffort: ReasoningEffort; temperature: number } {
+  switch (effort) {
+    case 'high':
+      return { reasoningEffort: 'high', temperature: 0.4 }
+    case 'medium':
+      return { reasoningEffort: 'medium', temperature: 0.3 }
+    default:
+      return { reasoningEffort: 'low', temperature: 0.2 }
+  }
 }
 
 let streamUnsubscribe: (() => void) | null = null
@@ -215,7 +236,17 @@ export const useAiStore = defineStore('ai', () => {
         if (!Number.isFinite(aiConfig.value.maxSteps) || aiConfig.value.maxSteps < 1) {
           aiConfig.value.maxSteps = DEFAULT_AI_CONFIG.maxSteps
         }
+        // Kilo coding-agent defaults: lower temperature, fewer steps (speed)
+        if ((aiConfig.value.temperature ?? 0.7) >= 0.6) {
+          aiConfig.value.temperature = DEFAULT_AI_CONFIG.temperature
+        }
+        if ((aiConfig.value.maxSteps ?? 30) > 20) {
+          aiConfig.value.maxSteps = DEFAULT_AI_CONFIG.maxSteps
+        }
         aiConfig.value.maxSteps = Math.min(100, Math.max(1, Math.floor(aiConfig.value.maxSteps)))
+        if (!aiConfig.value.reasoningEffort) {
+          aiConfig.value.reasoningEffort = DEFAULT_AI_CONFIG.reasoningEffort
+        }
       }
     } catch { /* ignore */ }
     // 恢复对话历史
@@ -420,76 +451,44 @@ export const useAiStore = defineStore('ai', () => {
     })
 
     try {
-      // 构建完整系统提示词（含工作区上下文）
+      // Kilo Code system assembly: soul + tone/tool policy + workspace (short, no essay)
       const wsContext = await buildWorkspaceContext()
-      const systemPrompt = `${aiConfig.value.systemPrompt}
-
-${wsContext}
-
-# 工作方式
-
-直接做，不要问「是否继续」「需要我做什么」。缺细节就读代码推断，按现有约定执行。只有真正被阻塞且无法安全推断时才提问，且先做完所有不阻塞的部分。
-
-# 工具使用策略
-
-用最少的工具调用完成任务。每次多调一次工具都是浪费 token。
-
-**选择工具的优先级：**
-1. 用户给了行号/选区 → 直接 replace_text，不调任何只读工具
-2. 用户给了路径且要改 → 有原文就直接 replace_text；不确定才 read_file 一次
-3. 用户给了路径且要读 → read_file 一次，直接回答
-4. 路径未知 → search_project 定位，然后 read_file 确认，然后 replace_text
-5. 要编译 → compile_document
-
-**禁止行为：**
-- 有路径/行号时禁止调用 search_project、list_files、get_outline
-- 同一文件本轮只 read_file 一次
-- 修改文本禁止用 write_file（除非整文件重写）
-- 有多个独立工具调用时并行发送，不要串行等待
-
-# 工具说明
-
-**replace_text** — 修改文件的唯一方式（除整文件重写外）
-- 参数: path, find, replace, replace_all(可选)
-- find 必须与文件原文逐字符完全匹配（含空格、换行、缩进）
-- 不需要先 read_file（除非不确定原文精确内容）
-
-**write_file** — 仅整文件重写
-- 参数: path, content
-- 修改前必须 read_file 确认原内容
-
-**read_file** — 读文件
-- 参数: path
-- 仅在不确定原文或用户要求查看时调用
-
-**search_project** — 搜索
-- 参数: query, file_extension(可选)
-- 仅在路径未知时使用
-
-**list_files** — 列目录
-- 参数: path(可选)
-- 仅在 search_project 也找不到时兜底
-
-**get_outline** — 章节大纲
-- 参数: path
-- 仅当用户明确要求查看/修改章节结构时使用
-
-**compile_document** — 编译
-- 参数: path`
-
-      const apiMessages: any[] = [
-        { role: 'system', content: systemPrompt }
+      const systemPrompt = [
+        'You are 墨灵 (MoLing), a highly skilled LaTeX writing engineer on the user\'s machine.',
+        '',
+        '# Personality',
+        '- Accomplish the user\'s task; do NOT engage in back-and-forth conversation.',
+        '- Work iteratively with tools. Do not ask for more information than necessary.',
+        '- NEVER start replies with "Great/Certainly/Okay/Sure". Be direct.',
+        '- NEVER end with a question. After a short edit, just stop.',
+        '',
+        '# Tone',
+        '- Minimize output tokens. No preamble/postamble. 1–2 sentences after an edit is enough.',
+        '- Reply in Chinese if the user writes Chinese; keep tool arguments exact.',
+        '',
+        '# Tool usage policy',
+        '- Prefer `edit` (exact oldString→newString). Use `write` only for full-file rewrite.',
+        '- User gave line numbers/selection → call `edit` immediately; do NOT read first unless oldString is uncertain.',
+        '- Batch independent tool calls in one response (parallel).',
+        '- After edit, stop. Call `compile_document` only if user asked to compile/verify.',
+        '- edit: filePath, oldString, newString, replaceAll. oldString must match file exactly.',
+        '- read: filePath, offset, limit — returns `<line>: <content>`.',
+        '',
+        wsContext ? `# Workspace\n\n${wsContext}` : '',
+        aiConfig.value.systemPrompt ? `# App note\n\n${aiConfig.value.systemPrompt}` : ''
       ]
+        .filter(Boolean)
+        .join('\n')
 
-      // 构建对话历史
+      const apiMessages: any[] = [{ role: 'system', content: systemPrompt }]
+
       for (const m of messages.value.slice(-20).filter((m) => !m.error)) {
         let content = m.content
         if (m.fileContext) {
           content = `${m.fileContext}\n\n${content}`
         }
-        // 用户消息含选区时，前置硬约束
         if (m.role === 'user' && m.content.includes('选中文本')) {
-          content = `【用户已选中文本，附带行号。请直接基于此修改，禁止调用 read_file / list_files / search_project / get_outline。】\n\n${content}`
+          content = `【用户已选中文本，附带行号。请直接用 edit 工具修改，禁止 read / list_files / search_project / get_outline。】\n\n${content}`
         }
         apiMessages.push({
           role: m.role === 'assistant' ? 'assistant' : 'user',
@@ -497,12 +496,14 @@ ${wsContext}
         })
       }
 
+      const rp = reasoningParams(aiConfig.value.reasoningEffort || 'low')
       const result = await window.electronAPI.aiChat({
         apiKey: aiConfig.value.apiKey,
         apiBase: aiConfig.value.apiBase,
         model: aiConfig.value.model,
         messages: apiMessages,
-        temperature: aiConfig.value.temperature,
+        temperature: rp.temperature,
+        reasoningEffort: rp.reasoningEffort,
         workspaceRoot: (await import('./docs')).useDocStore().projectRoot,
         texlivePath: (await import('./compile')).useCompileStore().texLivePath,
         enableTools: true,

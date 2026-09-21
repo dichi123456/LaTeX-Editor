@@ -106,6 +106,7 @@ const api = {
     model: string
     messages: Array<{ role: string; content: string }>
     temperature?: number
+    reasoningEffort?: 'low' | 'medium' | 'high'
     workspaceRoot?: string | null
     texlivePath?: string | null
     enableTools?: boolean

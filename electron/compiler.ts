@@ -9,6 +9,8 @@ export interface CompileOptions {
   extraArgs?: string[]
   timeout?: number
   texlivePath?: string | null
+  /** 快速编译：draft 模式（图片占位，仍产出 PDF） */
+  draft?: boolean
 }
 
 export interface CompileIssue {
@@ -55,7 +57,8 @@ export async function compileDocument(
     filePath,
     engine,
     extraArgs = [],
-    timeout = 120000
+    timeout = 120000,
+    draft = false
   } = options
 
   if (!existsSync(filePath)) {
@@ -83,11 +86,18 @@ export async function compileDocument(
     '-interaction=nonstopmode',
     '-file-line-error',
     '-halt-on-error',
-    ...extraArgs,
-    basename(filePath)
+    ...extraArgs
   ]
 
-  onProgress(`正在使用 ${engine} 编译…`, 'info')
+  if (draft) {
+    // 快速编译 draft：graphicx 占位框，不嵌入真实图片；jobname 保证 PDF 路径不变
+    args.push(`-jobname=${baseName}`)
+    args.push(`\\PassOptionsToPackage{draft}{graphicx}\\input{${baseName}}`)
+  } else {
+    args.push(basename(filePath))
+  }
+
+  onProgress(`正在使用 ${engine}${draft ? '（draft）' : ''} 编译…`, 'info')
   onProgress(`命令: ${enginePath} ${args.join(' ')}`, 'debug')
 
   return new Promise<CompileResult>((resolve) => {
@@ -203,6 +213,19 @@ const LATEX_ERROR_PATTERN = /^! (.+)$/m
 const WARNING_PATTERN = /^Warning:\s*(.+)$/m
 const PACKAGE_WARNING = /^Package (.+?) Warning:\s*(.+)$/m
 
+/**
+ * Match file-line-error entries on Windows.
+ * Require a path separator in the file part so `C:` alone is not treated as a file.
+ * Also accept `./rel/file.tex:12: msg`.
+ */
+function matchFileLineError(line: string): { file: string; line: number; msg: string } | null {
+  const m = line.match(/^((?:[A-Za-z]:)?[^:\r\n]*[\\/][^:\r\n]+|\.?\/[^:\r\n]+):(\d+):\s*(.+)$/)
+  if (!m) return null
+  const msg = m[3].trim()
+  if (!msg || /^Warning/i.test(msg)) return null
+  return { file: m[1].trim(), line: parseInt(m[2], 10), msg }
+}
+
 export function parseLog(
   log: string,
   mainFile: string
@@ -216,19 +239,22 @@ export function parseLog(
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
 
-    // file:line: message 格式（-file-line-error）
-    const fileErrMatch = line.match(/^(.+?):(\d+):\s*(.+)$/)
-    if (fileErrMatch && !line.startsWith(' ') && !line.startsWith('\t')) {
-      const [, file, lineNum, msg] = fileErrMatch
-      if (msg && !msg.startsWith('Warning')) {
-        errors.push({
-          type: 'error',
-          message: msg.trim(),
-          line: parseInt(lineNum, 10),
-          file: file.trim()
-        })
-        continue
-      }
+    // Track included files: (./chapters/intro.tex
+    const incMatch = line.match(/\((\.?\/?[^()\s]+\.(?:tex|sty|cls|bib))/i)
+    if (incMatch) {
+      currentFile = incMatch[1]
+    }
+
+    // file:line: message 格式（-file-line-error，含 Windows 绝对路径）
+    const fileErr = matchFileLineError(line)
+    if (fileErr) {
+      errors.push({
+        type: 'error',
+        message: fileErr.msg,
+        line: fileErr.line,
+        file: fileErr.file
+      })
+      continue
     }
 
     // ! Error message
@@ -236,7 +262,7 @@ export function parseLog(
     if (latexErrMatch) {
       // 尝试从后面几行找 l.<num>
       let lineNum: number | null = null
-      for (let j = i + 1; j < Math.min(i + 5, lines.length); j++) {
+      for (let j = i + 1; j < Math.min(i + 8, lines.length); j++) {
         const lMatch = lines[j].match(/^l\.(\d+)/)
         if (lMatch) {
           lineNum = parseInt(lMatch[1], 10)

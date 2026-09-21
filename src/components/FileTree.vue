@@ -39,7 +39,8 @@ const swapSource = ref<string | null>(null)
 const dragPath = ref<string | null>(null)
 const dropTargetPath = ref<string | null>(null)
 const extraOpen = ref<Set<string>>(new Set())
-const showOutline = ref(false)
+/** 大纲默认展开，始终跟随当前打开的 .tex */
+const showOutline = ref(true)
 const treeFocused = ref(false)
 const treeScrollRef = ref<HTMLElement | null>(null)
 
@@ -936,7 +937,7 @@ function onItemContextMenu(payload: { entry: DirEntry; x: number; y: number }) {
   focusTree()
   // 避免菜单贴边溢出屏幕
   const menuW = 220
-  const menuH = 280
+  const menuH = 330
   const x = Math.max(8, Math.min(payload.x, window.innerWidth - menuW - 8))
   const y = Math.max(8, Math.min(payload.y, window.innerHeight - menuH - 8))
   itemCtx.value = { show: true, x, y, entry: payload.entry }
@@ -971,6 +972,8 @@ function itemCtxAction(action: string) {
     if (!entry.isDirectory && /\.tex$/i.test(entry.name)) {
       docStore.setMainTex(entry.path)
     }
+  } else if (action === 'send-moling') {
+    void sendToMolingFile(entry)
   } else if (action === 'copy' || action === 'cut') {
     setSingleSelect(entry.path)
     copySelected(action === 'cut')
@@ -988,6 +991,59 @@ function onSetMain(entry: DirEntry) {
   if (!entry.isDirectory && /\.tex$/i.test(entry.name)) {
     docStore.setMainTex(entry.path)
   }
+}
+
+/** 右键：把工作区文件/目录发送到墨灵输入框（作为附件 chip） */
+async function sendToMolingFile(entry: DirEntry) {
+  closeItemCtx()
+
+  if (entry.isDirectory) {
+    window.dispatchEvent(new CustomEvent('send-to-moling', {
+      detail: {
+        text: `[工作区目录] ${entry.path}`,
+        filePath: entry.path,
+        fileName: entry.name,
+        kind: 'folder'
+      }
+    }))
+    return
+  }
+
+  const isImage = /\.(png|jpe?g|gif|webp|bmp|ico|svg)$/i.test(entry.name)
+  if (isImage) {
+    const norm = entry.path.replace(/\\/g, '/')
+    const imageSrc = /^[A-Za-z]:/.test(norm) ? `file:///${norm}` : `file://${norm}`
+    window.dispatchEvent(new CustomEvent('send-to-moling', {
+      detail: {
+        text: `[工作区图片] ${entry.name}`,
+        filePath: entry.path,
+        fileName: entry.name,
+        kind: 'image',
+        isImage: true,
+        imageSrc
+      }
+    }))
+    return
+  }
+
+  let content = `[工作区文件] ${entry.path}`
+  try {
+    const { content: raw } = await window.electronAPI.readFile(entry.path)
+    const limit = 8000
+    content = raw.length > limit
+      ? raw.slice(0, limit) + `\n... (已截断，原文件共 ${raw.length} 字符)`
+      : raw
+  } catch (err: any) {
+    content = `[无法读取 ${entry.name}: ${err?.message || err}]`
+  }
+  window.dispatchEvent(new CustomEvent('send-to-moling', {
+    detail: {
+      text: content,
+      filePath: entry.path,
+      fileName: entry.name,
+      kind: 'file'
+    }
+  }))
 }
 
 function closeCtxMenu() {
@@ -1429,6 +1485,9 @@ onUnmounted(() => {
         >
           <span class="ctx-icon">★</span> 设为编译主文档
         </button>
+        <button class="ctx-item" @click="itemCtxAction('send-moling')">
+          <span class="ctx-icon">💬</span> 发送给墨灵
+        </button>
         <button class="ctx-item" @click="itemCtxAction('reveal')">
           <span class="ctx-icon">🗂</span> 在文件资源管理器中打开
         </button>
@@ -1476,13 +1535,13 @@ onUnmounted(() => {
       </div>
     </Teleport>
 
-    <!-- 大纲面板 -->
+    <!-- 大纲面板：跟随当前打开的 .tex，切换标签自动同步 -->
     <div class="outline-section">
-      <button class="outline-toggle" @click="showOutline = !showOutline">
+      <button class="outline-toggle" @click="showOutline = !showOutline" title="折叠 / 展开大纲">
         <span class="outline-arrow" :class="{ open: showOutline }" aria-hidden="true">▸</span>
         <span>大纲</span>
       </button>
-      <Outline v-if="showOutline" class="outline-body" />
+      <Outline v-show="showOutline" class="outline-body" />
     </div>
   </div>
 </template>
@@ -1822,7 +1881,7 @@ onUnmounted(() => {
 .ctx-menu {
   position: fixed;
   z-index: 10000;
-  background: rgba(30, 30, 46, 0.8);
+  background: var(--glass-fill);
   backdrop-filter: blur(20px) saturate(1.6);
   -webkit-backdrop-filter: blur(20px) saturate(1.6);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -1833,7 +1892,7 @@ onUnmounted(() => {
   animation: menuPop 0.14s ease;
 }
 [data-theme="light"] .ctx-menu {
-  background: rgba(255, 255, 255, 0.8);
+  background: var(--glass-fill);
   border-color: rgba(0, 0, 0, 0.06);
 }
 @keyframes menuPop {
@@ -1884,12 +1943,13 @@ onUnmounted(() => {
   font-family: var(--font-mono);
 }
 
-/* 大纲面板 */
+/* 大纲面板：固定占侧栏下方一块，可滚动 */
 .outline-section {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  max-height: 40%;
+  max-height: 42%;
+  min-height: 88px;
   position: relative;
 }
 .outline-section::before {

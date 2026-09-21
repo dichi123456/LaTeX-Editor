@@ -35,8 +35,8 @@
   --tab-height: 26px;
   --scrollbar-thumb: rgba(255, 255, 255, 0.12);
   --scrollbar-thumb-hover: rgba(255, 255, 255, 0.22);
-  /* 毛玻璃统一：不透明度 80% + 背后高斯模糊 */
-  --glass-fill: rgba(30, 30, 46, 0.8);
+  /* 毛玻璃统一：不透明度 85% + 背后高斯模糊 */
+  --glass-fill: rgba(30, 30, 46, 0.85);
   --glass-stroke: rgba(255, 255, 255, 0.12);
   --glass-shadow: 0 4px 18px rgba(0, 0, 0, 0.28);
   --toolbar-float-h: 40px;
@@ -71,7 +71,7 @@
   --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.12);
   --scrollbar-thumb: rgba(0, 0, 0, 0.18);
   --scrollbar-thumb-hover: rgba(0, 0, 0, 0.32);
-  --glass-fill: rgba(255, 255, 255, 0.8);
+  --glass-fill: rgba(255, 255, 255, 0.85);
   --glass-stroke: rgba(0, 0, 0, 0.08);
   --glass-shadow: 0 4px 18px rgba(0, 0, 0, 0.08);
   --toolbar-float-h: 40px;

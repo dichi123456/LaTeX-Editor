@@ -20,10 +20,20 @@ const availableModels = computed(() => {
   return sel.length > 0 ? sel : [aiStore.aiConfig.model]
 })
 
+const REASONING_LEVELS = [
+  { key: 'low' as const, label: '一般' },
+  { key: 'medium' as const, label: '高' },
+  { key: 'high' as const, label: '最大' }
+]
+
 function switchModel(model: string) {
   aiStore.aiConfig.model = model
   aiStore.saveConfig()
-  showModelMenu.value = false
+}
+
+function switchReasoning(level: 'low' | 'medium' | 'high') {
+  aiStore.aiConfig.reasoningEffort = level
+  aiStore.saveConfig()
 }
 
 function closeModelMenu(e: MouseEvent) {
@@ -97,18 +107,22 @@ function toolFileLabel(step: ToolStep): string {
 }
 
 function toolChangeBadge(step: ToolStep): string {
-  if (step.toolName !== 'replace_text' && step.toolName !== 'write_file') return ''
+  const n = step.toolName
+  if (n !== 'edit' && n !== 'replace_text' && n !== 'write' && n !== 'write_file') return ''
   try {
     const args = JSON.parse(step.args)
-    if (step.toolName === 'replace_text' && args.find && args.replace) {
-      const a = String(args.find).split('\n').length
-      const b = String(args.replace).split('\n').length
+    if ((n === 'edit' || n === 'replace_text')) {
+      const oldS = String(args.oldString ?? args.find ?? '')
+      const newS = String(args.newString ?? args.replace ?? '')
+      if (!oldS && !newS) return ''
+      const a = oldS.split('\n').length
+      const b = newS.split('\n').length
       const d = b - a
       if (d > 0) return `+${d}`
       if (d < 0) return `${d}`
       return ''
     }
-    if (step.toolName === 'write_file' && args.content) {
+    if ((n === 'write' || n === 'write_file') && args.content) {
       return `+${String(args.content).split('\n').length}`
     }
   } catch { /* ignore */ }
@@ -143,7 +157,30 @@ const reasoningExpanded = ref(false)
 // 接收编辑器发送的文本 → 作为附件 chip
 function onMolingPrefill(e: Event) {
   const detail = (e as CustomEvent).detail
-  if (detail?.text) {
+  if (!detail) return
+  // 工作区图片 / 粘贴类图片
+  if (detail.isImage && detail.imageSrc) {
+    attachedFiles.value.push({
+      name: detail.fileName || '图片',
+      type: 'image/*',
+      content: detail.imageSrc,
+      isImage: true,
+      filePath: detail.filePath
+    } as any)
+    return
+  }
+  if (detail.kind === 'file' || detail.kind === 'folder' || detail.kind === 'image') {
+    attachedFiles.value.push({
+      name: detail.fileName || '文件',
+      type: detail.kind,
+      content: detail.text || `[文件] ${detail.filePath || ''}`,
+      isImage: false,
+      isSelection: false,
+      filePath: detail.filePath
+    } as any)
+    return
+  }
+  if (detail.text) {
     attachedFiles.value.push({
       name: detail.fileName || '选中文本',
       type: 'text/selection',
@@ -156,7 +193,7 @@ function onMolingPrefill(e: Event) {
   }
 }
 
-// 芯片显示标签：文件名 · 类型 · 行号（Codex 风格）
+// 芯片显示标签：统一「名称 · 类型 · 行号」
 function chipLabel(f: typeof attachedFiles.value[0]): string {
   if (f.isSelection) {
     const base = f.name || '选中文本'
@@ -165,9 +202,12 @@ function chipLabel(f: typeof attachedFiles.value[0]): string {
     return `${base} · ${ext}${line}`
   }
   if (f.isImage) {
-    return '剪贴板图片'
+    return f.name?.startsWith?.('剪贴板') ? '剪贴板图片' : (f.name || '图片')
   }
-  return f.name
+  const type = (f as any).type
+  if (type === 'folder') return `${f.name || '目录'} · DIR`
+  const ext = f.filePath ? (f.filePath.split('.').pop() || '').toUpperCase() : (f.name?.split('.').pop() || 'FILE').toUpperCase()
+  return `${f.name || '文件'} · ${ext}`
 }
 
 // 用户消息上方引用标签：精简为 文件名 · 类型 · 行号
@@ -209,6 +249,9 @@ function onPaste(e: ClipboardEvent) {
 async function send() {
   let text = inputText.value.trim()
   if ((!text && attachedFiles.value.length === 0) || aiStore.isThinking) return
+  if (!text && attachedFiles.value.length > 0) {
+    text = '请查看我发送的附件。'
+  }
 
   // 构建文件上下文（告诉 AI 选中文本来自哪个文件）
   let fileContext = ''
@@ -220,9 +263,13 @@ async function send() {
         return `${ctx}：\n\`\`\`\n${f.content}\n\`\`\``
       }
       if (f.isImage) {
-        return `[图片: ${f.name}]\n![](${f.content})`
+        return `[图片: ${f.name}${(f as any).filePath ? ' @ ' + (f as any).filePath : ''}]\n![](${f.content})`
       }
-      return `[文件: ${f.name}]\n\`\`\`\n${f.content.slice(0, 3000)}\n\`\`\``
+      const type = (f as any).type
+      if (type === 'folder') {
+        return `[工作区目录: ${(f as any).filePath || f.name}]`
+      }
+      return `[文件: ${f.name}${(f as any).filePath ? ' @ ' + (f as any).filePath : ''}]\n\`\`\`\n${String(f.content || '').slice(0, 4000)}\n\`\`\``
     })
     const paths = attachedFiles.value
       .filter((f: any) => f.filePath)
@@ -410,9 +457,12 @@ function toggleReasoning() {
 
 function toolLabel(name: string): string {
   const map: Record<string, string> = {
+    read: '读取文件',
     read_file: '读取文件',
+    write: '写入文件',
     write_file: '写入文件',
-    replace_text: '替换文本',
+    edit: '精确替换',
+    replace_text: '精确替换',
     list_files: '列出文件',
     search_project: '搜索项目',
     get_outline: '获取大纲',
@@ -495,15 +545,18 @@ function toggleToolExpand(key: string) {
 
 function toolIconSvg(name: string): string {
   const icons: Record<string, string> = {
+    read: '<rect x="2" y="2" width="10" height="12" rx="1.5" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M5 5h4M5 7.5h4M5 10h3" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>',
     read_file: '<rect x="2" y="2" width="10" height="12" rx="1.5" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M5 5h4M5 7.5h4M5 10h3" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>',
+    write: '<path d="M3 11.5V13h1.5L11.5 6 10 4.5 3 11.5z" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linejoin="round"/>',
     write_file: '<path d="M3 11.5V13h1.5L11.5 6 10 4.5 3 11.5z" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linejoin="round"/>',
+    edit: '<path d="M3 5h6M3 8h4M3 11h5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M10 4l2 2-2 2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>',
     replace_text: '<path d="M3 5h6M3 8h4M3 11h5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M10 4l2 2-2 2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>',
     list_files: '<path d="M2 4h4l1 1.5h5V12H2V4z" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linejoin="round"/>',
     search_project: '<circle cx="6.5" cy="6.5" r="3.5" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M9.5 9.5L12.5 12.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>',
     get_outline: '<path d="M3 4h10M3 7h8M3 10h6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>',
     compile_document: '<path d="M4 3l8 5-8 5V3z" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linejoin="round"/>'
   }
-  return icons[name] || icons.read_file
+  return icons[name] || icons.read
 }
 
 onMounted(() => {
@@ -643,16 +696,16 @@ onUnmounted(() => {
         <!-- AI 消息：无气泡，直接铺开 -->
         <template v-else>
         <div class="msg-plain" :class="{ error: msg.error }">
-          <!-- 思考过程（默认折叠） -->
+          <!-- 思考过程（始终在「已处理」上方） -->
           <div v-if="msg.reasoning" class="reasoning-block" @click="reasoningExpanded = !reasoningExpanded">
             <div class="reasoning-toggle" :class="{ open: reasoningExpanded }">
-              <span class="reasoning-arrow">{{ reasoningExpanded ? '▼' : '▶' }}</span>
-              <span>思考过程（{{ msg.reasoning.length }} 字）</span>
+              <span class="reasoning-label">思考过程（{{ msg.reasoning.length }} 字）</span>
+              <span class="reasoning-chevron" aria-hidden="true">›</span>
             </div>
             <div v-if="reasoningExpanded" class="reasoning-content">{{ msg.reasoning }}</div>
           </div>
 
-          <!-- Agent 执行流：图标列表 -->
+          <!-- Agent 执行流：始终在思考过程下方 -->
           <div v-if="msg.toolSteps && msg.toolSteps.length > 0" class="agent-trace">
             <div class="agent-trace-header" @click="toggleToolExpand('msg-' + msg.id)">
               <span class="trace-chevron">{{ expandedTools.has('msg-' + msg.id) ? '▾' : '▸' }}</span>
@@ -718,50 +771,56 @@ onUnmounted(() => {
       <!-- 流式响应中：无气泡 -->
       <div v-if="aiStore.isThinking || hasStreaming || aiStore.toolSteps.length > 0" class="ai-msg assistant">
         <div class="msg-plain streaming">
-          <!-- 处理中头部：耗时 -->
-          <div class="agent-live-header">
-            <span class="chip-spinner"></span>
-            <span class="trace-label">已处理</span>
-            <span class="trace-duration">{{ formatDuration(streamElapsed) }}</span>
-            <span
-              v-if="aiStore.stepMax > 0"
-              class="trace-steps"
-              :class="{ final: aiStore.stepIsFinal }"
-              :title="aiStore.stepIsFinal ? '已达最大步数，正在收束总结' : `Agent 步进 ${aiStore.stepCurrent}/${aiStore.stepMax}`"
-            >
-              步 {{ aiStore.stepCurrent }}/{{ aiStore.stepMax }}<template v-if="aiStore.stepIsFinal"> · 收束</template>
-            </span>
-          </div>
+          <!-- 顺序固定：思考过程 → 已处理 → 正文（与完成后一致） -->
 
-          <!-- 工具执行列表 -->
-          <div v-if="aiStore.toolSteps.length > 0" class="agent-trace live">
-            <div
-              v-for="s in aiStore.toolSteps"
-              :key="s.id"
-              class="trace-row"
-              :class="{ running: s.status === 'running', failed: s.success === false }"
-            >
-              <span class="trace-row-icon">
-                <span v-if="s.status === 'running'" class="chip-spinner"></span>
-                <svg v-else width="12" height="12" viewBox="0 0 16 16" fill="none" v-html="toolIconSvg(s.toolName)"></svg>
-              </span>
-              <span class="trace-row-text">
-                <span class="trace-action">{{ s.status === 'running' ? toolLabel(s.toolName) + '…' : '已' + toolLabel(s.toolName) }}</span>
-                <code v-if="toolFileLabel(s)" class="trace-file">{{ toolFileLabel(s) }}</code>
-                <span v-if="toolChangeBadge(s)" class="trace-badge" :class="toolChangeBadge(s).startsWith('+') ? 'add' : 'del'">{{ toolChangeBadge(s) }}</span>
-              </span>
-            </div>
-          </div>
-
-          <!-- 思考过程：默认折叠 -->
+          <!-- 思考过程：默认折叠，箭头在标题右侧 -->
           <div v-if="aiStore.streamingReasoning" class="reasoning-block" @click="toggleReasoning">
             <div class="reasoning-toggle" :class="{ open: reasoningExpanded }">
-              <span class="reasoning-arrow">{{ reasoningExpanded ? '▼' : '▶' }}</span>
-              <span>思考中</span>
-              <span class="streaming-dot"></span>
+              <span class="reasoning-label">
+                思考中
+                <span class="streaming-dot"></span>
+              </span>
+              <span class="reasoning-chevron" aria-hidden="true">›</span>
             </div>
             <div v-if="reasoningExpanded" class="reasoning-content streaming-text">{{ aiStore.streamingReasoning }}</div>
           </div>
+
+          <!-- 已处理：始终在思考过程下方 -->
+          <div v-if="aiStore.isThinking || aiStore.toolSteps.length > 0" class="agent-live">
+            <div class="agent-live-header">
+              <span class="chip-spinner"></span>
+              <span class="trace-label">已处理</span>
+              <span class="trace-duration">{{ formatDuration(streamElapsed) }}</span>
+              <span
+                v-if="aiStore.stepMax > 0"
+                class="trace-steps"
+                :class="{ final: aiStore.stepIsFinal }"
+                :title="aiStore.stepIsFinal ? '已达最大步数，正在收束总结' : `Agent 步进 ${aiStore.stepCurrent}/${aiStore.stepMax}`"
+              >
+                步 {{ aiStore.stepCurrent }}/{{ aiStore.stepMax }}<template v-if="aiStore.stepIsFinal"> · 收束</template>
+              </span>
+            </div>
+
+            <div v-if="aiStore.toolSteps.length > 0" class="agent-trace live">
+              <div
+                v-for="s in aiStore.toolSteps"
+                :key="s.id"
+                class="trace-row"
+                :class="{ running: s.status === 'running', failed: s.success === false }"
+              >
+                <span class="trace-row-icon">
+                  <span v-if="s.status === 'running'" class="chip-spinner"></span>
+                  <svg v-else width="12" height="12" viewBox="0 0 16 16" fill="none" v-html="toolIconSvg(s.toolName)"></svg>
+                </span>
+                <span class="trace-row-text">
+                  <span class="trace-action">{{ s.status === 'running' ? toolLabel(s.toolName) + '…' : '已' + toolLabel(s.toolName) }}</span>
+                  <code v-if="toolFileLabel(s)" class="trace-file">{{ toolFileLabel(s) }}</code>
+                  <span v-if="toolChangeBadge(s)" class="trace-badge" :class="toolChangeBadge(s).startsWith('+') ? 'add' : 'del'">{{ toolChangeBadge(s) }}</span>
+                </span>
+              </div>
+            </div>
+          </div>
+
           <div v-if="aiStore.streamingContent" class="msg-md streaming-md" v-html="streamHtml"></div>
           <div v-if="!aiStore.streamingContent && !aiStore.streamingReasoning && aiStore.toolSteps.length === 0" class="thinking-line">
             <span class="streaming-dot"></span> 墨灵思考中…
@@ -792,6 +851,9 @@ onUnmounted(() => {
               <line x1="4" y1="8" x2="8" y2="8" stroke="currentColor" stroke-width="1"/>
             </svg>
             <img v-else-if="f.isImage" :src="f.content" class="chip-thumb-sm" :alt="f.name" />
+            <svg v-else-if="(f as any).type === 'folder'" width="12" height="12" viewBox="0 0 14 14" fill="none">
+              <path d="M2 3.5h3l1 1.2H12v6.3H2V3.5z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/>
+            </svg>
             <svg v-else width="12" height="12" viewBox="0 0 14 14" fill="none">
               <path d="M8 1.5H4a1.5 1.5 0 0 0-1.5 1.5v8A1.5 1.5 0 0 0 4 12.5h6a1.5 1.5 0 0 0 1.5-1.5V5L8 1.5z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/>
               <path d="M8 1.5V5h3.5" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/>
@@ -857,13 +919,19 @@ onUnmounted(() => {
                 />
               </svg>
             </button>
-            <!-- 模型切换 -->
-            <div class="model-switcher" v-if="availableModels.length > 1">
-              <button class="model-badge clickable" @click.stop="showModelMenu = !showModelMenu">
+            <!-- 模型切换 + 思考深度（始终可打开，便于切换深度） -->
+            <div class="model-switcher">
+              <button
+                class="model-badge clickable"
+                :title="`模型 ${aiStore.aiConfig.model || '未配置'} · 思考深度 ${aiStore.aiConfig.reasoningEffort || 'low'}`"
+                @click.stop="showModelMenu = !showModelMenu"
+              >
                 {{ aiStore.aiConfig.model || '未配置' }}
+                <span class="effort-dot" :class="aiStore.aiConfig.reasoningEffort || 'low'"></span>
                 <span class="model-arrow">▾</span>
               </button>
               <div v-if="showModelMenu" class="model-menu">
+                <div class="model-menu-section">模型</div>
                 <button
                   v-for="m in availableModels"
                   :key="m"
@@ -875,11 +943,21 @@ onUnmounted(() => {
                   <span class="model-check" v-else></span>
                   {{ m }}
                 </button>
+                <div class="model-menu-divider"></div>
+                <div class="model-menu-section">思考深度</div>
+                <button
+                  v-for="lv in REASONING_LEVELS"
+                  :key="lv.key"
+                  class="model-menu-item effort-item"
+                  :class="{ active: (aiStore.aiConfig.reasoningEffort || 'low') === lv.key }"
+                  @click="switchReasoning(lv.key)"
+                >
+                  <span class="model-check" v-if="(aiStore.aiConfig.reasoningEffort || 'low') === lv.key">✓</span>
+                  <span class="model-check" v-else></span>
+                  <span class="effort-label">{{ lv.label }}</span>
+                </button>
               </div>
             </div>
-            <span v-else class="model-badge">
-              {{ aiStore.aiConfig.model || '未配置' }}
-            </span>
             <!-- 思考中：发送键变停止键 -->
             <button
               v-if="aiStore.isThinking"
@@ -1111,24 +1189,31 @@ export default {
   gap: 4px;
 }
 
-/* 引用标签：短小圆角 */
+/* 引用标签：与发送框 chip 同规格 + 毛玻璃 */
 .user-ref {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 2px 8px;
-  background: var(--bg-primary);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  font-size: 11px;
+  gap: 4px;
+  height: 20px;
+  max-height: 20px;
+  padding: 0 6px;
+  background: var(--glass-fill);
+  backdrop-filter: blur(12px) saturate(1.4);
+  -webkit-backdrop-filter: blur(12px) saturate(1.4);
+  border: 1px solid var(--glass-stroke);
+  border-radius: 10px;
+  font-size: 10px;
   color: var(--text-tertiary);
-  max-width: fit-content;
+  max-width: 112px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
 }
 .user-ref-text {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
+  max-width: 78px;
+  line-height: 20px;
 }
 /* 用户消息操作按钮 */
 .user-actions {
@@ -1274,49 +1359,100 @@ export default {
 }
 .insert-btn:hover { background: var(--accent-hover); }
 
-/* 思考过程 */
+/* 思考过程：极简折叠条，单箭头在标题右侧 */
 .reasoning-block {
-  margin-bottom: 6px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  overflow: hidden;
+  margin: 0 0 6px;
+  border: none;
+  border-radius: 8px;
   cursor: pointer;
-}
-.reasoning-block:hover {
-  border-color: var(--border-strong);
+  background: transparent;
 }
 .reasoning-toggle {
   display: flex;
   align-items: center;
-  gap: 5px;
-  padding: 5px 8px;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 2px 3px 0;
   font-size: 11px;
   color: var(--text-tertiary);
   user-select: none;
-  background: var(--bg-secondary);
+  background: transparent;
+  line-height: 1.4;
+}
+.reasoning-toggle:hover {
+  color: var(--text-secondary);
 }
 .reasoning-toggle.open {
-  color: var(--accent);
-  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+  border-bottom: none;
 }
-.reasoning-arrow {
-  font-size: 8px;
-  width: 12px;
+.reasoning-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+}
+.reasoning-label .streaming-dot {
+  margin-left: 0;
+}
+/* 单箭头 › 置于右侧；展开时旋转为向下 */
+.reasoning-chevron {
   flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 300;
+  line-height: 1;
+  color: var(--text-tertiary);
+  opacity: 0.75;
+  transition: transform 0.16s ease, opacity 0.16s ease, color 0.16s ease;
+  transform-origin: 50% 50%;
+}
+.reasoning-toggle:hover .reasoning-chevron {
+  opacity: 1;
+  color: var(--text-secondary);
+}
+.reasoning-toggle.open .reasoning-chevron {
+  transform: rotate(90deg);
+  opacity: 0.9;
+  color: var(--accent);
 }
 .reasoning-content {
-  padding: 8px;
+  margin-top: 6px;
+  padding: 8px 10px 8px 10px;
   font-size: 11px;
-  color: var(--text-secondary);
-  line-height: 1.6;
+  color: var(--text-tertiary);
+  line-height: 1.65;
   white-space: pre-wrap;
   word-break: break-word;
-  max-height: 300px;
+  max-height: 220px;
   overflow-y: auto;
-  background: var(--bg-tertiary);
+  background: var(--glass-fill);
+  backdrop-filter: blur(12px) saturate(1.4);
+  -webkit-backdrop-filter: blur(12px) saturate(1.4);
+  border: 1px solid var(--glass-stroke);
+  border-left: 2px solid rgba(37, 99, 235, 0.35);
+  border-radius: 6px;
 }
 .reasoning-content.streaming-text {
-  max-height: 150px;
+  max-height: 140px;
+}
+
+.agent-live {
+  margin: 0 0 6px;
+}
+.agent-live-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0 2px;
+  font-size: 12px;
+  color: var(--text-secondary);
 }
 
 .thinking-line {
@@ -1382,12 +1518,12 @@ export default {
 }
 .input-float-box {
   position: relative;
-  background: rgba(255, 255, 255, 0.8);
+  background: var(--glass-fill);
   backdrop-filter: blur(20px) saturate(1.6);
   -webkit-backdrop-filter: blur(20px) saturate(1.6);
-  border: 1px solid rgba(255, 255, 255, 0.25);
+  border: 1px solid var(--glass-stroke);
   border-radius: 16px;
-  padding: 8px 12px 6px;
+  padding: 6px 10px 6px;
   box-shadow:
     0 4px 24px rgba(0, 0, 0, 0.06),
     0 1px 3px rgba(0, 0, 0, 0.04),
@@ -1396,7 +1532,7 @@ export default {
 }
 [data-theme="dark"] .input-float-box,
 .theme-dark .input-float-box {
-  background: rgba(30, 30, 46, 0.8);
+  background: var(--glass-fill);
   border-color: rgba(255, 255, 255, 0.06);
   box-shadow:
     0 4px 24px rgba(0, 0, 0, 0.25),
@@ -1441,13 +1577,16 @@ export default {
 .model-badge {
   font-size: 10px;
   color: var(--text-tertiary);
-  background: var(--bg-secondary);
+  /* 与发送框/切换弹层统一：毛玻璃 85% */
+  background: var(--glass-fill);
+  backdrop-filter: blur(12px) saturate(1.4);
+  -webkit-backdrop-filter: blur(12px) saturate(1.4);
   padding: 0 8px;
   height: 28px;
   display: flex;
   align-items: center;
   border-radius: 8px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--glass-stroke);
   max-width: 120px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1465,6 +1604,32 @@ export default {
 .model-arrow {
   font-size: 8px;
 }
+.effort-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--text-tertiary);
+}
+.effort-dot.low { background: #10b981; }
+.effort-dot.medium { background: #f59e0b; }
+.effort-dot.high { background: #ef4444; }
+.model-menu-section {
+  padding: 6px 10px 2px;
+  font-size: 10px;
+  color: var(--text-tertiary);
+  letter-spacing: 0.02em;
+}
+.model-menu-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 0;
+  opacity: 0.7;
+}
+.effort-item .effort-label {
+  min-width: 28px;
+  text-align: left;
+}
 .model-switcher {
   position: relative;
 }
@@ -1474,10 +1639,11 @@ export default {
   right: 0;
   left: auto;
   z-index: 100;
-  background: rgba(30, 30, 46, 0.8);
-  backdrop-filter: blur(24px) saturate(1.8);
-  -webkit-backdrop-filter: blur(24px) saturate(1.8);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  /* 统一毛玻璃：--glass-fill 为 85% 不透明度（深/浅主题都走同一变量） */
+  background: var(--glass-fill);
+  backdrop-filter: blur(20px) saturate(1.6);
+  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  border: 1px solid var(--glass-stroke);
   border-radius: 10px;
   box-shadow: var(--shadow-lg);
   min-width: 160px;
@@ -1485,10 +1651,6 @@ export default {
   padding: 3px 0;
   overflow: hidden;
   animation: menuPop 0.14s ease;
-}
-[data-theme="light"] .model-menu {
-  background: rgba(255, 255, 255, 0.8);
-  border-color: rgba(0, 0, 0, 0.08);
 }
 @keyframes menuPop {
   from { opacity: 0; transform: translateY(-4px) scale(0.98); }
@@ -1569,46 +1731,56 @@ export default {
   to { transform: rotate(360deg); }
 }
 
-/* 附件芯片：短小圆角矩形 */
+/* 附件芯片：统一短高度 + 毛玻璃（选中文本/文件/图片同规格） */
 .chips-inside {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-  padding: 6px 10px 0;
+  padding: 4px 8px 0;
+  max-height: 48px;
+  overflow-y: auto;
 }
 .chip-row {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 2px 8px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  font-size: 11px;
+  gap: 4px;
+  height: 20px;
+  max-height: 20px;
+  padding: 0 6px;
+  background: var(--glass-fill);
+  backdrop-filter: blur(12px) saturate(1.4);
+  -webkit-backdrop-filter: blur(12px) saturate(1.4);
+  border: 1px solid var(--glass-stroke);
+  border-radius: 10px;
+  font-size: 10px;
   color: var(--text-secondary);
-  max-width: 160px;
+  max-width: 112px;
   flex-shrink: 0;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
 }
 .chip-row.selection {
-  border-color: var(--accent);
-  background: var(--accent-light);
+  border-color: rgba(37, 99, 235, 0.45);
+  background: rgba(37, 99, 235, 0.14);
   color: var(--accent);
 }
 .chip-thumb-sm {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   object-fit: cover;
-  border-radius: 2px;
+  border-radius: 3px;
   flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.08);
 }
 .chip-row-name {
   min-width: 0;
+  max-width: 72px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--text-primary);
   font-weight: 500;
-  font-size: 11px;
+  font-size: 10px;
+  line-height: 20px;
 }
 .chip-row.selection .chip-row-name {
   color: var(--accent);
@@ -1616,11 +1788,11 @@ export default {
 .chip-row-meta {
   color: var(--text-tertiary);
   flex-shrink: 0;
-  font-size: 10px;
+  font-size: 9px;
 }
 .chip-row-remove {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1632,6 +1804,7 @@ export default {
   cursor: pointer;
   flex-shrink: 0;
   padding: 0;
+  line-height: 1;
 }
 .chip-row-remove:hover {
   background: var(--bg-hover);
@@ -2011,14 +2184,6 @@ export default {
   font-size: 11px;
 }
 .session-del:hover { color: var(--error); }
-.agent-live-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 6px;
-  font-size: 12px;
-  color: var(--text-secondary);
-}
 
 .tool-chip {
   position: relative;

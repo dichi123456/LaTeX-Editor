@@ -6,7 +6,7 @@ import type { CompileMode } from '../stores/compile'
 const compileStore = useCompileStore()
 const compileDoc = inject<(mode?: CompileMode) => Promise<void>>('compileDoc', async () => {})
 
-// 编译模式（记住上次选择）
+// 编译模式（记住上次选择）— 三种方式始终保留在右侧下拉里；左侧不再放三角
 const showCompileMenu = ref(false)
 const compileMode = ref<CompileMode>('quick')
 const MODE_LABELS: Record<CompileMode, string> = {
@@ -14,6 +14,12 @@ const MODE_LABELS: Record<CompileMode, string> = {
   full: '完整编译',
   clean: '从头编译'
 }
+const MODE_SHORT: Record<CompileMode, string> = {
+  quick: '快速',
+  full: '完整',
+  clean: '从头'
+}
+const modeShort = computed(() => MODE_SHORT[compileMode.value])
 
 function runCompile(mode: CompileMode) {
   compileMode.value = mode
@@ -62,7 +68,12 @@ const pageInput = ref<string>('')
 
 let pdfDoc: any = null
 let pageCanvases: HTMLCanvasElement[] = []
+let pageTextLayers: HTMLElement[] = []
 let scrollObserver: IntersectionObserver | null = null
+// 渲染代数：缩放/加载变化时作废未完成任务，避免并发渲染发黑
+let renderGen = 0
+const renderTasks = new Map<number, any>()
+const textRendered = new Set<number>()
 let pdfjs: any = null
 // 当前已加载的 PDF 路径（用于避免重复加载）
 let loadedPath: string | null = null
@@ -131,6 +142,11 @@ async function loadPdf(path: string) {
     await renderAllPages()
     setupScrollTracking()
     await loadOutline()
+    if (containerRef.value) {
+      lastW = containerRef.value.clientWidth
+      lastH = containerRef.value.clientHeight
+    }
+    ensureVisibleTextLayers()
   } catch (err: any) {
     console.error('[PdfViewer] loadPdf error:', err)
     error.value = `无法加载 PDF：${err?.message || err}`
@@ -147,8 +163,19 @@ async function renderAllPages() {
   const container = pagesRef.value
   if (!container) return
 
+  const gen = ++renderGen
+  cancelAllRenders()
+
+  // 先按适配模式算好 scale，再只渲染一遍，避免二次全量重绘导致发黑/卡顿
+  if (fitMode.value === 'width' || fitMode.value === 'page') {
+    await computeFitScale()
+  }
+  if (gen !== renderGen) return
+
   container.innerHTML = ''
   pageCanvases = []
+  pageTextLayers = []
+  textRendered.clear()
 
   for (let i = 1; i <= totalPages.value; i++) {
     const wrapper = document.createElement('div')
@@ -157,71 +184,271 @@ async function renderAllPages() {
     const canvas = document.createElement('canvas')
     canvas.className = 'pdf-page-canvas'
     wrapper.appendChild(canvas)
+    const textLayer = document.createElement('div')
+    textLayer.className = 'textLayer'
+    wrapper.appendChild(textLayer)
     container.appendChild(wrapper)
     pageCanvases.push(canvas)
+    pageTextLayers.push(textLayer)
   }
 
   for (let i = 1; i <= totalPages.value; i++) {
-    await renderPageToCanvas(i)
+    if (gen !== renderGen) return
+    await renderPageToCanvas(i, gen)
+    // 让出主线程，避免连续画页时合成器花屏
+    await new Promise((r) => setTimeout(r, 0))
   }
+  bindTextLayerToggle()
+}
 
-  if (fitMode.value === 'width') {
-    await fitWidth()
+function cancelAllRenders() {
+  for (const task of renderTasks.values()) {
+    try { task?.cancel?.() } catch { /* ignore */ }
+  }
+  renderTasks.clear()
+}
+
+/** 按当前容器尺寸计算适配缩放（不触发重绘） */
+async function computeFitScale() {
+  if (!pdfDoc || !containerRef.value) return
+  try {
+    const page = await pdfDoc.getPage(1)
+    const unscaled = page.getViewport({ scale: 1, rotation: rotation.value })
+    if (fitMode.value === 'width') {
+      const avail = containerRef.value.clientWidth - 24
+      if (avail > 0) scale.value = avail / unscaled.width
+    } else if (fitMode.value === 'page') {
+      const availW = containerRef.value.clientWidth - 24
+      const availH = containerRef.value.clientHeight - 24
+      if (availW > 0 && availH > 0) {
+        scale.value = Math.min(availW / unscaled.width, availH / unscaled.height)
+      }
+    }
+  } catch { /* ignore */ }
+}
+
+/** 渲染文字选中层 — 全局 CSS 保证透明；默认 pointer-events:none 避免干扰显示 */
+const textLayerPending = new Map<number, Promise<void>>()
+const textLayerInstances = new Map<number, any>()
+
+async function renderTextLayer(pageNum: number) {
+  if (textRendered.has(pageNum)) return
+  const existing = textLayerPending.get(pageNum)
+  if (existing) return existing
+
+  const task = (async () => {
+    const textLayerDiv = pageTextLayers[pageNum - 1]
+    const canvas = pageCanvases[pageNum - 1]
+    if (!pdfDoc || !textLayerDiv || !canvas) return
+    const lib = await loadPdfjs()
+    if (!lib?.TextLayer) return
+    const gen = renderGen
+    try {
+      // 先关掉上一实例，避免叠字
+      const prevLayer = textLayerInstances.get(pageNum)
+      if (prevLayer) {
+        try { prevLayer.cancel?.() } catch { /* ignore */ }
+        textLayerInstances.delete(pageNum)
+      }
+      const page = await pdfDoc.getPage(pageNum)
+      if (gen !== renderGen) return
+      const cssW = canvas.clientWidth || parseFloat(canvas.style.width) || 0
+      const cssH = canvas.clientHeight || parseFloat(canvas.style.height) || 0
+      if (cssW < 2 || cssH < 2) return
+      const viewport = page.getViewport({ scale: scale.value, rotation: rotation.value })
+      textLayerDiv.innerHTML = ''
+      textLayerDiv.style.width = `${cssW}px`
+      textLayerDiv.style.height = `${cssH}px`
+      textLayerDiv.style.setProperty('--scale-factor', String(viewport.scale))
+      textLayerDiv.classList.remove('enabled')
+      const source = page.streamTextContent
+        ? page.streamTextContent()
+        : await page.getTextContent()
+      const layer = new lib.TextLayer({
+        textContentSource: source,
+        container: textLayerDiv,
+        viewport
+      })
+      textLayerInstances.set(pageNum, layer)
+      await layer.render()
+      if (gen !== renderGen) {
+        textLayerDiv.innerHTML = ''
+        return
+      }
+      textRendered.add(pageNum)
+    } catch {
+      if (gen === renderGen) {
+        textLayerDiv.innerHTML = ''
+        textRendered.delete(pageNum)
+      }
+    } finally {
+      textLayerPending.delete(pageNum)
+    }
+  })()
+
+  textLayerPending.set(pageNum, task)
+  return task
+}
+
+/** 需要选中文字时开启文字层交互；平时关闭避免脏字/抢事件 */
+function bindTextLayerToggle() {
+  const root = pagesRef.value
+  if (!root) return
+  root.onmousedown = (e: MouseEvent) => {
+    if (e.button !== 0) return
+    // 按住 Alt 或拖选时启用文字层（Ctrl+点击仍走反向同步）
+    if (e.altKey || e.shiftKey) {
+      root.querySelectorAll('.textLayer').forEach((el) => el.classList.add('enabled'))
+    }
+  }
+  // 双击选词：短暂启用文字层
+  root.ondblclick = () => {
+    root.querySelectorAll('.textLayer').forEach((el) => el.classList.add('enabled'))
   }
 }
 
-async function renderPageToCanvas(pageNum: number) {
+async function renderPageToCanvas(pageNum: number, gen: number = renderGen) {
   if (!pdfDoc) return
   const canvas = pageCanvases[pageNum - 1]
   if (!canvas) return
+  const textLayerDiv = pageTextLayers[pageNum - 1] || null
+  const prev = renderTasks.get(pageNum)
+  if (prev) {
+    try { prev.cancel?.() } catch { /* ignore */ }
+    renderTasks.delete(pageNum)
+  }
+  if (textLayerDiv) {
+    textLayerDiv.innerHTML = ''
+    textLayerDiv.classList.remove('enabled')
+    textRendered.delete(pageNum)
+    textLayerInstances.delete(pageNum)
+  }
   try {
     const page = await pdfDoc.getPage(pageNum)
-    const viewport = page.getViewport({ scale: scale.value, rotation: rotation.value })
-    const dpr = window.devicePixelRatio || 1
-    canvas.width = Math.floor(viewport.width * dpr)
-    canvas.height = Math.floor(viewport.height * dpr)
-    canvas.style.width = viewport.width + 'px'
-    canvas.style.height = viewport.height + 'px'
+    if (gen !== renderGen) return
+    const cssViewport = page.getViewport({ scale: scale.value, rotation: rotation.value })
+    const outputScale = Math.min(Math.max(window.devicePixelRatio || 1, 1.5), 2)
+    // 用「渲染视口」直接吃掉 HiDPI，避免 transform 与 css 尺寸不一致导致空白页
+    const renderViewport = page.getViewport({ scale: scale.value * outputScale, rotation: rotation.value })
+    const cssW = Math.max(1, Math.floor(cssViewport.width))
+    const cssH = Math.max(1, Math.floor(cssViewport.height))
+    canvas.width = Math.max(1, Math.floor(renderViewport.width))
+    canvas.height = Math.max(1, Math.floor(renderViewport.height))
+    canvas.style.width = `${cssW}px`
+    canvas.style.height = `${cssH}px`
     const ctx = canvas.getContext('2d')
     if (!ctx) return
     ctx.setTransform(1, 0, 0, 1, 0, 0)
-    ctx.scale(dpr, dpr)
-    await page.render({ canvasContext: ctx, viewport }).promise
-  } catch (err) {
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    const task = page.render({
+      canvasContext: ctx,
+      viewport: renderViewport,
+      background: '#ffffff'
+    })
+    renderTasks.set(pageNum, task)
+    await task.promise
+    if (gen !== renderGen) return
+    renderTasks.delete(pageNum)
+  } catch (err: any) {
+    renderTasks.delete(pageNum)
+    if (err?.name === 'RenderingCancelledException') return
     console.warn(`渲染第 ${pageNum} 页失败:`, err)
+  }
+}
+
+/** 视口附近页面才补文字层，降低卡顿 */
+function ensureVisibleTextLayers() {
+  if (!pagesRef.value || !containerRef.value) return
+  const root = containerRef.value
+  const rootRect = root.getBoundingClientRect()
+  for (let i = 1; i <= totalPages.value; i++) {
+    if (textRendered.has(i)) continue
+    const wrapper = pagesRef.value.querySelector(`[data-page="${i}"]`) as HTMLElement | null
+    if (!wrapper) continue
+    const r = wrapper.getBoundingClientRect()
+    // 与容器相交（略扩展一屏预载）
+    if (r.bottom >= rootRect.top - root.clientHeight && r.top <= rootRect.bottom + root.clientHeight) {
+      void renderTextLayer(i)
+    }
   }
 }
 
 async function fitWidth() {
   if (!pdfDoc || !containerRef.value) return
   fitMode.value = 'width'
-  try {
-    const page = await pdfDoc.getPage(1)
-    const unscaled = page.getViewport({ scale: 1, rotation: rotation.value })
-    const avail = containerRef.value.clientWidth - 24
-    if (avail > 0) scale.value = avail / unscaled.width
-  } catch { /* ignore */ }
-  for (let i = 1; i <= totalPages.value; i++) await renderPageToCanvas(i)
+  await computeFitScale()
+  await rerenderAll()
 }
 
 async function fitPage() {
   if (!pdfDoc || !containerRef.value) return
   fitMode.value = 'page'
-  try {
-    const page = await pdfDoc.getPage(1)
-    const unscaled = page.getViewport({ scale: 1, rotation: rotation.value })
-    const availW = containerRef.value.clientWidth - 24
-    const availH = containerRef.value.clientHeight - 24
-    if (availW > 0 && availH > 0) {
-      scale.value = Math.min(availW / unscaled.width, availH / unscaled.height)
-    }
-  } catch { /* ignore */ }
-  for (let i = 1; i <= totalPages.value; i++) await renderPageToCanvas(i)
+  await computeFitScale()
+  await rerenderAll()
 }
 
-function zoomIn() { fitMode.value = 'custom'; scale.value = Math.min(4, scale.value + 0.15); rerenderAll() }
-function zoomOut() { fitMode.value = 'custom'; scale.value = Math.max(0.3, scale.value - 0.15); rerenderAll() }
-async function rerenderAll() { for (let i = 1; i <= totalPages.value; i++) await renderPageToCanvas(i) }
+function zoomIn() { fitMode.value = 'custom'; scale.value = Math.min(4, scale.value + 0.15); void rerenderAll() }
+function zoomOut() { fitMode.value = 'custom'; scale.value = Math.max(0.3, scale.value - 0.15); void rerenderAll() }
+async function rerenderAll() {
+  const gen = ++renderGen
+  cancelAllRenders()
+  for (let i = 1; i <= totalPages.value; i++) {
+    if (gen !== renderGen) return
+    await renderPageToCanvas(i, gen)
+    await new Promise((r) => setTimeout(r, 0))
+  }
+  if (gen === renderGen) ensureVisibleTextLayers()
+}
+
+/** 当前适配模式下重算缩放（窗口/面板尺寸变化时调用） */
+async function applyFitMode() {
+  if (!pdfDoc || !hasPdf.value || !containerRef.value) return
+  if (fitMode.value === 'width') await fitWidth()
+  else if (fitMode.value === 'page') await fitPage()
+  // custom：保持用户手动缩放比例，不强制改
+}
+
+// 容器尺寸变化（窗口最大化/缩小、分栏拖动、侧栏显隐）→ 自适应重排
+let resizeObserver: ResizeObserver | null = null
+let resizeTimer: ReturnType<typeof setTimeout> | null = null
+let lastW = 0
+let lastH = 0
+
+function onContainerResize() {
+  const el = containerRef.value
+  if (!el || !hasPdf.value || !pdfDoc) return
+  const w = el.clientWidth
+  const h = el.clientHeight
+  if (w < 1 || h < 1) return
+  if (Math.abs(w - lastW) < 4 && Math.abs(h - lastH) < 4) return
+  lastW = w
+  lastH = h
+  if (resizeTimer) clearTimeout(resizeTimer)
+  resizeTimer = setTimeout(() => {
+    void applyFitMode().then(() => ensureVisibleTextLayers())
+  }, 180)
+}
+
+function bindResizeWatch() {
+  resizeObserver?.disconnect()
+  if (!containerRef.value) return
+  lastW = containerRef.value.clientWidth
+  lastH = containerRef.value.clientHeight
+  resizeObserver = new ResizeObserver(() => onContainerResize())
+  resizeObserver.observe(containerRef.value)
+  window.addEventListener('resize', onContainerResize)
+}
+
+function unbindResizeWatch() {
+  resizeObserver?.disconnect()
+  resizeObserver = null
+  if (resizeTimer) {
+    clearTimeout(resizeTimer)
+    resizeTimer = null
+  }
+  window.removeEventListener('resize', onContainerResize)
+}
 
 function rotateLeft() {
   rotation.value = (rotation.value - 90 + 360) % 360
@@ -286,18 +513,22 @@ function outlineClick(item: PdfOutlineItem) {
 function setupScrollTracking() {
   if (scrollObserver) scrollObserver.disconnect()
   if (!pagesRef.value) return
+  bindTextLayerToggle()
   scrollObserver = new IntersectionObserver(
     (entries) => {
       for (const entry of entries) {
         if (entry.isIntersecting) {
-          currentPage.value = parseInt((entry.target as HTMLElement).dataset.page || '1', 10)
+          const pageNum = parseInt((entry.target as HTMLElement).dataset.page || '1', 10)
+          currentPage.value = pageNum
           pageInput.value = String(currentPage.value)
+          void renderTextLayer(pageNum)
         }
       }
     },
-    { root: containerRef.value, threshold: 0.35 }
+    { root: containerRef.value, threshold: 0.2 }
   )
   pagesRef.value.querySelectorAll('.pdf-page-wrapper').forEach((w) => scrollObserver!.observe(w))
+  ensureVisibleTextLayers()
 }
 
 function scrollToPage(pageNum: number) {
@@ -481,11 +712,14 @@ watch(
 onMounted(() => {
   window.addEventListener('synctex-goto-pdf', onSyncTexGotoPdf)
   document.addEventListener('click', closeCompileMenu)
+  bindResizeWatch()
+  bindTextLayerToggle()
 })
 
 onUnmounted(() => {
   window.removeEventListener('synctex-goto-pdf', onSyncTexGotoPdf)
   document.removeEventListener('click', closeCompileMenu)
+  unbindResizeWatch()
   if (scrollObserver) scrollObserver.disconnect()
 })
 </script>
@@ -522,23 +756,23 @@ onUnmounted(() => {
     <!-- 悬浮毛玻璃工具栏（不与编辑器共用） -->
     <div class="pdf-stage">
       <div class="pdf-toolbar glass-toolbar">
-      <!-- 编译：主按钮直接编译，箭头改模式 -->
+      <!-- 编译：主按钮=编译；右侧「模式 ▾」可切换三种方式（无左侧三角） -->
       <div class="compile-dropdown">
         <button
           class="compile-main-btn"
           :disabled="compileStore.isCompiling"
+          :title="`编译 · 当前模式：${MODE_LABELS[compileMode]}`"
           @click.stop="compileWithCurrent"
         >
           <span v-if="compileStore.isCompiling" class="compile-spin">⟳</span>
-          <span v-else class="compile-icon">▶</span>
-          {{ compileStore.isCompiling ? (compileStore.compileProgress || '…') : MODE_LABELS[compileMode] }}
+          {{ compileStore.isCompiling ? (compileStore.compileProgress || '…') : '编译' }}
         </button>
         <button
           class="compile-arrow-btn"
           :disabled="compileStore.isCompiling"
-          title="选择编译模式"
+          :title="`编译模式：${MODE_LABELS[compileMode]}（快速 / 完整 / 从头）`"
           @click.stop="toggleCompileMenu"
-        >▾</button>
+        >{{ modeShort }} ▾</button>
         <div v-if="showCompileMenu" class="compile-menu">
           <button class="menu-item" @click="runCompile('quick')">
             <span class="menu-check">{{ compileMode === 'quick' ? '✓' : '' }}</span>
@@ -547,12 +781,12 @@ onUnmounted(() => {
           <div class="menu-divider"></div>
           <button class="menu-item" @click="runCompile('full')">
             <span class="menu-check">{{ compileMode === 'full' ? '✓' : '' }}</span>
-            <span class="menu-label">完整编译（bibtex）</span>
+            <span class="menu-label">完整编译</span>
           </button>
           <div class="menu-divider"></div>
           <button class="menu-item" @click="runCompile('clean')">
             <span class="menu-check">{{ compileMode === 'clean' ? '✓' : '' }}</span>
-            <span class="menu-label">从头编译（清理）</span>
+            <span class="menu-label">从头编译</span>
           </button>
         </div>
       </div>
@@ -756,10 +990,10 @@ onUnmounted(() => {
   flex-direction: column;
 }
 
-/* 工具栏定位/毛玻璃见全局 .glass-toolbar */
+/* 工具栏定位/毛玻璃见全局 .glass-toolbar — 不可 overflow:hidden，否则编译下拉菜单被裁掉 */
 .pdf-toolbar {
   flex-wrap: wrap;
-  overflow: hidden;
+  overflow: visible;
 }
 .toolbar-sep {
   width: 1px;
@@ -797,7 +1031,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 4px 6px;
+  padding: 4px 8px;
   background: rgba(37, 99, 235, 0.8);
   backdrop-filter: blur(14px) saturate(1.6);
   -webkit-backdrop-filter: blur(14px) saturate(1.6);
@@ -805,8 +1039,9 @@ onUnmounted(() => {
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-left: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-  font-size: 10px;
+  font-size: 11px;
   cursor: pointer;
+  white-space: nowrap;
   transition: background 0.15s, border-color 0.15s;
 }
 .compile-arrow-btn:hover:not(:disabled) {
@@ -822,19 +1057,15 @@ onUnmounted(() => {
   top: calc(100% + 4px);
   left: 0;
   z-index: 100;
-  background: rgba(30, 30, 46, 0.8);
+  background: var(--glass-fill);
   backdrop-filter: blur(20px) saturate(1.6);
   -webkit-backdrop-filter: blur(20px) saturate(1.6);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--glass-stroke);
   border-radius: 10px;
   box-shadow: var(--shadow-lg);
   min-width: 180px;
   overflow: hidden;
   animation: menuPop 0.14s ease;
-}
-[data-theme="light"] .compile-menu {
-  background: rgba(255, 255, 255, 0.8);
-  border-color: rgba(0, 0, 0, 0.06);
 }
 @keyframes menuPop {
   from { opacity: 0; transform: translateY(-4px) scale(0.98); }
@@ -995,18 +1226,79 @@ onUnmounted(() => {
   min-width: 100%;
   margin: 0 auto;
 }
-.pdf-page-wrapper { position: relative; flex-shrink: 0; line-height: 0; cursor: default; }
-.pdf-page-canvas {
+.pdf-status { margin-top: 40px; color: var(--text-secondary); text-align: center; font-size: 13px; }
+.pdf-status.error { color: var(--error); }
+.pdf-status.empty .hint { font-size: 12px; color: var(--text-tertiary); margin-top: 8px; }
+</style>
+
+<style>
+/* PDF 页面是 JS 动态创建的，scoped 选择器匹配不到，必须放在全局样式里 */
+.pdf-page-wrapper {
+  position: relative;
+  flex-shrink: 0;
+  line-height: 0;
+  cursor: default;
+  background: #fff !important;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  background: #fff;
+  overflow: hidden;
+}
+.pdf-page-canvas {
+  background: #fff !important;
   display: block;
-  /* 放大后允许横向溢出出现滚动条 */
   max-width: none;
   pointer-events: auto;
   user-select: none;
   -webkit-user-select: none;
+  position: relative;
+  z-index: 1;
 }
-.pdf-status { margin-top: 40px; color: var(--text-secondary); text-align: center; font-size: 13px; }
-.pdf-status.error { color: var(--error); }
-.pdf-status.empty .hint { font-size: 12px; color: var(--text-tertiary); margin-top: 8px; }
+.pdf-page-wrapper > .textLayer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  line-height: 1;
+  z-index: 2;
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: text;
+  opacity: 1;
+  pointer-events: auto;
+  background: transparent !important;
+  forced-color-adjust: none;
+  transform-origin: 0 0;
+}
+.pdf-page-wrapper > .textLayer span,
+.pdf-page-wrapper > .textLayer .markedContent,
+.pdf-page-wrapper > .textLayer .endOfContent,
+.pdf-page-wrapper > .textLayer br {
+  color: transparent !important;
+  background: transparent !important;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  outline: none !important;
+  border: none !important;
+  opacity: 1;
+}
+.pdf-page-wrapper > .textLayer .endOfContent {
+  display: block;
+  left: 0 !important;
+  top: 100% !important;
+  right: 0;
+  bottom: 0;
+  z-index: -1;
+  cursor: default;
+  user-select: none;
+  pointer-events: none;
+}
+.pdf-page-wrapper > .textLayer ::selection {
+  background: rgba(37, 99, 235, 0.35);
+  color: transparent;
+}
 </style>

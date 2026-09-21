@@ -295,7 +295,7 @@ function shortPath(path: string): string {
   padding: 12px 14px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--radius);
-  background: rgba(30, 30, 46, 0.8);
+  background: var(--glass-fill);
   backdrop-filter: blur(20px) saturate(1.6);
   -webkit-backdrop-filter: blur(20px) saturate(1.6);
   cursor: pointer;
@@ -304,15 +304,15 @@ function shortPath(path: string): string {
 }
 .tpl-entry:hover {
   border-color: var(--accent);
-  background: rgba(30, 30, 46, 0.8);
+  background: var(--glass-fill);
   box-shadow: 0 2px 16px rgba(0, 0, 0, 0.08);
 }
 [data-theme="light"] .tpl-entry {
-  background: rgba(255, 255, 255, 0.8);
+  background: var(--glass-fill);
   border-color: rgba(0, 0, 0, 0.06);
 }
 [data-theme="light"] .tpl-entry:hover {
-  background: rgba(255, 255, 255, 0.8);
+  background: var(--glass-fill);
 }
 .tpl-entry-icon {
   font-size: 22px;
@@ -551,7 +551,7 @@ function shortPath(path: string): string {
 .welcome-ctx {
   position: fixed;
   z-index: 10000;
-  background: rgba(30, 30, 46, 0.8);
+  background: var(--glass-fill);
   backdrop-filter: blur(20px) saturate(1.6);
   -webkit-backdrop-filter: blur(20px) saturate(1.6);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -562,7 +562,7 @@ function shortPath(path: string): string {
   animation: menuPop 0.14s ease;
 }
 [data-theme="light"] .welcome-ctx {
-  background: rgba(255, 255, 255, 0.8);
+  background: var(--glass-fill);
   border-color: rgba(0, 0, 0, 0.06);
 }
 @keyframes menuPop {

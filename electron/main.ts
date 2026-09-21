@@ -2,7 +2,6 @@ import { app, BrowserWindow, ipcMain, dialog, shell, Notification, Menu, nativeI
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import * as path from 'path'
-
 import { detectTexLive, getEnginePath } from './texlive'
 import { compileDocument, cancelCompile, isCompiling, cleanAuxFiles, runBibtex } from './compiler'
 import { synctexForward, synctexBackward } from './synctex'
@@ -26,6 +25,9 @@ import {
   addRecentWorkspace
 } from './file'
 
+// GPU 合成在部分 Windows 机型上会让 PDF canvas 隔页发黑/花屏，启动前关闭
+app.disableHardwareAcceleration()
+
 let mainWindow: BrowserWindow | null = null
 
 function createWindow(): void {
@@ -44,7 +46,8 @@ function createWindow(): void {
       preload: join(__dirname, '../preload/preload.js'),
       sandbox: false,
       contextIsolation: true,
-      nodeIntegration: false
+      nodeIntegration: false,
+      backgroundThrottling: false
     }
   })
 
@@ -188,7 +191,8 @@ function sendMenu(action: string): void {
 
 // TeX Live
 ipcMain.handle('detect-texlive', async () => {
-  return detectTexLive()
+  const config = await loadConfig()
+  return detectTexLive(config.texlivePath || null)
 })
 
 // 编译
@@ -615,6 +619,7 @@ ipcMain.handle('ai-chat', async (_event, options: {
   model: string
   messages: Array<{ role: string; content: string }>
   temperature?: number
+  reasoningEffort?: 'low' | 'medium' | 'high'
   workspaceRoot?: string | null
   texlivePath?: string | null
   enableTools?: boolean
@@ -623,14 +628,18 @@ ipcMain.handle('ai-chat', async (_event, options: {
 }) => {
   const {
     apiKey, apiBase, model, messages,
-    temperature = 0.7,
+    temperature = 0.2,
+    reasoningEffort,
     workspaceRoot, texlivePath: tlPath,
     enableTools = true, permissionMode = 'full',
     maxSteps
   } = options
 
   if (workspaceRoot) setWorkspace(workspaceRoot)
-  if (tlPath) setTexlivePath(tlPath)
+  // Always keep AI tools' TeX Live path in sync (options → saved config)
+  const cfgForAi = await loadConfig()
+  const effectiveTl = tlPath || cfgForAi.texlivePath || null
+  if (effectiveTl) setTexlivePath(effectiveTl)
 
   aiAbortController = new AbortController()
   const signal = aiAbortController.signal
@@ -642,6 +651,7 @@ ipcMain.handle('ai-chat', async (_event, options: {
       model,
       messages: messages as any[],
       temperature,
+      reasoningEffort,
       enableTools,
       permissionMode,
       maxSteps,

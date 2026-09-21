@@ -6,6 +6,7 @@ release/
 Thumbs.db
 截图/
 知乎发布/
+.pdf-test/
 
 # build/export artifacts
 .export-build/

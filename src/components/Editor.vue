@@ -1317,7 +1317,7 @@ onUnmounted(() => {
   left: calc(36px + 14px + 1px + 8px);
   right: 10px;
   z-index: 50;
-  background: var(--glass-fill, rgba(30, 30, 46, 0.8));
+  background: var(--glass-fill);
   backdrop-filter: blur(14px) saturate(1.4);
   -webkit-backdrop-filter: blur(14px) saturate(1.4);
   border: 1px solid var(--glass-stroke, rgba(255, 255, 255, 0.1));
@@ -1427,7 +1427,7 @@ onUnmounted(() => {
 .editor-ctx-menu {
   position: fixed;
   z-index: 10000;
-  background: rgba(30, 30, 46, 0.8);
+  background: var(--glass-fill);
   backdrop-filter: blur(20px) saturate(1.6);
   -webkit-backdrop-filter: blur(20px) saturate(1.6);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -1438,7 +1438,7 @@ onUnmounted(() => {
   animation: menuPop 0.14s ease;
 }
 [data-theme="light"] .editor-ctx-menu {
-  background: rgba(255, 255, 255, 0.8);
+  background: var(--glass-fill);
   border-color: rgba(0, 0, 0, 0.06);
 }
 @keyframes menuPop {

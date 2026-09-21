@@ -86,6 +86,8 @@ onMounted(async () => {
         window.dispatchEvent(new CustomEvent('reload-tab', { detail: { tabId: tab.id, content } }))
       } catch { /* ignore */ }
     }
+    // AI may create sibling files (figures, .bib, .sty) — keep tree in sync
+    window.dispatchEvent(new CustomEvent('refresh-file-tree'))
   })
 
   const offRequestCompile = () => {
@@ -474,6 +476,8 @@ async function openFolder() {
   } else {
     compileStore.appendLiveLog(`[工作区] 已在下方添加项目：${path}\n`)
   }
+  // 进入项目后自动打开主 tex
+  await openMainTexForProject(path)
 }
 
 async function save(): Promise<boolean> {
@@ -541,13 +545,13 @@ async function compileDoc(mode: CompileMode = 'quick') {
   try {
     const { content } = await window.electronAPI.readFile(mainPath)
     const head = content.slice(0, 1200)
-    if (/\\documentclass[^%]*\{[^}]*IEEEtran\}/.test(head) || /elsarticle/.test(head)) {
+    if (/\\documentclass[^%]*\{[^}]*IEEEtran\}/i.test(head) || /\\documentclass[^%]*\{[^}]*elsarticle\}/i.test(head) || /\belsarticle\b/.test(head)) {
       engine = 'pdflatex'
     } else if (
-      /\\documentclass[^%]*\{[^}]*ctex/.test(head) ||
+      /\\documentclass[^%]*\{[^}]*ctex/i.test(head) ||
       /cumcmthesis/.test(head) ||
       /\\setCJKmainfont/.test(head) ||
-      /\\usepackage\{ctex\}/.test(head)
+      /\\usepackage(\[[^\]]*\])?\{ctex\}/.test(head)
     ) {
       engine = 'xelatex'
     } else if (/\\documentclass[^%]*\{article\}/.test(head) || /Wiley/i.test(head)) {
@@ -642,15 +646,19 @@ async function onSyncTexBackward(e: CustomEvent) {
 }
 
 function onSendToMoling(e: CustomEvent) {
-  const { text, filePath, fileName, lineRange } = e.detail || {}
-  if (!text) return
+  const { text, filePath, fileName, lineRange, kind, isImage, imageSrc } = e.detail || {}
+  // 文件树右键：text 可能已在 detail 里；仅当两者都空时忽略
+  if (!text && !filePath && !fileName && !imageSrc) return
   showAi.value = true
   window.dispatchEvent(new CustomEvent('moling-prefill', {
     detail: {
-      text,
+      text: text || (filePath ? `[文件] ${filePath}` : ''),
       filePath: filePath || docStore.mainTexPath || docStore.activeTab?.path || '',
       fileName: fileName || '选中文本',
-      lineRange
+      lineRange,
+      kind: kind || (lineRange || text?.includes?.('选中') ? 'selection' : 'file'),
+      isImage: !!isImage,
+      imageSrc
     }
   }))
 }
@@ -778,9 +786,40 @@ watch(
   }
 )
 
-// 起始页里打开最近工作区等事件
-function onWorkspaceOpened() {
+/** 在项目目录中查找主 tex：main.tex → 与目录同名 .tex → 根下第一个 .tex */
+async function findMainTexInDir(dir: string): Promise<string | null> {
+  try {
+    const entries = await window.electronAPI.listDir(dir)
+    const texFiles = entries.filter((e) => !e.isDirectory && /\.tex$/i.test(e.name))
+    const main = texFiles.find((e) => /^main\.tex$/i.test(e.name))
+    if (main) return main.path
+    const folderName = dir.split(/[\\/]/).pop() || ''
+    const sameName = texFiles.find((e) => e.name.replace(/\.tex$/i, '') === folderName)
+    if (sameName) return sameName.path
+    return texFiles[0]?.path || null
+  } catch {
+    return null
+  }
+}
+
+/** 进入项目后自动在 TeX 区打开主文档 */
+async function openMainTexForProject(dir: string): Promise<void> {
+  const mainTex = await findMainTexInDir(dir)
+  if (!mainTex) return
+  showSidebar.value = true
   forceWelcome.value = false
+  await docStore.openFile(mainTex)
+  docStore.setMainTex(mainTex)
+  window.dispatchEvent(new CustomEvent('refresh-file-tree'))
+}
+
+// 起始页里打开最近工作区等事件
+async function onWorkspaceOpened(e: CustomEvent) {
+  forceWelcome.value = false
+  showSidebar.value = true
+  const path = (e as any)?.detail?.path as string | undefined
+  const root = path || docStore.projectRoot
+  if (root) await openMainTexForProject(root)
 }
 
 function goWelcome() {
@@ -1320,7 +1359,7 @@ function onToolbarGlobalKeydown(e: KeyboardEvent) {
   flex-shrink: 0;
   min-width: 160px;
   max-width: 400px;
-  background: var(--glass-fill, rgba(30, 30, 46, 0.8));
+  background: var(--glass-fill);
   backdrop-filter: blur(16px) saturate(1.5);
   -webkit-backdrop-filter: blur(16px) saturate(1.5);
   border-right: 1px solid var(--glass-stroke, var(--border));
@@ -1488,7 +1527,7 @@ function onToolbarGlobalKeydown(e: KeyboardEvent) {
   top: calc(100% + 2px);
   left: 0;
   min-width: 220px;
-  background: rgba(30, 30, 46, 0.8);
+  background: var(--glass-fill);
   backdrop-filter: blur(20px) saturate(1.6);
   -webkit-backdrop-filter: blur(20px) saturate(1.6);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -1502,7 +1541,7 @@ function onToolbarGlobalKeydown(e: KeyboardEvent) {
   animation: menuPop 0.14s ease;
 }
 [data-theme="light"] .menu-dropdown {
-  background: rgba(255, 255, 255, 0.8);
+  background: var(--glass-fill);
   border-color: rgba(0, 0, 0, 0.06);
 }
 @keyframes menuPop {
@@ -1562,7 +1601,7 @@ function onToolbarGlobalKeydown(e: KeyboardEvent) {
   left: 100%;
   min-width: 240px;
   margin-left: 2px;
-  background: rgba(30, 30, 46, 0.8);
+  background: var(--glass-fill);
   backdrop-filter: blur(24px) saturate(1.8);
   -webkit-backdrop-filter: blur(24px) saturate(1.8);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -1571,7 +1610,7 @@ function onToolbarGlobalKeydown(e: KeyboardEvent) {
   animation: menuPop 0.14s ease;
 }
 [data-theme="light"] .menu-dropdown.submenu {
-  background: rgba(255, 255, 255, 0.8);
+  background: var(--glass-fill);
   border-color: rgba(0, 0, 0, 0.08);
 }
 .menu-empty {
@@ -1741,7 +1780,7 @@ function onToolbarGlobalKeydown(e: KeyboardEvent) {
   flex-shrink: 0;
   min-width: 160px;
   max-width: 400px;
-  background: var(--glass-fill, rgba(30, 30, 46, 0.8));
+  background: var(--glass-fill);
   backdrop-filter: blur(16px) saturate(1.5);
   -webkit-backdrop-filter: blur(16px) saturate(1.5);
   border-color: var(--glass-stroke, var(--border));
@@ -1894,7 +1933,7 @@ function onToolbarGlobalKeydown(e: KeyboardEvent) {
   left: calc(36px + 14px + 1px + 8px);
   right: 10px;
   z-index: 50;
-  background: var(--glass-fill, rgba(30, 30, 46, 0.8));
+  background: var(--glass-fill);
   backdrop-filter: blur(14px) saturate(1.4);
   -webkit-backdrop-filter: blur(14px) saturate(1.4);
   border: 1px solid var(--glass-stroke, rgba(255, 255, 255, 0.1));
