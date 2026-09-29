@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted, nextTick, inject, computed } from 'vue'
+import { ref, watch, onMounted, onUnmounted, nextTick, inject } from 'vue'
 import { useCompileStore } from '../stores/compile'
 import type { CompileMode } from '../stores/compile'
 
@@ -14,12 +14,6 @@ const MODE_LABELS: Record<CompileMode, string> = {
   full: '完整编译',
   clean: '从头编译'
 }
-const MODE_SHORT: Record<CompileMode, string> = {
-  quick: '快速',
-  full: '完整',
-  clean: '从头'
-}
-const modeShort = computed(() => MODE_SHORT[compileMode.value])
 
 function runCompile(mode: CompileMode) {
   compileMode.value = mode
@@ -350,9 +344,11 @@ async function renderPageToCanvas(pageNum: number, gen: number = renderGen) {
     await task.promise
     if (gen !== renderGen) return
     renderTasks.delete(pageNum)
+    canvas.parentElement?.classList.add('is-ready')
   } catch (err: any) {
     renderTasks.delete(pageNum)
     if (err?.name === 'RenderingCancelledException') return
+    canvas.parentElement?.classList.add('is-ready')
     console.warn(`渲染第 ${pageNum} 页失败:`, err)
   }
 }
@@ -756,23 +752,30 @@ onUnmounted(() => {
     <!-- 悬浮毛玻璃工具栏（不与编辑器共用） -->
     <div class="pdf-stage">
       <div class="pdf-toolbar glass-toolbar">
-      <!-- 编译：主按钮=编译；右侧「模式 ▾」可切换三种方式（无左侧三角） -->
+      <!-- 编译：固定 75% 编译 + 25% 下拉三角；进度不改按钮文案 -->
       <div class="compile-dropdown">
         <button
           class="compile-main-btn"
           :disabled="compileStore.isCompiling"
-          :title="`编译 · 当前模式：${MODE_LABELS[compileMode]}`"
+          :title="compileStore.isCompiling
+            ? (compileStore.compileProgress || '编译中…')
+            : `编译 · ${MODE_LABELS[compileMode]}`"
           @click.stop="compileWithCurrent"
         >
-          <span v-if="compileStore.isCompiling" class="compile-spin">⟳</span>
-          {{ compileStore.isCompiling ? (compileStore.compileProgress || '…') : '编译' }}
+          <span v-if="compileStore.isCompiling" class="compile-spin" aria-hidden="true"></span>
+          <span v-else class="compile-label">编译</span>
         </button>
         <button
           class="compile-arrow-btn"
           :disabled="compileStore.isCompiling"
-          :title="`编译模式：${MODE_LABELS[compileMode]}（快速 / 完整 / 从头）`"
+          :title="`编译模式：${MODE_LABELS[compileMode]}`"
+          aria-label="选择编译模式"
           @click.stop="toggleCompileMenu"
-        >{{ modeShort }} ▾</button>
+        >
+          <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+            <path d="M2 3.5 L5 6.5 L8 3.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
         <div v-if="showCompileMenu" class="compile-menu">
           <button class="menu-item" @click="runCompile('quick')">
             <span class="menu-check">{{ compileMode === 'quick' ? '✓' : '' }}</span>
@@ -1003,55 +1006,111 @@ onUnmounted(() => {
   opacity: 0.7;
 }
 
-/* 编译：毛玻璃主按钮 + 箭头分体 */
-.compile-dropdown { position: relative; flex-shrink: 0; display: flex; }
-.compile-main-btn {
+/* 编译：固定总宽；严格 75% 编译 + 25% 下拉三角（覆盖 .pdf-toolbar button 的 min-width） */
+.compile-dropdown {
+  position: relative;
+  flex-shrink: 0;
   display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 4px 10px;
+  width: 72px;
+  min-width: 72px;
+  max-width: 72px;
+  height: 26px;
+}
+.compile-dropdown > .compile-main-btn,
+.compile-dropdown > .compile-arrow-btn {
+  min-width: 0 !important;
+  max-width: none;
+  height: 100% !important;
+  padding: 0 !important;
+  margin: 0;
+  box-sizing: border-box;
+  overflow: hidden;
   background: rgba(37, 99, 235, 0.8);
   backdrop-filter: blur(14px) saturate(1.6);
   -webkit-backdrop-filter: blur(14px) saturate(1.6);
   color: #fff;
   border: 1px solid rgba(255, 255, 255, 0.18);
-  border-right: none;
-  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+  border-radius: 0;
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  transition:
+    background var(--dur-fast, 140ms) var(--ease-soft, ease),
+    border-color var(--dur-fast, 140ms) var(--ease-soft, ease),
+    opacity var(--dur-fast, 140ms) var(--ease-soft, ease);
+  white-space: nowrap;
+  flex: none;
 }
-.compile-main-btn:hover:not(:disabled) {
-  background: rgba(37, 99, 235, 0.8);
-  border-color: rgba(255, 255, 255, 0.28);
-}
-.compile-main-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-.compile-arrow-btn {
+.compile-dropdown > .compile-main-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 4px 8px;
-  background: rgba(37, 99, 235, 0.8);
-  backdrop-filter: blur(14px) saturate(1.6);
-  -webkit-backdrop-filter: blur(14px) saturate(1.6);
-  color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  width: 75%;
+  border-right: none;
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+}
+.compile-dropdown > .compile-arrow-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 25%;
   border-left: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-  font-size: 11px;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: background 0.15s, border-color 0.15s;
+  font-size: 0;
+  line-height: 0;
 }
+.compile-main-btn .compile-label {
+  display: inline-block;
+  text-align: center;
+  white-space: nowrap;
+  line-height: 1;
+}
+.compile-main-btn:hover:not(:disabled),
 .compile-arrow-btn:hover:not(:disabled) {
   background: rgba(37, 99, 235, 0.8);
   border-color: rgba(255, 255, 255, 0.28);
 }
-.compile-arrow-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-.compile-icon { font-size: 10px; }
-.compile-spin { display: inline-block; animation: spin 1s linear infinite; font-size: 12px; }
-@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.compile-main-btn:disabled,
+.compile-arrow-btn:disabled { opacity: 0.65; cursor: not-allowed; }
+.compile-arrow-btn svg {
+  display: block;
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  pointer-events: none;
+}
+/* 编译中：圆环扫光，居中于 3/4 区域 */
+.compile-spin {
+  position: relative;
+  display: block;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.22);
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.18);
+}
+.compile-spin::before {
+  content: '';
+  position: absolute;
+  inset: -1.5px;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    transparent 40deg,
+    #fff 100deg,
+    #fff 180deg,
+    transparent 200deg,
+    transparent 360deg
+  );
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2.4px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2.4px));
+  animation: compile-ring 0.85s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+}
+@keyframes compile-ring {
+  to { transform: rotate(360deg); }
+}
 .compile-menu {
   position: absolute;
   top: calc(100% + 4px);
@@ -1065,11 +1124,7 @@ onUnmounted(() => {
   box-shadow: var(--shadow-lg);
   min-width: 180px;
   overflow: hidden;
-  animation: menuPop 0.14s ease;
-}
-@keyframes menuPop {
-  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+  animation: softPop var(--dur-base, 180ms) var(--ease-out, ease);
 }
 .menu-item {
   display: flex;
@@ -1226,7 +1281,13 @@ onUnmounted(() => {
   min-width: 100%;
   margin: 0 auto;
 }
-.pdf-status { margin-top: 40px; color: var(--text-secondary); text-align: center; font-size: 13px; }
+.pdf-status {
+  margin-top: 40px;
+  color: var(--text-secondary);
+  text-align: center;
+  font-size: 13px;
+  animation: softIn var(--dur-base, 180ms) var(--ease-out, ease);
+}
 .pdf-status.error { color: var(--error); }
 .pdf-status.empty .hint { font-size: 12px; color: var(--text-tertiary); margin-top: 8px; }
 </style>
@@ -1241,6 +1302,15 @@ onUnmounted(() => {
   background: #fff !important;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   overflow: hidden;
+  opacity: 0;
+  transform: translateY(6px);
+  transition:
+    opacity var(--dur-slow, 220ms) var(--ease-out, ease),
+    transform var(--dur-slow, 220ms) var(--ease-out, ease);
+}
+.pdf-page-wrapper.is-ready {
+  opacity: 1;
+  transform: translateY(0);
 }
 .pdf-page-canvas {
   background: #fff !important;

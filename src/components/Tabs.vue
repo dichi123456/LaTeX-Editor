@@ -132,7 +132,12 @@ function onDragEnd() {
   max-width: 180px;
   min-width: 60px;
   flex-shrink: 0;
-  transition: background 0.1s, color 0.1s, opacity 0.15s;
+  transition:
+    background var(--dur-base) var(--ease-out),
+    color var(--dur-base) var(--ease-out),
+    border-color var(--dur-base) var(--ease-out),
+    opacity var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
 }
 .tab-item:hover {
   background: var(--bg-hover);
@@ -143,6 +148,9 @@ function onDragEnd() {
   color: var(--text-primary);
   border-bottom: 2px solid var(--accent);
   font-weight: 500;
+}
+.tab-item:not(.active):active {
+  transform: translateY(1px);
 }
 .tab-item.dragging {
   opacity: 0.4;

@@ -40,6 +40,19 @@ interface Window {
     isCompiling: () => Promise<boolean>
     cleanAuxFiles: (mainPath: string) => Promise<string[]>
     runBibtex: (mainPath: string, texlivePath: string | null) => Promise<{ success: boolean; log: string }>
+    zoteroStatus: () => Promise<{ ok: boolean; hasBBT: boolean; message: string; itemCount?: number }>
+    zoteroCollections: () => Promise<{ success: boolean; error?: string; items: Array<{ key: string; name: string; numItems?: number }> }>
+    zoteroSearch: (payload: { query?: string; limit?: number; collectionKey?: string }) => Promise<{
+      success: boolean
+      error?: string
+      items: Array<{ key: string; title: string; authors: string; year: string; venue: string; itemType: string; citeKey: string }>
+    }>
+    zoteroBibtex: (keys: string[]) => Promise<{
+      success: boolean
+      error?: string
+      map: Record<string, { citeKey: string; bibtex: string }>
+    }>
+    zoteroExportBib: () => Promise<{ bib: string; count: number; error?: string }>
     synctexForward: (texPath: string, line: number, pdfPath: string, texlivePath: string | null) => Promise<{
       success: boolean
       page: number | null

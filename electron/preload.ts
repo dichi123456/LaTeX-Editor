@@ -47,6 +47,18 @@ const api = {
   cleanAuxFiles: (mainPath: string): Promise<string[]> => ipcRenderer.invoke('clean-aux', mainPath),
   runBibtex: (mainPath: string, texlivePath: string | null): Promise<{ success: boolean; log: string }> =>
     ipcRenderer.invoke('run-bibtex', mainPath, texlivePath),
+
+  // Zotero 本地 API
+  zoteroStatus: (): Promise<{ ok: boolean; hasBBT: boolean; message: string; itemCount?: number }> =>
+    ipcRenderer.invoke('zotero-status'),
+  zoteroCollections: (): Promise<{ success: boolean; error?: string; items: Array<{ key: string; name: string; numItems?: number }> }> =>
+    ipcRenderer.invoke('zotero-collections'),
+  zoteroSearch: (payload: { query?: string; limit?: number; collectionKey?: string }): Promise<{ success: boolean; error?: string; items: Array<{ key: string; title: string; authors: string; year: string; venue: string; itemType: string; citeKey: string }> }> =>
+    ipcRenderer.invoke('zotero-search', payload),
+  zoteroBibtex: (keys: string[]): Promise<{ success: boolean; error?: string; map: Record<string, { citeKey: string; bibtex: string }> }> =>
+    ipcRenderer.invoke('zotero-bibtex', keys),
+  zoteroExportBib: (): Promise<{ bib: string; count: number; error?: string }> =>
+    ipcRenderer.invoke('zotero-export-bib'),
   synctexForward: (texPath: string, line: number, pdfPath: string, texlivePath: string | null): Promise<{
     success: boolean
     page: number | null

@@ -1541,7 +1541,9 @@ onUnmounted(() => {
         <span class="outline-arrow" :class="{ open: showOutline }" aria-hidden="true">▸</span>
         <span>大纲</span>
       </button>
-      <Outline v-show="showOutline" class="outline-body" />
+      <Transition name="slide-y">
+        <Outline v-show="showOutline" class="outline-body" />
+      </Transition>
     </div>
   </div>
 </template>
@@ -1889,15 +1891,11 @@ onUnmounted(() => {
   box-shadow: var(--shadow-lg);
   min-width: 200px;
   padding: 4px 0;
-  animation: menuPop 0.14s ease;
+  animation: softPop var(--dur-base, 180ms) var(--ease-out, ease);
 }
 [data-theme="light"] .ctx-menu {
   background: var(--glass-fill);
   border-color: rgba(0, 0, 0, 0.06);
-}
-@keyframes menuPop {
-  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 .ctx-item {
   display: flex;
@@ -2000,5 +1998,19 @@ onUnmounted(() => {
   flex: 1;
   overflow: auto;
   min-height: 0;
+}
+.outline-body.slide-y-enter-active,
+.outline-body.slide-y-leave-active {
+  max-height: 400px;
+  transition:
+    opacity var(--dur-base, 180ms) var(--ease-out, ease),
+    transform var(--dur-base, 180ms) var(--ease-out, ease),
+    max-height var(--dur-slow, 220ms) var(--ease-out, ease);
+}
+.outline-body.slide-y-enter-from,
+.outline-body.slide-y-leave-to {
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-4px);
 }
 </style>

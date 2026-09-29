@@ -23,6 +23,7 @@ const commands: Command[] = [
   { id: 'compile', label: '编译文档', category: '编译', shortcut: 'F5' },
   { id: 'clean', label: '清理辅助文件', category: '编译', shortcut: 'Ctrl+Shift+D' },
   { id: 'open-pdf', label: '在外部打开 PDF', category: '编译', shortcut: 'F7' },
+  { id: 'zotero', label: 'Zotero 插入引用', category: '编译' },
   { id: 'toggle-sidebar', label: '切换文件树', category: '视图', shortcut: 'Ctrl+B' },
   { id: 'toggle-preview', label: '切换 PDF 预览', category: '视图', shortcut: 'Ctrl+Alt+P' },
   { id: 'toggle-log', label: '切换底部面板', category: '视图', shortcut: 'Ctrl+J' },

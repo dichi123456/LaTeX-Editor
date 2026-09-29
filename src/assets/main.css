@@ -43,6 +43,12 @@
   /* 侧栏强调字：深色白字 */
   --sidebar-strong: #ffffff;
   --panel-radius: 12px;
+  /* 统一动效：短时长 + 软出曲线（只动 transform/opacity 为主） */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-soft: cubic-bezier(0.4, 0, 0.2, 1);
+  --dur-fast: 140ms;
+  --dur-base: 180ms;
+  --dur-slow: 220ms;
 }
 
 [data-theme="light"],
@@ -78,6 +84,98 @@
   /* 侧栏强调字：浅色黑字 */
   --sidebar-strong: #111111;
   --panel-radius: 12px;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-soft: cubic-bezier(0.4, 0, 0.2, 1);
+  --dur-fast: 140ms;
+  --dur-base: 180ms;
+  --dur-slow: 220ms;
+}
+
+/* ========== 全局动效 ========== */
+/* 下拉/弹层统一：轻下落 + 缩放淡入 */
+@keyframes softPop {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+/* 上移淡入（侧栏、大纲等） */
+@keyframes softRise {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+/* 左侧滑入 */
+@keyframes softSlideX {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+/* 页面/内容就绪淡入 */
+@keyframes softIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Vue Transition：侧栏/分栏滑入滑出 */
+.slide-x-enter-active,
+.slide-x-leave-active {
+  transition:
+    opacity var(--dur-base) var(--ease-out),
+    transform var(--dur-base) var(--ease-out);
+}
+.slide-x-enter-from,
+.slide-x-leave-to {
+  opacity: 0;
+  transform: translateX(-12px);
+}
+.slide-x-leave-active {
+  transition-duration: var(--dur-fast);
+}
+
+/* Vue Transition：自上而下展开（大纲、下方面板） */
+.slide-y-enter-active,
+.slide-y-leave-active {
+  transition:
+    opacity var(--dur-base) var(--ease-out),
+    transform var(--dur-base) var(--ease-out),
+    max-height var(--dur-slow) var(--ease-out);
+  overflow: hidden;
+}
+.slide-y-enter-from,
+.slide-y-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+.slide-y-leave-active {
+  transition-duration: var(--dur-fast);
+}
+
+/* Vue Transition：右侧滑入（AI 面板等） */
+.slide-r-enter-active,
+.slide-r-leave-active {
+  transition:
+    opacity var(--dur-base) var(--ease-out),
+    transform var(--dur-base) var(--ease-out);
+}
+.slide-r-enter-from,
+.slide-r-leave-to {
+  opacity: 0;
+  transform: translateX(14px);
 }
 
 * {
@@ -129,7 +227,11 @@ button {
   font-size: 13px;
   padding: 4px 8px;
   border-radius: var(--radius-sm);
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background var(--dur-fast) var(--ease-soft),
+    color var(--dur-fast) var(--ease-soft),
+    border-color var(--dur-fast) var(--ease-soft),
+    opacity var(--dur-fast) var(--ease-soft);
   user-select: none;
 }
 button:hover {

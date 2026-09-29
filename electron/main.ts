@@ -9,6 +9,15 @@ import { loadConfig, saveConfig } from './config'
 import { setWorkspace, setTexlivePath } from './tools'
 import { runAgentLoop, setAgentLoopWindow } from './agent-loop'
 import {
+  zoteroStatus,
+  zoteroSearch,
+  zoteroCollections,
+  zoteroExportLibraryBib,
+  zoteroFetchItems,
+  itemToBibtex,
+  makeCiteKey
+} from './zotero'
+import {
   readTextFile,
   writeTextFile,
   writeBinaryFile,
@@ -212,6 +221,49 @@ ipcMain.handle('run-bibtex', async (_event, mainPath: string, texlivePath: strin
   return runBibtex(mainPath, texlivePath, (message, type) => {
     mainWindow?.webContents.send('compile-progress', { message, type })
   })
+})
+
+// Zotero 本地 API（localhost:23119）
+ipcMain.handle('zotero-status', async () => zoteroStatus())
+ipcMain.handle('zotero-collections', async () => {
+  try {
+    return { success: true as const, items: await zoteroCollections() }
+  } catch (e: any) {
+    return { success: false as const, error: String(e?.message || e), items: [] }
+  }
+})
+ipcMain.handle('zotero-search', async (_event, payload: { query?: string; limit?: number; collectionKey?: string }) => {
+  try {
+    return {
+      success: true as const,
+      items: await zoteroSearch(payload?.query || '', {
+        limit: payload?.limit,
+        collectionKey: payload?.collectionKey
+      })
+    }
+  } catch (e: any) {
+    return { success: false as const, error: String(e?.message || e), items: [] }
+  }
+})
+ipcMain.handle('zotero-bibtex', async (_event, keys: string[]) => {
+  try {
+    const items = await zoteroFetchItems(keys)
+    const map: Record<string, { citeKey: string; bibtex: string }> = {}
+    for (const it of items) {
+      const ck = makeCiteKey(it)
+      map[it.key] = { citeKey: ck, bibtex: itemToBibtex(it, ck) }
+    }
+    return { success: true as const, map }
+  } catch (e: any) {
+    return { success: false as const, error: String(e?.message || e), map: {} }
+  }
+})
+ipcMain.handle('zotero-export-bib', async (_event) => {
+  try {
+    return await zoteroExportLibraryBib(300)
+  } catch (e: any) {
+    return { bib: '', count: 0, error: String(e?.message || e) }
+  }
 })
 
 // SyncTeX 正向：源码行 → PDF 位置

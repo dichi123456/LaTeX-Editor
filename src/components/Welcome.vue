@@ -559,15 +559,11 @@ function shortPath(path: string): string {
   box-shadow: var(--shadow-lg);
   min-width: 200px;
   padding: 4px 0;
-  animation: menuPop 0.14s ease;
+  animation: softPop var(--dur-base, 180ms) var(--ease-out, ease);
 }
 [data-theme="light"] .welcome-ctx {
   background: var(--glass-fill);
   border-color: rgba(0, 0, 0, 0.06);
-}
-@keyframes menuPop {
-  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 .wctx-item {
   display: flex;

@@ -14,6 +14,7 @@ import Tabs from './components/Tabs.vue'
 import CommandPalette from './components/CommandPalette.vue'
 import AiPanel from './components/AiPanel.vue'
 import TemplateLibrary from './components/TemplateLibrary.vue'
+import ZoteroPanel from './components/ZoteroPanel.vue'
 import { useAiStore } from './stores/ai'
 import { scanProjectBibs, bibScanner } from './utils/bibtex'
 import { scanProjectImages } from './utils/images'
@@ -52,6 +53,8 @@ const openFileMenu = ref(false)
 const openRecentMenu = ref(false)
 const openHelpMenu = ref(false)
 const showTemplateLibrary = ref(false)
+/** Zotero 文献检索弹层 */
+const showZotero = ref(false)
 // 最近一次编译成功的 PDF 路径（供 SyncTeX 使用）
 let lastPdfPath: string | null = null
 
@@ -336,6 +339,7 @@ async function handleMenuAction(action: string) {
     case 'distraction-free': distractionFree.value = !distractionFree.value; break
     case 'settings': configStore.showSettings = true; break
     case 'command-palette': showCommandPalette.value = true; break
+    case 'zotero': showZotero.value = true; break
   }
 }
 
@@ -953,7 +957,8 @@ function onToolbarGlobalKeydown(e: KeyboardEvent) {
     <div class="app-shell">
       <!-- ===== 左通栏侧栏（贯穿顶底，默认布局） ===== -->
       <template v-if="!distractionFree && layoutMode === 'default' && showSidebar">
-        <aside class="left-rail" :style="{ width: sidebarWidth + 'px' }">
+        <Transition name="slide-x">
+          <aside class="left-rail" :style="{ width: sidebarWidth + 'px' }">
           <!-- 品牌：顶部居中、稍大 -->
           <div class="rail-brand drag-region">
             <div class="rail-brand-inner">
@@ -972,11 +977,14 @@ function onToolbarGlobalKeydown(e: KeyboardEvent) {
               <span>模板库</span>
             </button>
           </div>
-          <div class="rail-body">
-            <FileTree @open-template-library="(dir?: string) => openTemplateLibrary(dir)" />
-          </div>
-        </aside>
-        <div class="rail-divider" @mousedown="startSidebarResize"></div>
+            <div class="rail-body">
+              <FileTree @open-template-library="(dir?: string) => openTemplateLibrary(dir)" />
+            </div>
+          </aside>
+        </Transition>
+        <Transition name="slide-x">
+          <div class="rail-divider" @mousedown="startSidebarResize"></div>
+        </Transition>
       </template>
 
       <!-- ===== 右侧列：顶栏 + 主体 + 状态栏 ===== -->
@@ -1220,6 +1228,14 @@ function onToolbarGlobalKeydown(e: KeyboardEvent) {
                   >
                     <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2.5 3.5h6.5v7H2.5z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M9 5.5h2.5v5H9" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M4.5 12.5h5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M7 8.5V6.2M7 6.2l-1.2 1.2M7 6.2l1.2 1.2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                   </button>
+                  <button
+                    class="et-btn et-zotero-btn"
+                    :class="{ active: showZotero }"
+                    title="Zotero 文献：检索并插入 \cite"
+                    @click="showZotero = true; closeEnvMenu()"
+                  >
+                    Zotero
+                  </button>
                 </div>
               </div>
 
@@ -1257,12 +1273,16 @@ function onToolbarGlobalKeydown(e: KeyboardEvent) {
           </div>
 
           <!-- TEX/PDF 分割线 -->
-          <div v-if="showPreview && !showWelcome" class="panel-divider v" @mousedown="startResize" @dblclick="editorWidth = 50"></div>
+          <Transition name="slide-x">
+            <div v-if="showPreview && !showWelcome" class="panel-divider v" @mousedown="startResize" @dblclick="editorWidth = 50"></div>
+          </Transition>
 
           <!-- PDF 预览面板 -->
-          <div v-if="showPreview && !showWelcome" class="panel preview-panel" :style="{ flex: 100 - editorWidth }">
-            <PdfViewer />
-          </div>
+          <Transition name="slide-r">
+            <div v-if="showPreview && !showWelcome" class="panel preview-panel" :style="{ flex: 100 - editorWidth }">
+              <PdfViewer />
+            </div>
+          </Transition>
         </div>
 
         <!-- 底部日志面板：仅状态栏按钮控制，去掉中间把手 -->
@@ -1322,6 +1342,8 @@ function onToolbarGlobalKeydown(e: KeyboardEvent) {
       @close="showCommandPalette = false"
       @run="onCommandRun"
     />
+
+    <ZoteroPanel v-if="showZotero" @close="showZotero = false" />
 
     <!-- 全屏退出按钮 -->
     <button
@@ -1538,21 +1560,11 @@ function onToolbarGlobalKeydown(e: KeyboardEvent) {
   display: flex;
   flex-direction: column;
   gap: 1px;
-  animation: menuPop 0.14s ease;
+  animation: softPop var(--dur-base) var(--ease-out);
 }
 [data-theme="light"] .menu-dropdown {
   background: var(--glass-fill);
   border-color: rgba(0, 0, 0, 0.06);
-}
-@keyframes menuPop {
-  from {
-    opacity: 0;
-    transform: translateY(-4px) scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
 }
 .menu-entry {
   display: flex;
@@ -1607,7 +1619,7 @@ function onToolbarGlobalKeydown(e: KeyboardEvent) {
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 10px;
   box-shadow: var(--shadow-lg);
-  animation: menuPop 0.14s ease;
+  animation: softPop var(--dur-base) var(--ease-out);
 }
 [data-theme="light"] .menu-dropdown.submenu {
   background: var(--glass-fill);
@@ -1895,6 +1907,34 @@ function onToolbarGlobalKeydown(e: KeyboardEvent) {
   background: var(--accent-light);
   color: var(--accent);
 }
+.et-zotero-btn {
+  width: auto !important;
+  min-width: 72px;
+  max-width: none;
+  height: 24px;
+  flex-shrink: 0;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: visible;
+  color: var(--accent);
+  border: 1px solid rgba(130, 170, 255, 0.4);
+  background: rgba(130, 170, 255, 0.1);
+  border-radius: var(--radius-sm);
+}
+.et-zotero-btn:hover:not(:disabled) {
+  background: var(--accent-light);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.et-zotero-btn.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
 .et-btn:disabled {
   opacity: 0.35;
   cursor: not-allowed;
@@ -1943,11 +1983,7 @@ function onToolbarGlobalKeydown(e: KeyboardEvent) {
   min-width: 240px;
   max-height: min(420px, calc(100% - 60px));
   overflow: auto;
-  animation: envPop 0.12s ease;
-}
-@keyframes envPop {
-  from { opacity: 0; transform: translateY(-4px); }
-  to { opacity: 1; transform: translateY(0); }
+  animation: softPop var(--dur-base) var(--ease-out);
 }
 .env-dropdown-head {
   display: flex;
@@ -2031,10 +2067,10 @@ function onToolbarGlobalKeydown(e: KeyboardEvent) {
 
 /* 面板展开/收起过渡 */
 .panel-slide-enter-active {
-  transition: height 0.18s ease, opacity 0.15s ease;
+  transition: height var(--dur-base) var(--ease-out), opacity var(--dur-fast) var(--ease-out);
 }
 .panel-slide-leave-active {
-  transition: height 0.15s ease, opacity 0.1s ease;
+  transition: height var(--dur-fast) var(--ease-soft), opacity var(--dur-fast) var(--ease-soft);
 }
 .panel-slide-enter-from,
 .panel-slide-leave-to {

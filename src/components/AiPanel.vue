@@ -1650,11 +1650,7 @@ export default {
   max-width: 200px;
   padding: 3px 0;
   overflow: hidden;
-  animation: menuPop 0.14s ease;
-}
-@keyframes menuPop {
-  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+  animation: softPop var(--dur-base, 180ms) var(--ease-out, ease);
 }
 .model-menu-item {
   display: flex;
