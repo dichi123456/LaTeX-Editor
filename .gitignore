@@ -21,3 +21,10 @@ win-unpacked/
 electron.vite.config.*.mjs
 *.aux
 *.out
+
+# 本地密钥：绝不入库
+.gh_token
+*.token
+
+# DSH 插件是独立仓库（有自己的 .git），不要把嵌套仓库提交进来
+dsh-plugin-moling-latex/
