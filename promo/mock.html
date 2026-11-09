@@ -1,0 +1,533 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8"><title>moling promo mock</title>
+<style>
+  :root{
+    --bg:#16181a; --base:#1b1d1f; --l1:#222527; --l2:#26292c; --line:#3a3d40;
+    --text:#e6e6e6; --sub:#9aa0a6; --accent:#6aa9ff; --ok:#57b46b; --warn:#d99a2b; --err:#e06c5a;
+    --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;width:1440px;height:900px;overflow:hidden;background:var(--bg);color:var(--text);
+    font:13px/1.5 -apple-system,"Segoe UI","Microsoft YaHei",system-ui,sans-serif}
+  .win{width:1440px;height:900px;display:flex;flex-direction:column;background:var(--bg)}
+  /* ---------- DSH chrome ---------- */
+  .titlebar{height:34px;flex:none;display:flex;align-items:center;gap:8px;padding:0 10px;background:#1a1c1e;border-bottom:1px solid #2a2d30;font-size:12px;color:var(--sub)}
+  .dots{display:flex;gap:6px}.dots i{width:10px;height:10px;border-radius:50%;background:#3a3d40;display:block}
+  .titlebar .grow{flex:1;text-align:center}
+  .shell{flex:1;display:flex;min-height:0;height:866px}
+  .win.plain .shell{height:900px}
+  .panel{height:100%}
+  .side{width:214px;flex:none;background:#191b1d;border-right:1px solid #2a2d30;padding:10px 8px;display:flex;flex-direction:column;gap:2px;font-size:12.5px}
+  .side h1{font-size:15px;margin:0 6px 10px;display:flex;align-items:center;gap:6px}
+  .side h1 .mark{color:#7ee0a0}
+  .newchat{border:1px solid #33373b;border-radius:8px;padding:6px 10px;color:var(--text);margin-bottom:10px;display:flex;gap:8px;align-items:center}
+  .nav{display:flex;gap:8px;align-items:center;padding:5px 8px;border-radius:6px;color:#cfd3d6}
+  .nav.dim{color:#8b9095}
+  .side .cap{color:#767b80;font-size:11px;margin:14px 6px 6px;letter-spacing:.3px}
+  .ws{display:flex;gap:8px;align-items:center;padding:5px 8px;border-radius:6px;color:#cfd3d6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ws.on{background:#24282b;color:var(--text);box-shadow:inset 0 0 0 1px #33373b}
+  .ws .ico{opacity:.7}
+  .chat{flex:1;min-width:0;display:flex;flex-direction:column;background:#17191b}
+  .chat-head{flex:none;display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid #2a2d30;font-size:13px;color:#cfd3d6}
+  .chat-head .tag{font-size:11px;border:1px solid #33373b;border-radius:999px;padding:1px 8px;color:var(--sub)}
+  .chat-view{flex:1;min-height:0;padding:16px 18px;display:flex;flex-direction:column;gap:14px;overflow:hidden}
+  .msg{max-width:92%;font-size:12.5px;line-height:1.75;color:#dfe3e6}
+  .msg.user{align-self:flex-end;background:#24282b;border:1px solid #33373b;border-radius:10px 10px 2px 10px;padding:8px 12px}
+  .msg.bot{align-self:flex-start}
+  .msg .h{font-weight:600;margin-bottom:4px}
+  .bar{height:8px;border-radius:4px;background:#24282b;margin:6px 0}
+  .bar.w1{width:88%}.bar.w2{width:72%}.bar.w3{width:94%}.bar.w4{width:58%}
+  .composer{flex:none;margin:0 14px 12px;border:1px solid #33373b;border-radius:12px;background:#1b1e20;padding:10px 12px;min-height:74px;display:flex;flex-direction:column;justify-content:space-between}
+  .composer .placeholder{color:#767b80;font-size:12.5px}
+  .composer .row{display:flex;align-items:center;gap:8px;font-size:11px;color:#767b80}
+  .composer .pill{width:22px;height:22px;border-radius:50%;border:1px solid #33373b;display:grid;place-items:center;color:#cfd3d6}
+  .quote{font-size:12px;color:#b9bec3;border-left:2px solid #3f4448;padding-left:8px;margin-bottom:6px}
+  .codeblock{background:#15181a;border:1px solid #33373b;border-radius:8px;padding:8px 10px;font-family:var(--mono);font-size:11.5px;line-height:1.6;color:#cfd6dd;white-space:pre}
+  /* ---------- plugin panel ---------- */
+  .panel{width:520px;flex:none;border-left:1px solid #2a2d30;background:var(--base);display:flex;flex-direction:column;min-height:0}
+  .panel.wide{width:1440px;border-left:0}
+  .ptabs{flex:none;display:flex;align-items:center;gap:6px;height:32px;padding:0 8px;border-bottom:1px solid var(--line);font-size:12px;color:var(--sub)}
+  .ptab{padding:2px 8px;border-radius:6px;color:var(--sub)}
+  .ptab.on{color:var(--text);background:var(--l1)}
+  .bar{height:auto}
+  .toolbar{flex:none;display:flex;align-items:center;gap:5px;padding:6px 8px;border-bottom:1px solid var(--line)}
+  .btn{border:1px solid var(--line);border-radius:6px;padding:2px 8px;font-size:11.5px;color:var(--text);white-space:nowrap;line-height:18px}
+  .btn.on{border-color:var(--accent);color:var(--accent)}
+  .btn.primary{border-color:var(--accent);background:var(--l2);font-weight:500}
+  .spacer{flex:1}
+  .pill{display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 8px;border-radius:999px;border:1px solid var(--ok);color:var(--ok);font-size:10.5px}
+  .pill i{width:6px;height:6px;border-radius:50%;background:var(--ok);display:block}
+  .pill.grey{border-color:var(--line);color:var(--sub)}.pill.grey i{background:#8a8a8a}
+  .pill.warn{border-color:var(--warn);color:var(--warn)}.pill.warn i{background:var(--warn)}
+  .split{position:relative;display:inline-flex;width:104px;height:22px;border:1px solid var(--accent);border-radius:6px;background:var(--l2)}
+  .split .main{width:75%;display:grid;place-items:center;font-size:11.5px;font-weight:500}
+  .split .caret{width:25%;display:grid;place-items:center;border-left:1px solid var(--line);font-size:10px;color:var(--text)}
+  .menu{position:absolute;left:0;top:100%;margin-top:3px;width:104px;background:var(--l2);border:1px solid var(--line);border-radius:8px;padding:3px 0;box-shadow:0 6px 20px rgba(0,0,0,.45);z-index:5}
+  .menu div{padding:5px 8px;font-size:11.5px;white-space:nowrap}
+  .menu div.on{color:var(--accent)}
+  .body{flex:1;display:flex;min-height:0}
+  .left{flex:1;min-width:0;display:flex;flex-direction:column;position:relative}
+  .tabs{flex:none;display:flex;align-items:center;gap:2px;padding:2px 4px 0;border-bottom:1px solid var(--line);min-height:26px}
+  .filetab{padding:2px 6px;font-size:11.5px;border-top:2px solid transparent;color:var(--sub)}
+  .filetab.on{border-top-color:var(--accent);background:var(--l1);color:var(--text)}
+  .ed{flex:1;min-height:0;overflow:hidden;padding:6px 8px 6px 0;font-family:var(--mono);font-size:12px;line-height:18px;position:relative}
+  .ln{display:flex;gap:0}
+  .ln .n{width:48px;flex:none;text-align:right;padding-right:8px;color:var(--sub);font-size:11px}
+  .ln .c{white-space:pre;overflow:hidden;text-overflow:ellipsis}
+  .cmt{color:var(--sub);font-style:italic}.cmd{color:var(--accent)}.env{color:var(--err)}
+  .key{color:var(--warn)}.math{color:var(--ok)}.br{color:var(--sub)}.num{color:var(--ok)}
+  .bold{font-weight:600}
+  .vsplit{width:5px;flex:none;background:transparent;border-left:1px solid var(--line)}
+  .right{width:44%;min-width:200px;display:flex;flex-direction:column;min-height:0;border-left:1px solid var(--line)}
+  .rhead{flex:none;display:flex;align-items:center;gap:4px;padding:3px 6px;border-bottom:1px solid var(--line);min-height:26px}
+  .sel{border:1px solid var(--line);background:var(--l1);border-radius:6px;padding:1px 5px;font-size:11.5px;color:var(--text)}
+  .pane{flex:1;min-height:0;overflow:hidden;background:var(--l1);display:flex;flex-direction:column}
+  .pdfscroll{flex:1;overflow:hidden;padding:8px 10px}
+  .page{background:#fff;border-radius:2px;box-shadow:0 1px 4px rgba(0,0,0,.25);color:#141414;padding:18px 16px;font-family:Georgia,"Times New Roman",serif;position:relative}
+  .page h2{font-size:15px;text-align:center;margin:0 0 4px;line-height:1.3}
+  .page .authors{font-size:8px;text-align:center;color:#333;margin-bottom:10px}
+  .page .abs{font-size:7.4px;line-height:1.45;text-align:justify;column-count:2;column-gap:12px;color:#222}
+  .page .abs b{font-weight:700}
+  .zoomtag{text-align:right;font-size:10.5px;color:var(--sub);padding:2px 2px 8px}
+  .statusbar{flex:none;display:flex;align-items:center;gap:8px;padding:2px 8px;border-top:1px solid var(--line);font-size:10.5px;color:var(--sub);position:relative;height:24px}
+  .statusbar .dot{width:7px;height:7px;border-radius:50%;background:var(--ok)}
+  .notice-center{position:absolute;left:50%;transform:translateX(-50%);font-weight:500;color:var(--ok);font-size:10.5px;max-width:56%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .notice-center.red{color:var(--err)}
+  .paneTab{padding:1px 7px;border-radius:5px;font-size:11.5px;color:var(--sub)}
+  .paneTab.on{color:var(--text);background:var(--l1)}
+  /* cards */
+  .card{position:absolute;display:flex;flex-direction:column;background:var(--l2);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.45);overflow:hidden;z-index:3}
+  .card .head{display:flex;align-items:center;gap:6px;padding:4px 8px;border-bottom:1px solid var(--line);font-size:11.5px;flex:none}
+  .card .list{overflow:hidden;padding:4px 0 6px;font-size:11.5px}
+  .row{display:flex;align-items:center;gap:6px;padding:3px 8px}
+  .row.on{background:var(--l1);color:var(--accent)}
+  .row .num{margin-left:auto;color:var(--sub);font-family:var(--mono);font-size:10px}
+  .muted{color:var(--sub);font-size:10.5px}
+  .ctxmenu{position:absolute;background:var(--l2);border:1px solid var(--line);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.45);padding:4px 0;font-size:12px;z-index:6;min-width:200px}
+  .ctxmenu div{padding:5px 12px;white-space:nowrap;display:flex;gap:10px}
+  .ctxmenu div .k{margin-left:auto;color:var(--sub);font-size:10.5px}
+  .ctxmenu hr{border:0;border-top:1px solid var(--line);margin:4px 0}
+  .ring{position:absolute;width:16px;height:16px;margin:-8px 0 0 -8px;border:2px solid var(--warn);border-radius:50%;box-shadow:0 0 0 3px rgba(217,154,43,.25)}
+  /* welcome */
+  .welcome{flex:1;padding:16px 18px;overflow:hidden}
+  .welcome .h1{font-size:25px;font-weight:600;letter-spacing:-.2px;margin:2px 0 4px}
+  .welcome .sub{color:var(--sub);font-size:12.5px;margin-bottom:22px}
+  .welcome .sec{font-size:11.5px;font-weight:600;color:var(--sub);letter-spacing:.6px;margin:16px 0 6px}
+  .wrow{display:flex;align-items:center;gap:10px;padding:7px 9px;border-radius:8px;font-size:13px}
+  .wrow.on{background:var(--l1)}
+  .wrow .g{width:18px;text-align:center;opacity:.75}
+  .wrow .lbl{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .wrow .kbd{font-family:var(--mono);font-size:11px;color:var(--sub)}
+  .wrow .badge{font-size:11px;color:var(--sub);width:38px}
+  .wrow .path{max-width:46%;font-size:11px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .wcard{display:flex;align-items:center;gap:10px;margin-top:10px;padding:11px 13px;border:1px solid var(--line);border-radius:10px}
+  .wcard .t{font-size:13px;font-weight:500}.wcard .d{font-size:11px;color:var(--sub);margin-top:2px}
+  /* magnify wrapper */
+  .zoom{transform-origin:top left}
+</style></head>
+<body>
+<div class="win" id="app"></div>
+<script>
+const H = (tag, attrs, ...kids) => {
+  const el = document.createElement(tag)
+  if (attrs) for (const [k, v] of Object.entries(attrs)) {
+    if (k === 'class') el.className = v
+    else if (k === 'html') el.innerHTML = v
+    else el.setAttribute(k, v)
+  }
+  for (const kid of kids.flat()) {
+    if (kid == null) continue
+    el.appendChild(typeof kid === 'string' ? document.createTextNode(kid) : kid)
+  }
+  return el
+}
+const S = (id) => new URLSearchParams(location.search).get('s') || id
+
+const FILES = ['main.tex', 'refs.bib', 'chapters/01-intro.tex', 'chapters/02-model.tex', 'figures/overview.pdf']
+
+const TEX = [
+  ['% main.tex · A-DSH-molingTex-illustration', 'cmt'],
+  ['\\documentclass[10pt,journal]{IEEEtran}', ''],
+  ['\\usepackage{cite,graphicx,amsmath,algorithm}', ''],
+  ['', ''],
+  ['\\title{Shared Control for Platoon Coordination}', 'bold'],
+  ['\\begin{document}', ''],
+  ['\\maketitle', ''],
+  ['', ''],
+  ['\\section{Introduction}', 'cmd bold'],
+  ['Platoon coordination couples longitudinal and lateral', ''],
+  ['dynamics; see \\cite{liu2026Risk} for a risk-aware view.', ''],
+  ['', ''],
+  ['\\subsection{Risk-aware branch MPC}', 'cmd bold'],
+  ['The controller solves \\eqref{eq:mpc} at 20~Hz with a', ''],
+  ['scenario tree of depth $H=3$ and $|\\mathcal{S}|=27$ nodes.', ''],
+  ['\\begin{equation}', ''],
+  ['  \\min_{u_{0:H-1}} \\; \\sum_{k=0}^{H-1} \\ell(x_k,u_k)', 'math'],
+  ['\\end{equation}', ''],
+  ['', ''],
+  ['\\bibliographystyle{IEEEtran}', ''],
+  ['\\bibliography{refs}', ''],
+  ['\\end{document}', '']
+]
+
+function lineHTML(text) {
+  let out = text
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/(%.*)$/g, '<span class="cmt">$1</span>')
+    .replace(/(\\\\[a-zA-Z]+)/g, '<span class="cmd">$1</span>')
+  return out
+}
+
+function editor(opts = {}) {
+  const lines = (opts.lines || TEX)
+  const wrap = H('div', { class: 'ed', style: opts.style || '' })
+  const start = opts.start || 1
+  lines.forEach(([text, cls], i) => {
+    const row = H('div', { class: 'ln' })
+    row.appendChild(H('span', { class: 'n' }, String(start + i)))
+    const content = H('span', { class: 'c' })
+    content.innerHTML = lineHTML(text)
+    if (cls.includes('bold')) content.classList.add('bold')
+    row.appendChild(content)
+    wrap.appendChild(row)
+  })
+  return wrap
+}
+
+function pdfPage(opts = {}) {
+  const page = H('div', { class: 'page', style: opts.style || '' })
+  page.appendChild(H('h2', null, 'Shared Control for Platoon Coordination in Mixed Traffic'))
+  page.appendChild(H('div', { class: 'authors' }, 'Lishun Chen, Zhubo Sun, Yafei Liu, Lei Yang'))
+  const abs = H('div', { class: 'abs' })
+  abs.innerHTML = '<b>Abstract</b>—Platoon coordination in mixed traffic requires reasoning about the risk of interaction between automated and human-driven vehicles. This paper proposes a risk-aware branch model predictive control framework: a scenario tree is constructed from reachable sets, a systematic risk measure is assigned to each branch, and a distributed scheme coordinates lane-change and car-following across CAVs. Simulations show improved success rate over SMPC baselines, with comparable ride comfort and real-time feasibility at 20 Hz.<br><br><b>Index Terms</b>—Mixed traffic, shared control, branch MPC, risk-aware, platoon coordination.'
+  page.appendChild(abs)
+  return page
+}
+
+function rightPane(opts = {}) {
+  const right = H('div', { class: 'right', style: opts.rightStyle || '' })
+  const head = H('div', { class: 'rhead' })
+  head.appendChild(H('span', { class: 'spacer' }))
+  head.appendChild(H('span', { class: 'sel' }, 'auto'))
+  head.appendChild(H('span', { class: 'btn' }, '清理'))
+  head.appendChild(H('span', { class: 'btn' }, '－'))
+  head.appendChild(H('span', { class: 'btn', style: 'min-width:40px;text-align:center' }, opts.zoom || '100%'))
+  head.appendChild(H('span', { class: 'btn' }, '＋'))
+  if (opts.dpi !== false) head.appendChild(H('span', { class: 'sel' }, '中'))
+  right.appendChild(head)
+
+  const pane = H('div', { class: 'pane' })
+  const scroll = H('div', { class: 'pdfscroll' })
+  const page = pdfPage({ style: opts.pageStyle || '' })
+  if (opts.ring) {
+    page.appendChild(H('div', { class: 'ring', style: opts.ringStyle || 'left:62%;top:34%' }))
+  }
+  const box = H('div', { style: (opts.pageBoxStyle || '') })
+  box.appendChild(page)
+  scroll.appendChild(box)
+  if (opts.zoomtag) scroll.appendChild(H('div', { class: 'zoomtag' }, opts.zoomtag))
+  pane.appendChild(scroll)
+  right.appendChild(pane)
+  if (opts.status) {
+    const sb = H('div', { class: 'statusbar' })
+    sb.appendChild(H('span', { class: 'dot' }))
+    sb.appendChild(H('span', null, '就绪'))
+    sb.appendChild(H('span', null, 'TeX'))
+    sb.appendChild(H('span', { class: 'spacer' }))
+    sb.appendChild(H('span', { class: 'paneTab' }, '日志'))
+    sb.appendChild(H('span', { class: 'paneTab on' }, 'PDF'))
+    sb.appendChild(H('span', { class: 'notice-center' }, opts.status))
+    right.appendChild(sb)
+  }
+  return right
+}
+
+function toolbar(opts = {}) {
+  const bar = H('div', { class: 'toolbar' })
+  for (const label of ['首页', '目录', '树', '换行', '保存', '提纲', '新建']) {
+    bar.appendChild(H('span', { class: 'btn' + (label === '换行' ? ' on' : '') }, label))
+  }
+  bar.appendChild(H('span', { class: 'spacer' }))
+  const pill = H('span', { class: 'pill' + (opts.pill === 'grey' ? ' grey' : opts.pill === 'warn' ? ' warn' : '') })
+  pill.appendChild(H('i'))
+  pill.appendChild(document.createTextNode(opts.pillText || '已连接 DSH 工作区'))
+  bar.appendChild(pill)
+  const split = H('span', { class: 'split' })
+  split.appendChild(H('span', { class: 'main' }, opts.mode || '完整编译'))
+  split.appendChild(H('span', { class: 'caret' }, '▾'))
+  if (opts.menuOpen) {
+    const menu = H('div', { class: 'menu' })
+    menu.appendChild(H('div', { class: 'on' }, '✓ 完整编译'))
+    menu.appendChild(H('div', null, '快速编译'))
+    menu.appendChild(H('div', null, '从头编译'))
+    split.appendChild(menu)
+  }
+  bar.appendChild(split)
+  return bar
+}
+
+function panel(opts = {}) {
+  const p = H('div', { class: 'panel' + (opts.wide ? ' wide' : ''), style: opts.style || '' })
+  const tabs = H('div', { class: 'ptabs' })
+  tabs.appendChild(H('span', { class: 'ptab on' }, '墨灵 LaTeX'))
+  p.appendChild(tabs)
+  p.appendChild(toolbar(opts))
+
+  const body = H('div', { class: 'body' })
+  const left = H('div', { class: 'left' })
+  if (!opts.hideTabs) {
+    const tabs2 = H('div', { class: 'tabs' })
+    tabs2.appendChild(H('span', { class: 'filetab on' }, 'main.tex'))
+    tabs2.appendChild(H('span', { class: 'filetab' }, '02-model.tex'))
+    left.appendChild(tabs2)
+  }
+  left.appendChild(opts.editor || editor(opts.editorOpts || {}))
+  if (opts.outline) left.appendChild(opts.outline)
+  if (opts.tree) left.appendChild(opts.tree)
+  if (opts.ctxmenu) left.appendChild(opts.ctxmenu)
+  body.appendChild(left)
+  if (!opts.noRight) {
+    body.appendChild(H('div', { class: 'vsplit' }))
+    body.appendChild(rightPane(opts.rightOpts || {}))
+  }
+  p.appendChild(body)
+  if (!opts.noStatus && !opts.noRight) {
+    // status lives inside rightPane when status passed
+  } else if (opts.status) {
+    const sb = H('div', { class: 'statusbar' })
+    sb.appendChild(H('span', { class: 'dot' }))
+    sb.appendChild(H('span', null, '就绪'))
+    sb.appendChild(H('span', null, 'TeX'))
+    sb.appendChild(H('span', { class: 'spacer' }))
+    sb.appendChild(H('span', { class: 'paneTab' }, '日志'))
+    sb.appendChild(H('span', { class: 'paneTab on' }, 'PDF'))
+    sb.appendChild(H('span', { class: 'notice-center' }, opts.status))
+    p.appendChild(sb)
+  }
+  return p
+}
+
+function side() {
+  const s = H('div', { class: 'side' })
+  s.appendChild(H('h1', null, H('span', { class: 'mark' }, '❖'), 'deepseek'))
+  s.appendChild(H('div', { class: 'newchat' }, '✎ 新会话'))
+  for (const t of ['插件', '自动化任务', '更多']) s.appendChild(H('div', { class: 'nav dim' }, '· ', t))
+  s.appendChild(H('div', { class: 'cap' }, '工作区'))
+  for (const name of ['A-DSH-molingTex-illustration', 'papers', 'demo-platoon']) {
+    s.appendChild(H('div', { class: 'ws' + (name.startsWith('A-DSH') ? ' on' : '') }, H('span', { class: 'ico' }, '▤'), name))
+  }
+  return s
+}
+
+function chat(opts = {}) {
+  const c = H('div', { class: 'chat' })
+  const head = H('div', { class: 'chat-head' }, '墨灵 LaTeX 宣传片分镜', H('span', { class: 'tag' }, '创造模式'))
+  c.appendChild(head)
+  const view = H('div', { class: 'chat-view' })
+  const bot = H('div', { class: 'msg bot' })
+  bot.appendChild(H('div', { class: 'h' }, '分镜草案已更新'))
+  bot.appendChild(H('div', { class: 'bar w3' }))
+  bot.appendChild(H('div', { class: 'bar w1' }))
+  bot.appendChild(H('div', { class: 'bar w2' }))
+  view.appendChild(bot)
+  const user = H('div', { class: 'msg user' }, '把插件能力做成 60s 宣传片，先出素材清单')
+  view.appendChild(user)
+  const bot2 = H('div', { class: 'msg bot' })
+  bot2.appendChild(H('div', { class: 'h' }, '素材已就绪'))
+  bot2.appendChild(H('div', { class: 'bar w3' }))
+  bot2.appendChild(H('div', { class: 'bar w4' }))
+  view.appendChild(bot2)
+  c.appendChild(view)
+
+  const composer = H('div', { class: 'composer' })
+  if (opts.inputQuote) {
+    composer.appendChild(H('div', { class: 'quote' }, '来自 main.tex 第 16–18 行'))
+    composer.appendChild(H('div', { class: 'codeblock' }, "\\begin{equation}\n  \\min_{u_{0:H-1}} \\; \\sum_{k=0}^{H-1} \\ell(x_k,u_k)\n\\end{equation}"))
+  } else {
+    composer.appendChild(H('div', { class: 'placeholder' }, '发消息或创建任务，/ 调用指令，@ 文件或对话'))
+  }
+  const row = H('div', { class: 'row' })
+  row.appendChild(H('span', { class: 'pill' }, '＋'))
+  row.appendChild(H('span', null, '自动审查'))
+  row.appendChild(H('span', { class: 'spacer', style: 'flex:1' }))
+  row.appendChild(H('span', null, 'DeepSeek-V4.1-Flash Max'))
+  composer.appendChild(row)
+  c.appendChild(composer)
+  return c
+}
+
+function chrome(inner, opts = {}) {
+  const win = H('div', { class: 'win' })
+  if (!opts.noTitle) {
+    const tb = H('div', { class: 'titlebar' })
+    const dots = H('div', { class: 'dots' }, H('i'), H('i'), H('i'))
+    tb.appendChild(dots)
+    tb.appendChild(H('div', { class: 'grow' }, 'DSH — A-DSH-molingTex-illustration'))
+    win.appendChild(tb)
+  }
+  const shell = H('div', { class: 'shell' })
+  if (opts.side) shell.appendChild(side())
+  if (opts.chat) shell.appendChild(chat(opts.chatOpts || {}))
+  shell.appendChild(inner)
+  win.appendChild(shell)
+  return win
+}
+
+const scenes = {
+  '01-overview': () => chrome(panel({ style: 'width:760px' , editorOpts:{}, rightOpts:{ status:'编译成功 · pdflatex · 3.1s · 2 趟', zoom:'100%' } }), { side: true, chat: true }),
+  '02-welcome': () => chrome(panel({ wide: true, hideTabs: true, noRight: true, welcome: true }), { side: true, chat: true }),
+  '03-workbench': () => panel({ wide: true, rightOpts: { status: '编译成功 · pdflatex · 3.1s · 2 趟' } }),
+  '04-editor': () => panel({ wide: true, noRight: true, editor: (() => { const e = editor({}); e.style.fontSize = '15px'; e.style.lineHeight = '26px'; e.style.padding = '18px 24px'; return e })() }),
+  '05-compile': () => panel({ wide: true, noRight: true, menuOpen: true, mode: '快速编译', editorOpts: {} }),
+  '06-pdf-zoom': () => panel({ wide: true, rightOpts: { zoom: '200%', zoomtag: '200%', pageStyle: 'transform:scale(1.95);transform-origin:top left;' } }),
+  '07-context': () => panel({ wide: true, ctxmenu: ctxMenu() }),
+  '08-synctex': () => panel({ wide: true, rightOpts: { status: '第 16 行 → 第 1 页', ring: true, ringStyle: 'left:55%;top:42%' } }),
+  '09-outline': () => panel({ wide: true, outline: outlineCard() }),
+  '10-tree': () => panel({ wide: true, tree: treeCard() }),
+  '11-connect': () => panel({ wide: true, noRight: true, editor: connectZoom() }),
+  '12-send': () => chrome(panel({ style: 'width:760px' }), { side: true, chat: true, chatOpts: { inputQuote: true } })
+}
+
+function ctxMenu() {
+  const m = H('div', { class: 'ctxmenu', style: 'left:180px;top:220px' })
+  for (const [label, key] of [['撤销', 'Ctrl+Z'], ['重做', 'Ctrl+Y']]) {
+    m.appendChild(H('div', null, label, H('span', { class: 'k' }, key)))
+  }
+  m.appendChild(H('hr'))
+  for (const [label, key] of [['剪切', 'Ctrl+X'], ['复制', 'Ctrl+C'], ['粘贴', 'Ctrl+V'], ['全选', 'Ctrl+A']]) {
+    m.appendChild(H('div', null, label, H('span', { class: 'k' }, key)))
+  }
+  m.appendChild(H('hr'))
+  m.appendChild(H('div', { style: 'color:var(--accent)' }, '发送选中内容到对话框'))
+  m.appendChild(H('div', null, '定位到 PDF 位置（第 16 行）'))
+  return m
+}
+
+function outlineCard() {
+  const card = H('div', { class: 'card', style: 'left:8px;bottom:8px;width:280px' })
+  const head = H('div', { class: 'head' }, H('span', { style: 'font-weight:500' }, '提纲'), H('span', { class: 'muted' }, '4 节'), H('span', { class: 'spacer', style: 'flex:1' }), H('span', { class: 'muted' }, '×'))
+  card.appendChild(head)
+  const list = H('div', { class: 'list' })
+  const rows = [[2, 'Introduction', 9], [3, 'Risk-aware branch MPC', 13], [3, 'Scenario tree', 24], [3, 'Distributed coordination', 31]]
+  for (const [lv, title, line] of rows) {
+    const r = H('div', { class: 'row', style: 'padding-left:' + (8 + (lv - 2) * 10) + 'px' })
+    r.appendChild(H('span', null, title))
+    r.appendChild(H('span', { class: 'num' }, String(line)))
+    list.appendChild(r)
+  }
+  card.appendChild(list)
+  return card
+}
+
+function treeCard() {
+  const card = H('div', { class: 'card', style: 'left:8px;top:8px;bottom:8px;width:300px' })
+  const head = H('div', { class: 'head' }, H('span', { style: 'font-weight:500' }, '文件'), H('span', { class: 'muted' }, '18 个'), H('span', { class: 'spacer', style: 'flex:1' }), H('span', { class: 'muted' }, '×'))
+  card.appendChild(head)
+  const list = H('div', { class: 'list' })
+  const rows = [['·', 'main.tex', 0, true], ['·', 'refs.bib', 0], ['▾', 'chapters', 0], ['·', '01-intro.tex', 1], ['·', '02-model.tex', 1], ['·', '03-results.tex', 1], ['▾', 'figures', 0], ['▤', 'overview.pdf', 1], ['·', 'README.md', 0]]
+  for (const [ico, name, depth, on] of rows) {
+    const r = H('div', { class: 'row' + (on ? ' on' : ''), style: 'padding-left:' + (8 + depth * 12) + 'px' })
+    r.style.opacity = depth === 1 ? '0.85' : '1'
+    r.appendChild(H('span', { style: 'opacity:.7;width:10px;display:inline-block' }, ico))
+    r.appendChild(H('span', null, name))
+    list.appendChild(r)
+  }
+  card.appendChild(list)
+  return card
+}
+
+function connectZoom() {
+  const box = H('div', { style: 'padding:40px;display:flex;flex-direction:column;gap:18px' })
+  const row = H('div', { style: 'display:flex;align-items:center;gap:10px' })
+  const pill = H('span', { class: 'pill', style: 'height:26px;font-size:13px;padding:0 12px' })
+  pill.appendChild(H('i'))
+  pill.appendChild(document.createTextNode('已连接 DSH 工作区'))
+  row.appendChild(pill)
+  row.appendChild(H('span', { class: 'muted', style: 'font-size:12px' }, 'A-DSH-molingTex-illustration'))
+  box.appendChild(row)
+  const row2 = H('div', { style: 'display:flex;align-items:center;gap:10px' })
+  const pill2 = H('span', { class: 'pill grey', style: 'height:26px;font-size:13px;padding:0 12px' })
+  pill2.appendChild(H('i'))
+  pill2.appendChild(document.createTextNode('未连接 DSH 工作区'))
+  row2.appendChild(pill2)
+  row2.appendChild(H('span', { class: 'muted', style: 'font-size:12px' }, '点一下加入左侧工作区'))
+  box.appendChild(row2)
+  return box
+}
+
+// welcome body (scene 02)
+function welcomeBody() {
+  const w = H('div', { class: 'welcome' })
+  const wrap = H('div', { style: 'display:flex;gap:30px;align-items:flex-start' })
+  const main = H('div', { style: 'flex:1 1 380px;min-width:0' })
+  main.appendChild(H('div', { class: 'h1' }, '墨灵 LaTeX'))
+  main.appendChild(H('div', { class: 'sub' }, '编辑 · 编译 · 预览 — 本地一体化 LaTeX 工作流'))
+  main.appendChild(H('div', { class: 'sec' }, '启动'))
+  for (const [g, label, kbd] of [['▤', '新建文档', 'Ctrl+N'], ['▤', '打开文件夹…', 'Ctrl+K'], ['▤', '打开文件…', 'Ctrl+O']]) {
+    const r = H('div', { class: 'wrow' })
+    r.appendChild(H('span', { class: 'g' }, g))
+    r.appendChild(H('span', { class: 'lbl' }, label))
+    r.appendChild(H('span', { class: 'kbd' }, kbd))
+    main.appendChild(r)
+  }
+  main.appendChild(H('div', { class: 'sec' }, '最近'))
+  for (const [badge, name, path, on] of [['工作区', 'A-DSH-molingTex-illustration', 'E:\\demo\\A-DSH-molingTex-illustration', true], ['文件', 'main.tex', 'A-DSH-molingTex-illustration'], ['工作区', 'papers', 'E:\\demo\\papers']]) {
+    const r = H('div', { class: 'wrow' + (on ? ' on' : '') })
+    r.appendChild(H('span', { class: 'badge' }, badge))
+    r.appendChild(H('span', { class: 'lbl' }, name))
+    r.appendChild(H('span', { class: 'path' }, path))
+    main.appendChild(r)
+  }
+  main.appendChild(H('div', { class: 'sec' }, '模板'))
+  const card = H('div', { class: 'wcard' })
+  card.appendChild(H('span', { class: 'g', style: 'font-size:16px' }, '▤'))
+  const t = H('div', { style: 'flex:1;min-width:0' })
+  t.appendChild(H('div', { class: 't' }, '新建中文文档'))
+  t.appendChild(H('div', { class: 'd' }, 'ctexart 骨架：标题 · 作者 · 日期 · 一节正文'))
+  card.appendChild(t)
+  card.appendChild(H('span', { class: 'path' }, '→'))
+  main.appendChild(card)
+  const aside = H('div', { style: 'flex:0 1 260px' })
+  aside.appendChild(H('div', { class: 'sec', style: 'margin-top:2px' }, '提示'))
+  for (const [g, title, desc] of [['⌨', '快捷键', 'F5 编译 · Ctrl+S 保存 · Ctrl+N 新建 · Ctrl+O 文件树'], ['⚙', 'TeX 环境', 'TeX Live 2024 · xelatex 已就绪'], ['⚡', 'DSH 联动', '项目已在左侧工作区，右键可把选区发进对话']]) {
+    const tip = H('div', { style: 'display:flex;gap:9px;padding:6px 2px' })
+    tip.appendChild(H('span', { style: 'flex:none;width:16px;opacity:.75' }, g))
+    const body = H('div')
+    body.appendChild(H('div', { style: 'font-size:12.5px;font-weight:500;margin-bottom:2px' }, title))
+    body.appendChild(H('div', { style: 'font-size:11px;line-height:16px;color:var(--sub)' }, desc))
+    tip.appendChild(body)
+    aside.appendChild(tip)
+  }
+  wrap.appendChild(main)
+  wrap.appendChild(aside)
+  w.appendChild(wrap)
+  return w
+}
+
+// scene 02 needs welcome injected into panel body
+const originalPanel = panel
+function panelWithWelcome(opts) {
+  const p = originalPanel(opts)
+  const body = p.querySelector('.body')
+  body.innerHTML = ''
+  body.appendChild(welcomeBody())
+  return p
+}
+
+function build(id) {
+  const app = document.getElementById('app')
+  app.innerHTML = ''
+  if (id === '02-welcome') app.appendChild(chrome(panelWithWelcome({ wide: true, noRight: true }), { side: true, chat: true }))
+  else app.appendChild(scenes[id]())
+  // mark body for debug
+  document.title = 'moling-' + id
+}
+
+const scene = S('01-overview')
+if (!scenes[scene] && scene !== '02-welcome') {
+  document.getElementById('app').textContent = 'unknown scene ' + scene
+} else {
+  build(scene)
+}
+</script>
+</body></html>
