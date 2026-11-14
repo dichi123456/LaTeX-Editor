@@ -8,7 +8,7 @@
 | 路径 | 是什么 | 状态 |
 | --- | --- | --- |
 | `src/` `electron/` `index.html` | 墨灵TeX 桌面版：Electron 33 + Vue 3 + CodeMirror 6 + PDF.js | v2.0.2；远端 `dichi123456/LaTeX-Editor`（本仓库 origin 经 ghproxy 中转） |
-| `dsh-plugin-moling-latex/` | 墨灵TeX 的 **DSH 插件**，**独立 git 仓库** | v0.7.0（自动同步 + 标绿 + 主 tex 判定 + 跳转可见 + 辅助文件进树 + 保存分体/自编 + @引用 chip + **21 个内置模板**），远端 `dichi123456/dsh-molingTex`（Public，main） |
+| `dsh-plugin-moling-latex/` | 墨灵TeX 的 **DSH 插件**，**独立 git 仓库** | v0.7.0 **已发布**（自动同步 + 标绿 + 主 tex 判定 + 跳转可见 + 辅助文件进树 + 保存分体/自编 + @引用 chip + **21 个内置模板**），本地与 `origin/main` 已同步；远端 `dichi123456/dsh-molingTex`（Public，main） |
 
 父仓库 `.gitignore` 已忽略 `dsh-plugin-moling-latex/`，避免把它当嵌套仓库提交。
 插件源码目录本身也是 DSH profile 里 `link:` 安装的目标目录。
