@@ -8,7 +8,7 @@
 | 路径 | 是什么 | 状态 |
 | --- | --- | --- |
 | `src/` `electron/` `index.html` | 墨灵TeX 桌面版：Electron 33 + Vue 3 + CodeMirror 6 + PDF.js | v2.0.2；远端 `dichi123456/LaTeX-Editor`（本仓库 origin 经 ghproxy 中转） |
-| `dsh-plugin-moling-latex/` | 墨灵TeX 的 **DSH 插件**，**独立 git 仓库** | v0.7.0 **已发布**（自动同步 + 标绿 + 主 tex 判定 + 跳转可见 + 辅助文件进树 + 保存分体/自编 + @引用 chip + **21 个内置模板**），本地与 `origin/main` 已同步；远端 `dichi123456/dsh-molingTex`（Public，main） |
+| `dsh-plugin-moling-latex/` | 墨灵TeX 的 **DSH 插件**，**独立 git 仓库** | v0.8.0 **已发布**（自动同步 + 标绿 + 主 tex 判定 + 跳转可见 + 辅助文件进树 + 保存分体/自编 + @引用 chip + 21 个内置模板 + **LaTeX 自动补全**），本地与 `origin/main` 已同步；远端 `dichi123456/dsh-molingTex`（Public，main） |
 
 父仓库 `.gitignore` 已忽略 `dsh-plugin-moling-latex/`，避免把它当嵌套仓库提交。
 插件源码目录本身也是 DSH profile 里 `link:` 安装的目标目录。
@@ -35,7 +35,8 @@ ctx.slots.register({ name: 'sidebar.right.pane.tab', key: ID }, Body)
 - **提纲**：顶栏 `提纲` → 编辑区左下角浮出章节列表（按层级缩进 + 行号），点一条跳到该行。解析在**浏览器里**做（`parseOutlineText`，不请求宿主），所以刷新即生效；宿主另有 `outline` 端点供工具/调试用。
 - **SyncTeX 双向**：编辑器**右键**菜单（含 撤销/重做/剪切/复制/粘贴/全选 + 「定位到 PDF 位置」）→ 源码行 → PDF 页 + 黄圈；**单击 PDF 页面** → 反向定位（跳到源码行）。两层都走宿主 `synctex` 端点。定位结果显示在**底部状态栏**，**两条路径都不许静默失败**（没打开 tex / 没有 PDF / 失败原因都会写出来）；`jumpTo` 会置 `suppressRestoreUntil = now+600ms`（这 600ms 内外同步不还原视口），并且**跳转要看得见**：自动收起文件树/提纲/右键菜单浮层，并把目标行**绿闪一下**（`store.flashLine/flashAt` → 编辑器 effect → `startFlash`）——「跳了但被树抽屉盖住 / 肉眼看不出」曾被当成"同步失效"。判断链路是否正常可以只跑 `node` + jsdom 把面板真挂起来点 PDF（见 `%TEMP%/moling-debug/domtest.mjs` 的做法）。面板接管了原生右键菜单，所以基础编辑项得自己补（内核 `runCommand`）。
 - **PDF 预览**是降分辨率图片（不是内置阅读器）：宿主用 poppler `pdftoppm` 按 dpi 栅格化成「一页一张 PNG」，前端 `<img loading="lazy">` 等比缩放；清晰度三档 72/96/144（右栏头部下拉，存 localStorage）；**Ctrl+滚轮缩放** 0.5×–3×（普通滚轮照常滚动），**以鼠标为锚点**（wheel 记指针/滚动量/缩放比 → 渲染后按 `scrollLeft'=(sl+px)*ratio-px` 补滚动，所以放大是朝指针方向长的，不再锚在页顶）；右栏头部有 **`适应` 按钮**（一键整页适应当前窗口）：量 `.ml-pdf-scroll` 可视宽高 → `fitZoomFor(w,h,pageSize)` = `min(1, h/(w×页高宽比))` 夹 0.5–3（页宽是相对值、100% 本来就贴满面板宽，所以适应只会往下缩）；poppler 缺失或取图失败才退回 blob + iframe。
-- 编辑器内核 = `lib/vendor/cm6.js`（CodeMirror 6 打包产物，395 KB，挂 `window.__molingCM`），**已内联进 `lib/client.js` 末尾**（`node lib/vendor/inline-kernel.cjs`），所以刷新页面就生效、不用重开 DSH；只渲染视口内的行（1435 行文档 DOM 里 ~29 行），实测**每次按键 1 ms**。加载失败自动退回旧的「透明 textarea + 高亮层」实现。`lib/vendor/entry.js` 是内核源码，`BUILD.md` 是重建步骤。
+- 编辑器内核 = `lib/vendor/cm6.js`（CodeMirror 6 打包产物，401 KB，挂 `window.__molingCM`），**已内联进 `lib/client.js` 末尾**（`node lib/vendor/inline-kernel.cjs`），所以刷新页面就生效、不用重开 DSH；只渲染视口内的行（1435 行文档 DOM 里 ~29 行），实测**每次按键 1 ms**。加载失败自动退回旧的「透明 textarea + 高亮层」实现。`lib/vendor/entry.js` 是内核源码，`BUILD.md` 是重建步骤。
+- **LaTeX 自动补全（v0.8.0）**：词表在浏览器侧（`lib/client.js` 的 `LATEX_COMMANDS` 107 条 / `LATEX_ENVIRONMENTS` 51 条 / `LATEX_PACKAGES` 65 个），匹配逻辑是纯函数 `completeLatex({text,pos})`，五种触发：`\begin{`/`\end{`（环境名，`\begin` 顺手补 `\end{...}` 把光标放中间）、`\ref{` 系列（扫文档内 `\label`）、`\cite{` 系列（扫 `\bibitem`，逗号多引用只补最后一段）、`\usepackage{`/`\documentclass{`（宏包/文档类）、`\` 前缀（命令）。内核侧 `entry.js` 的 `completionExtension(options)` 把它挂进 `EditorState.languageData` 的 `autocomplete` 字段 —— **basicSetup 里已含 `autocompletion()`，不要再装一次**。**致命坑（踩了一整轮才定位）：languageData 的 provider 每次读 facet 都会被调用，若在 `of(() => [{ autocomplete: (ctx) => ... }])` 里现造函数，CM 会认为「补全源换了」→ 每帧重启补全 → 弹窗永远不出现（jsdom 里 `.cm-tooltip` 恒为 0，但 source 被调了十几次）。修法：源函数与数组都在 `completionExtension()` 里**只造一次**，provider 返回同一个 `data` 引用。回归断言在 client-smoke 第 28 节（「补全源只造一次」「不在 provider 里现造函数」）。补全弹窗配色复用 `molingTheme` 里已有的 `.cm-tooltip` / `.cm-tooltip-autocomplete` 规则，不额外写 CSS。改词表只动 client.js（刷新即可）；改内核要重建 cm6.js + 内联 + `KERNEL_VERSION` 加一。
 - 状态放**模块级 store**（组件卸载/重建不丢）+ localStorage（只存最近打开/引擎/模式/过滤词/两个分栏宽度/换行开关/预览清晰度）。
 
 **通道：同源 `fetch('/moling/api/<endpoint>')`**，17 个端点：
@@ -70,13 +71,13 @@ plugin_manager install_bundle  E:\E_个人项目\Latex_APP\dsh-plugin-moling-lat
 - **改动生效规则**：`lib/client.js` 走 HMR，刷新页面即可；`lib/index.js`、`lib/server.js`、`package.json`、`cordis.patch.yml` **必须重开 DSH**。
 - 验收看 `install_bundle` 的 `application`（要 `applied`）+ `warnings`，并用 `cordis_inspect_query` 查 Tool / `Slots.listSubTree(root='sidebar.right.pane.tab')` 看 occupant 是否 `active`。**不要**用 `list_plugins` 日志或页面猜测。
 
-自测（当前基线 **12 + 57 + 327 = 396 项全绿**）：
+自测（当前基线 **12 + 57 + 350 = 419 项全绿**）：
 
 ```
 cd dsh-plugin-moling-latex
 node test/smoke.mjs            # 工具：注册/引擎识别/status/outline/quick/失败路径（12）
 node test/server-smoke.mjs     # 宿主 /moling/api：17 端点 + 白名单 + 读写 + 编译 + PDF + asset + synctex + outline + stat 外部改动探测 + 辅助文件进树 + 模板清单/落地（含二进制与重名换目录）（57）
-node test/client-smoke.mjs     # 浏览器半侧：bundle/槽位/SSR/词法/路径/PDF/编辑器/顶栏分组与统一高度/分组配色/分隔线/开关两态样式/保存分体按钮（手动·自动）/自编/提纲/连接状态/主 tex 判定（main/最近/唯一/根目录/最大）/切换项目关闭旧文件/外部改动自动同步（tree 通道/指示灯/失败可见）/改动行标绿 diff/同步不被标绿拖垮/视口不跳与行号换算/回归（自动打开不被轮询关掉、发送选区、跳转可见）/适应窗口/圆角统一/hook 顺序/模板库（清单/搜索/分类/落地）（327）
+node test/client-smoke.mjs     # 浏览器半侧：bundle/槽位/SSR/词法/路径/PDF/编辑器/顶栏分组与统一高度/分组配色/分隔线/开关两态样式/保存分体按钮（手动·自动）/自编/提纲/连接状态/主 tex 判定（main/最近/唯一/根目录/最大）/切换项目关闭旧文件/外部改动自动同步（tree 通道/指示灯/失败可见）/改动行标绿 diff/同步不被标绿拖垮/视口不跳与行号换算/回归（自动打开不被轮询关掉、发送选区、跳转可见）/适应窗口/圆角统一/hook 顺序/模板库（清单/搜索/分类/落地）/LaTeX 自动补全（命令/环境/引用/宏包 + 补全源只造一次）（350）
 node test/live-api.mjs         # 对正在运行的 DSH 打真实 HTTP（端口取 DSH_WEB_URL）
 ```
 
@@ -116,7 +117,7 @@ node test/live-api.mjs         # 对正在运行的 DSH 打真实 HTTP（端口�
 
 ## 6. 尚未完成 / 下一步
 
-- **编辑器**：已经是 CodeMirror 6（虚拟化、行号、搜索、撤销都有）；还差的只有 **折叠** 与 LaTeX 环境的自动补全（`@codemirror/lang-latex` 取不到，补全得自己写）。
+- **编辑器**：已经是 CodeMirror 6（虚拟化、行号、搜索、撤销、**LaTeX 自动补全**都有）；还差的只有 **代码折叠**（`foldGutter`/`foldKeymap` 已在 basicSetup 里，缺的是按 `\begin{...}\end{...}` 生成 foldable range 的 `foldService`，要改 `lib/vendor/entry.js` 重建 cm6.js）。
 
 ## 7. 约定
 
