@@ -8,7 +8,7 @@
 | 路径 | 是什么 | 状态 |
 | --- | --- | --- |
 | `src/` `electron/` `index.html` | 墨灵TeX 桌面版：Electron 33 + Vue 3 + CodeMirror 6 + PDF.js | v2.0.2；远端 `dichi123456/LaTeX-Editor`（本仓库 origin 经 ghproxy 中转） |
-| `dsh-plugin-moling-latex/` | 墨灵TeX 的 **DSH 插件**，**独立 git 仓库** | v0.6.2（面板互换已移除；本地已提交，待推送）；远端 `dichi123456/dsh-molingTex`（Public，main） |
+| `dsh-plugin-moling-latex/` | 墨灵TeX 的 **DSH 插件**，**独立 git 仓库** | v0.7.0（自动同步 + 标绿 + 主 tex 判定 + 跳转可见 + 辅助文件进树 + 保存分体/自编 + @引用 chip + **21 个内置模板**），远端 `dichi123456/dsh-molingTex`（Public，main） |
 
 父仓库 `.gitignore` 已忽略 `dsh-plugin-moling-latex/`，避免把它当嵌套仓库提交。
 插件源码目录本身也是 DSH profile 里 `link:` 安装的目标目录。
@@ -28,19 +28,35 @@ ctx.slots.register({ name: 'sidebar.right.pane.tab', key: ID }, Body)
 ```
 
 - 启动页（每次进入先落这里）：大标题 + 「启动」动作行（新建文档 Ctrl+N / 打开文件夹 Ctrl+K / 打开文件 Ctrl+O）+「最近」列表（工作区/文件，带类型标签与右对齐路径）+ 模板卡片 + 右侧提示栏；**不自动打开任何工作区**。
-- 工作台：左 tex（**CodeMirror 6**，虚拟化）| 右 日志/PDF，中间**分隔条可拖**（20%–80%）；文件树是浮层抽屉，右边框**可拖**（30%–100%）。**进入项目文件夹自动打开主 tex**：`enterRoot` 在 `loadTree` 后调 `pickMainTex(state.files)`（main.tex 优先、根目录优先、不区分大小写；否则项目里唯一一个 .tex；没有 .tex 或多个非 main 拿不准 → 不开），开完把抽屉开回来；「打开具体文件」与「新建文档」传 `autoOpen:false` 不被抢。**底部状态栏**里：左侧通道/忙闲/TeX/文件名，最右 `日志`/`PDF` 切换，**正中**是编译结果（成功绿 / 失败红，绝对定位居中）。
-- 顶栏按钮：`首页` `工作区…`（下拉）→ **分组一** `树｜提纲`、**分组二** `换行｜保存｜新建`（每组各自包在一个同底色圆角矩形里：几何走 `S.btnGroup`，配色走 `S.btnGroupBlue`（树｜提纲，蓝，token=brand-primary）/ `S.btnGroupAmber`（换行｜保存｜新建，橙，token=state-warn-primary）—— 颜色都是「行内 rgba 兜底 + `color-mix` token 增强层」两层，**不依赖 `<style>`/class**；组内按钮 `S.btnFlat` 无边框、激活才用 accent 描边，按钮之间用 `S.btnSep` 竖分隔线（1×14px）隔开），右端是**连接状态胶囊 + 分体编译按钮**（左 3/4 显示当前编译方式、点击即编译；右 1/4 小三角改方式）。**顶栏所有圆角矩形外高统一 24px**（`boxSizing:border-box + height:24`：btn / 工作区下拉 / 两个按钮组 / 连接胶囊 / 编译按钮；组内按钮 18px = 24 − 组内边距 4 − 组边框 2）；**工具栏所有矩形圆角统一 6px**（btn/select/btnGroup/linkPill/splitWrap/paneTab 全是 6，分体按钮内角 5 = 6 − 边框 1；浮层菜单 8、抽屉/提纲 10、PDF 页 2 不在此列）；面板内**左右两条顶栏同高 28px**（`S.tabsBar` 文件标签条 / `S.rightHead` pdf·日志工具栏，都是 `boxSizing:border-box + height:28`，标签条 `alignItems:flex-end` 贴底）。**`目录` 按钮已移除**：打开目录走启动页「打开文件夹…」（Ctrl+K）或顶栏「工作区…」下拉。`日志`/`PDF` 切换在**底部状态栏最右**。`新建` 复用 `newDocument()`（当前项目里建 `untitled[-n].tex` 的 ctexart 骨架并打开，`Ctrl+N` 同效）。
+- 工作台：左 tex（**CodeMirror 6**，虚拟化）| 右 日志/PDF，中间**分隔条可拖**（20%–80%）；文件树是浮层抽屉，右边框**可拖**（30%–100%）。**进入项目文件夹自动打开主 tex**：`enterRoot` 在 `loadTree` 后调 `pickMainTex(state.files, { root, recents })` —— ① `main.tex`（不区分大小写、根目录优先、浅的优先）；② **最近在这个项目里打开过的 .tex**（用户上次看的那个）；③ 项目里唯一一个 .tex；④ 根目录唯一的 .tex；⑤ 兜底选**体积最大**的 .tex（论文章节/片段通常远小于主文件）。只有"一个 .tex 都没有"才不打开。**踩过的坑：最早只要「没 main.tex 且不止一个 .tex」就放弃，于是用户那些没有 main.tex 的论文项目全都进不去主文件 —— 看着像"只认某一个文件夹"**。开完把抽屉开回来；「打开具体文件」与「新建文档」传 `autoOpen:false` 不被抢。**切到另一个项目文件夹时同步关闭上一个项目的东西**：`enterRoot` 发现 root 变了就先调 `closeProjectFiles()` —— 关掉全部 tex 标签、清空 PDF 预览（回退 blob 会 revoke）、编译日志、提纲/右键菜单/定位提示与旧文件树；同一个项目重进（含大小写不同）不动。另在 `refreshPdf` / `loadPdfBlob` / `compileActive` 里加了「取图或编译期间切了项目就丢弃结果」的护栏，免得旧 PDF/旧日志又自己冒出来。**底部状态栏**里：左侧通道/忙闲/TeX/文件名，最右 `日志`/`PDF` 切换，**正中**是编译结果（成功绿 / 失败红，绝对定位居中）。
+- 顶栏按钮：`首页` `工作区…`（下拉）→ **分组一** `树｜提纲`、**分组二** `换行｜保存｜新建｜自编`（**`保存` 是分体按钮**：左边「手动保存/自动保存」点一下立刻存（Ctrl+S 同效），右边小三角切档；**自动保存** = 标签变脏后停手 1.2 秒存一次，切到自动时立刻把脏标签存一次；**`自编` = 自动编译开关**：开着时保存成功 / 外部同步（大模型改完）之后**防抖 900ms 自动编一次**，`busy` 时跳过不排队；两者默认都关/手动，状态存 localStorage；换项目会清掉待触发的定时器）（每组各自包在一个同底色圆角矩形里：几何走 `S.btnGroup`，配色走 `S.btnGroupBlue`（树｜提纲，蓝，token=brand-primary）/ `S.btnGroupAmber`（换行｜保存｜新建，橙，token=state-warn-primary）—— 颜色都是「行内 rgba 兜底 + `color-mix` token 增强层」两层，**不依赖 `<style>`/class**；组内按钮 `S.btnFlat` 无边框、激活才用 accent 描边，按钮之间用 `S.btnSep` 竖分隔线（1×14px）隔开），右端是**连接状态胶囊 + 分体编译按钮**（左 3/4 显示当前编译方式、点击即编译；右 1/4 小三角改方式）。**顶栏所有圆角矩形外高统一 24px**（`boxSizing:border-box + height:24`：btn / 工作区下拉 / 两个按钮组 / 连接胶囊 / 编译按钮；组内按钮 18px = 24 − 组内边距 4 − 组边框 2）；**工具栏所有矩形圆角统一 6px**（btn/select/btnGroup/linkPill/splitWrap/paneTab 全是 6，分体按钮内角 5 = 6 − 边框 1；浮层菜单 8、抽屉/提纲 10、PDF 页 2 不在此列）；面板内**左右两条顶栏同高 28px**（`S.tabsBar` 文件标签条 / `S.rightHead` pdf·日志工具栏，都是 `boxSizing:border-box + height:28`，标签条 `alignItems:flex-end` 贴底）。**`目录` 按钮已移除**：打开目录走启动页「打开文件夹…」（Ctrl+K）或顶栏「工作区…」下拉。`日志`/`PDF` 切换在**底部状态栏最右**。`新建` 复用 `newDocument()`（当前项目里建 `untitled[-n].tex` 的 ctexart 骨架并打开，`Ctrl+N` 同效）。
 - **连接状态胶囊**：把 `store.root` 与 `/moling/api/workspaces` 的路径比对 → 已连接（绿）/ 同名不同路径（黄）/ 未连接（灰）；**只认 `kind === 'workspace'`**（`kind: 'opened'` 是插件自己打开过的目录，不算连接）。未连接时点一下调客户端服务 `workspaces.create({path})` 直接加进左侧工作区，已连接时点一下是刷新，窗口重新获得焦点自动刷新。
-- **发送选中内容到对话框**（编辑器右键菜单）：`> 来自 main.tex 第 N–M 行` + ```latex 围栏，送进**当前会话**输入框（不自动发送）。通道是右栏 tab body 的注入属性 `inputActions`（探 `appendText`/`insertText`/`setText`…，都没有就复制到剪贴板）。**硬限制**：DSH 没有“按工作区定位会话并写文本”的 API，只能作用当前会话；项目不在工作区时先拦住提示连接。
+- **发送选中内容到对话框**（编辑器右键）：送进输入框的是**真 `@` 引用 chip**（圆角方框，如 `Safety_MARL框架.tex:20`）—— v0.6.6 起做实，早先"插件造不出 chip"的结论是错的。做法链（少一环都失败，别乱简化）：① `inject` 里必须声明 `'sessions'`；② 注入面在 `props.props` 里（`Workbench` 收的是 `{props,store}` 包装层，**直接读 `props.inputActions` 永远 undefined** → 统一走 `injected(props)`）；③ 草稿/draftRev 从 `useInput` 桥接的 `store.inputSnap` 读（`inputActions` 上**没有** `state`）；④ `useInput` 是 React hook，只能在渲染期调 → 用 `InputBridge` 桥组件；⑤ `setDraft` 之后**必须等一帧**（16ms，最多 6 次）让 React 把新草稿喂回来再取 `draftRev`，同帧读必是旧值 → span 的 CAS 必被拒；⑥ 有了新 rev 才 `actx.bail(actx, 'slash/input-insert-reference', { reference, span })`；⑦ 任何一步失败都退回纯文本（`formatSelectionCompact`）并在状态栏写原因、`setDraft 撤回`不留半截。**已知未做**：DSH 的 `@` 语法只能表达「文件:行」，**表达不了行内片段**，所以 chip 只覆盖整行，选中的那部分文字不在 chip 里。**别再改回**「> 来自 … 第 N 行（…）」或 ```latex 全文（用户否决过）。**右键那一刻就把选区快照进 `store.menu.selection`**（菜单期间丢了还有备份）。项目不在工作区时先拦住提示连接。
 - **提纲**：顶栏 `提纲` → 编辑区左下角浮出章节列表（按层级缩进 + 行号），点一条跳到该行。解析在**浏览器里**做（`parseOutlineText`，不请求宿主），所以刷新即生效；宿主另有 `outline` 端点供工具/调试用。
-- **SyncTeX 双向**：编辑器**右键**菜单（含 撤销/重做/剪切/复制/粘贴/全选 + 「定位到 PDF 位置」）→ 源码行 → PDF 页 + 黄圈；**单击 PDF 页面** → 反向定位（跳到源码行）。两层都走宿主 `synctex` 端点。定位结果显示在**底部状态栏**。面板接管了原生右键菜单，所以基础编辑项得自己补（内核 `runCommand`）。
+- **SyncTeX 双向**：编辑器**右键**菜单（含 撤销/重做/剪切/复制/粘贴/全选 + 「定位到 PDF 位置」）→ 源码行 → PDF 页 + 黄圈；**单击 PDF 页面** → 反向定位（跳到源码行）。两层都走宿主 `synctex` 端点。定位结果显示在**底部状态栏**，**两条路径都不许静默失败**（没打开 tex / 没有 PDF / 失败原因都会写出来）；`jumpTo` 会置 `suppressRestoreUntil = now+600ms`（这 600ms 内外同步不还原视口），并且**跳转要看得见**：自动收起文件树/提纲/右键菜单浮层，并把目标行**绿闪一下**（`store.flashLine/flashAt` → 编辑器 effect → `startFlash`）——「跳了但被树抽屉盖住 / 肉眼看不出」曾被当成"同步失效"。判断链路是否正常可以只跑 `node` + jsdom 把面板真挂起来点 PDF（见 `%TEMP%/moling-debug/domtest.mjs` 的做法）。面板接管了原生右键菜单，所以基础编辑项得自己补（内核 `runCommand`）。
 - **PDF 预览**是降分辨率图片（不是内置阅读器）：宿主用 poppler `pdftoppm` 按 dpi 栅格化成「一页一张 PNG」，前端 `<img loading="lazy">` 等比缩放；清晰度三档 72/96/144（右栏头部下拉，存 localStorage）；**Ctrl+滚轮缩放** 0.5×–3×（普通滚轮照常滚动），**以鼠标为锚点**（wheel 记指针/滚动量/缩放比 → 渲染后按 `scrollLeft'=(sl+px)*ratio-px` 补滚动，所以放大是朝指针方向长的，不再锚在页顶）；右栏头部有 **`适应` 按钮**（一键整页适应当前窗口）：量 `.ml-pdf-scroll` 可视宽高 → `fitZoomFor(w,h,pageSize)` = `min(1, h/(w×页高宽比))` 夹 0.5–3（页宽是相对值、100% 本来就贴满面板宽，所以适应只会往下缩）；poppler 缺失或取图失败才退回 blob + iframe。
 - 编辑器内核 = `lib/vendor/cm6.js`（CodeMirror 6 打包产物，395 KB，挂 `window.__molingCM`），**已内联进 `lib/client.js` 末尾**（`node lib/vendor/inline-kernel.cjs`），所以刷新页面就生效、不用重开 DSH；只渲染视口内的行（1435 行文档 DOM 里 ~29 行），实测**每次按键 1 ms**。加载失败自动退回旧的「透明 textarea + 高亮层」实现。`lib/vendor/entry.js` 是内核源码，`BUILD.md` 是重建步骤。
 - 状态放**模块级 store**（组件卸载/重建不丢）+ localStorage（只存最近打开/引擎/模式/过滤词/两个分栏宽度/换行开关/预览清晰度）。
 
-**通道：同源 `fetch('/moling/api/<endpoint>')`**，14 个端点：
-`ping status workspaces open-root open-file tree read-file write-file compile clean pdf pdf-page asset synctex`，
+**通道：同源 `fetch('/moling/api/<endpoint>')`**，17 个端点：
+`ping status workspaces open-root open-file tree read-file write-file stat compile clean pdf pdf-page asset synctex outline templates use-template`，
 除 `pdf-page`（PNG）与 `asset`（JS/CSS）直接回二进制外，一律返回 `{ ok: true, value }` / `{ ok: false, error }`。
+
+**模板库（v0.7.0）**：素材在 `lib/templates/`（21 个模板目录 + `index.json`，共 1.1 MB / 50 文件），由 `tools/sync-templates.mjs` 从桌面版 `src/templates/` 同步生成（改模板后重跑；脚本自写 `copyOne` 递归拷贝，**别用 `fs.cpSync`** —— Windows 上覆盖已有文件会报 `Error: , The operation completed successfully.`）。`index.json` 每项 = `{ id,name,category,engine,description,accent,layout,main:'main.tex',files:[相对路径…],bytes }`。
+- `templates` 端点**只回元数据**（不含正文/文件列表）——1.1 MB 塞进首屏会慢，内容由宿主按需读盘；
+- `use-template` 端点 `{root, template}` 落地：主文件统一 `main.tex`，`.cls/.sty/.bib/.bst` 与图片按原相对路径逐字节 `copyFileSync`（`figures/`、`figs/` 子目录会建）；**目标里已有 `main.tex` 就改落 `<root>/<模板id>[-n]/`**，绝不覆盖用户项目；返回 `{template,root,main,files}`；
+- 启动页「模板」区：搜索框 + 分类胶囊（全部/5 类，带计数）+ 卡片网格（`.ml-tpl-grid/.ml-tpl-card`，**不是 `.ml-row`**，所以启动页行数断言不受影响）；空清单与「搜索无结果」各有文案，不空白不崩；
+- 点卡片 `newFromTemplate()`：`api('use-template')` → 引擎跟着模板走（`xelatex`/`pdflatex`）→ `enterRoot(target,{treeOpen:false,autoOpen:false})` → `openTab(target,'main.tex')`；没有目标目录时先提示去「打开文件夹…」，不发请求。
+
+**外部改动自动同步（大模型改 tex → 编辑区自己刷新）**：面板每 2 秒打一次 **`tree`**（不是专门的 `stat` 端点！`tree` 是文件树本来就在用的通道，一定能通；一次请求同时给出每个文件的 `mtime` 和目录里增删了谁），拿 **`mtime`** 当版本戳比对（**别带 size**：`read-file` 与 `tree` 的口径一旦不同就会互相打架、每 2 秒白重读一次）：
+- 已打开的 tex 变了 → 重新 `read-file` 读进标签（CodeMirror 的 `[tab.text]` effect 会 `setDoc`，光标 clamp 不跳走），状态栏提示「已同步 xxx」；**标签脏（有未保存改动）→ 只红色提醒绝不覆盖**；文件从清单里消失 → **只提示、绝不关标签**（删文件是少见操作，误判一次就会把自动打开/正在看的主 tex 关掉；清单被截断时更不判定）；
+- 正在预览的 PDF mtime 变了 → `refreshPdf` 换图（大模型跑完 `latex_compile` 就是这条路径）；
+- 文件清单（rel 列表）变了 → 用同一份快照直接换 `files/tree`（新建/删除/重命名立刻可见；只改内容不动树，避免每 2 秒重画）；
+- **改动行标绿 → 几秒后渐隐**：`reloadTab` 先用 `diffLineRanges(old,new)` 算出「新文档里哪几行变了」（掐公共前后缀 + 中间块按行做多重集比对，所以第 10 行和第 500 行各改一处只会得到两段、不刷绿中间 490 行），`pendingFlash` 交给编辑器的 `[tab.text]` effect 消费 → 往行元素上涂内联 `background`（CM 的 `.cm-line` 用 `lineReaderFor` 换算行号：**主路 `getBoundingClientRect` + `posAtCoords`**，兜底「视口首行 + DOM 序号」——早先拿 `posAtDOM` 当主路，实际一行都没涂上；回退高亮层的 `[data-line]` 直接读属性），停 4 秒后摘掉（`transition: background-color 900ms` → 渐隐），窗口期内视口滚出新行由 `onViewport` 补涂。**不动内核**：`entry.js`/`cm6.js` 一字未改，刷新页面即生效。
+- **同步不跳页**：`setDoc` 是整篇替换，CM 会把视口带到光标处（观感就是"页面滑走了"）。`captureViewport` 记下「视口首行行号 + 行内像素偏移」，替换后 `restoreViewport` 挪回去，并在 `requestAnimationFrame` 里再补一次（等高度/换行重排稳定）。
+- **可观测**：状态栏「同步●」绿=通道通 / 红✗=失败（`syncError` 是原因，悬停可看、60 秒内还会在中间红字报一次）/ 灰…=还没跑过。轮询在 `boot()` 和 `Body` 挂载 effect 里各起一次（`startWatch` 幂等）；**不再用 `document.hidden` / `state.view` 做闸门**（那会把轮询整段跳过却毫无提示），`watchBusy` 带 6 秒看门狗（一次卡死的请求不会把轮询永久锁死）。
+- 版本戳在 `read-file`/`write-file`/`refreshPdf` 成功后盖章；`setDoc` 前记 `suppressDirtyText` 防止把自己标脏（见坑 15）；换项目 `closeProjectFiles()` 全清。
+- **进项目期间（`enteringRoot`）暂停轮询**，并且轮询**永远不关标签**：这两条是"自动打开主 tex 失效"的两次教训 —— 同步一旦拿旧/不全的快照去比对，就会把刚打开的主 tex 判成"已删除"。
 
 **工具**：`latex_compile`、`latex_status`、`latex_synctex`、`latex_clean`、`latex_outline`。
 
@@ -54,13 +70,13 @@ plugin_manager install_bundle  E:\E_个人项目\Latex_APP\dsh-plugin-moling-lat
 - **改动生效规则**：`lib/client.js` 走 HMR，刷新页面即可；`lib/index.js`、`lib/server.js`、`package.json`、`cordis.patch.yml` **必须重开 DSH**。
 - 验收看 `install_bundle` 的 `application`（要 `applied`）+ `warnings`，并用 `cordis_inspect_query` 查 Tool / `Slots.listSubTree(root='sidebar.right.pane.tab')` 看 occupant 是否 `active`。**不要**用 `list_plugins` 日志或页面猜测。
 
-自测（当前基线 **12 + 34 + 181 = 227 项全绿**）：
+自测（当前基线 **12 + 57 + 327 = 396 项全绿**）：
 
 ```
 cd dsh-plugin-moling-latex
 node test/smoke.mjs            # 工具：注册/引擎识别/status/outline/quick/失败路径（12）
-node test/server-smoke.mjs     # 宿主 /moling/api：15 端点 + 白名单 + 读写 + 编译 + PDF + asset + synctex + outline（34）
-node test/client-smoke.mjs     # 浏览器半侧：bundle/槽位/SSR/词法/路径/PDF/编辑器/顶栏分组与统一高度/分组配色/分隔线/提纲/连接状态/主 tex 自动打开/适应窗口/圆角统一/hook 顺序（181）
+node test/server-smoke.mjs     # 宿主 /moling/api：17 端点 + 白名单 + 读写 + 编译 + PDF + asset + synctex + outline + stat 外部改动探测 + 辅助文件进树 + 模板清单/落地（含二进制与重名换目录）（57）
+node test/client-smoke.mjs     # 浏览器半侧：bundle/槽位/SSR/词法/路径/PDF/编辑器/顶栏分组与统一高度/分组配色/分隔线/开关两态样式/保存分体按钮（手动·自动）/自编/提纲/连接状态/主 tex 判定（main/最近/唯一/根目录/最大）/切换项目关闭旧文件/外部改动自动同步（tree 通道/指示灯/失败可见）/改动行标绿 diff/同步不被标绿拖垮/视口不跳与行号换算/回归（自动打开不被轮询关掉、发送选区、跳转可见）/适应窗口/圆角统一/hook 顺序/模板库（清单/搜索/分类/落地）（327）
 node test/live-api.mjs         # 对正在运行的 DSH 打真实 HTTP（端口取 DSH_WEB_URL）
 ```
 
@@ -79,22 +95,32 @@ node test/live-api.mjs         # 对正在运行的 DSH 打真实 HTTP（端口�
 11. **副作用里抛异常 = 右栏整块空白**：React 会把整棵子树卸掉，症状就是「插件界面没了」（标签页还在、下面空的）。真实案例：`ResizeObserver.observe(textareaRef.current)` 在没打开 tex 时传的是 `null` → 抛 `parameter 1 is not of type 'Element'`。规矩：effect 里访问 ref 一律先判空；`Body` 外面套了 `PaneBoundary`，出错会画出错误文本而不是空白 —— 看到那段文字就把它贴给 agent。
 12. **hook 必须写在组件所有提前 `return` 之前**（React #310「Rendered more hooks than during the previous render」）。真实案例：`PdfPane` 的 Ctrl+滚轮 `useEffect` 原本写在 `if (!store.pdfRel) return` 之后 → 首次编译「没 PDF → 有 PDF」时 hook 从 3 变 4，整块崩（PaneBoundary 画出 #310，回首页重进就好）。已挪到顶部并加了源码扫描回归（client-smoke 第 16 节）。
 13. **PDF 页容器（`pdfPageBox`）不能加 `maxWidth:'100%'`**：它会把 `width:(100*zoom)%` 卡死在容器宽 → 100% 之后再放大只有百分比数字在涨、页面纹丝不动。放大要能溢出容器（`pdfScroll` 是 `overflow:auto`，横向拖动即可），回归断言见 client-smoke「不再被 maxWidth 卡死」。
+14. **Windows 目录 mtime 粒度约 15ms，别拿它当「目录变没变」的唯一依据**：`stat` 端点的目录指纹一开始只算 `rel:mtime`，结果同一毫秒里「建了又删」算出同一个指纹 → server-smoke 的「删除后指纹没变」间歇性红。现在指纹里还带**这一层的名字表**（`rel:mtime:名字,…`）：增删改名看名字、同名替换看 mtime、只改文件内容指纹不变（不白刷文件树）。
+15. **内核 `setDoc` 会照常触发 `onChange`（entry.js 注释写"不触发"是错的）**：外部同步推文档 → `onChange` → `setTab({dirty:true})` → **第一次同步就把标签弄脏** → 之后每次外部改动都被 `reloadTab` 的「有未保存改动」拦住，症状是**"同步突然不工作了、标绿也没了"**。修法：`setDoc` 前把预期文本记进 `suppressDirtyText`，`onChange` 撞上同一份文本就只更新不标脏（`suppressDirtyText` 在 [lib/client.js](dsh-plugin-moling-latex/lib/client.js)）。同理，**标绿这类配菜必须排在 `setTab` 之后并自带 try**，别让它反过来吞掉同步主链路。
+16. **别用「移除 longhand」来关高亮**：`S.btnFlat` 是 `border` 简写，`S.btnOn` 只给 `borderColor` 长写 → 两态切换靠 React 删 `borderColor`，React 直接警告 "Removing a style property during rerender (borderColor) when a conflicting property is set (border)"，实际表现就是**开关关了、那圈"开着"的框不消失**。现在统一走 `toggleBtnStyle(on)`：开/关都显式写完整 `border` + `color`；`btnFlat` 另加 `outline:'none'`（否则点过的开关会留浏览器焦点白圈）。回归断言在 client-smoke 第 26 节。
 
 ## 5. Git / 发布
 
 - 插件仓库：`https://github.com/dichi123456/dsh-molingTex`（Public，`main`），本地 `origin` 已连，`main` 跟踪 `origin/main`。
 - 推送免登录已配好：`git config --global credential.helper manager`（+ `credential.https://github.com.helper manager`），凭据在 Windows 凭据管理器里，账号 `dichi123456`。**换账号**：`"protocol=https`nhost=github.com`n`n" | git credential reject`。
 - 日常：`cd dsh-plugin-moling-latex && git add -A && git commit -m "…" && git push`。
+- **发版**（本机没装 `gh`，走 GitHub API；token 用 `git credential fill` 现取、**不落盘**）：
+  1. 改 `package.json` 的 `version`，README 的「指定版本」链接同步到新版本；
+  2. `git add -A && git commit -m "release: vX.Y.Z（一句话摘要）"` → `git push`；
+  3. `git tag vX.Y.Z <提交> && git push origin vX.Y.Z`；
+  4. `npm pack --pack-destination $env:TEMP` 出 `dsh-plugin-moling-latex-X.Y.Z.tgz`（340 KB / 13 文件）；
+  5. `POST /repos/…/releases`（tag_name/name/body）→ `POST <upload_url>?name=…tgz`（`Content-Type: application/octet-stream` + `-InFile`）；
+  6. 复核：`GET /repos/…/releases/tags/vX.Y.Z` 看资产，再对下载链接发 HEAD（要 200 且字节数一致）。**发版后要改 AGENTS/README 就得再提交一次**，别让文档落后于已发的版本。
 - 提交署名用 `dichi123456 <dichi123456@users.noreply.github.com>`；许可证 MIT（版权 `dichi123456`）。
 - 仓库里不要放：`node_modules`、编译产物、`*.token`、`.gh_token`（`.gitignore` 已覆盖）。
 
 ## 6. 尚未完成 / 下一步
 
-- **模板库**：把 `src/templates/` 那批 `.tex` 通过宿主端点暴露给启动页的「模板」卡片（现在只有 ctexart 骨架）。
 - **编辑器**：已经是 CodeMirror 6（虚拟化、行号、搜索、撤销都有）；还差的只有 **折叠** 与 LaTeX 环境的自动补全（`@codemirror/lang-latex` 取不到，补全得自己写）。
 
 ## 7. 约定
 
+- **回复风格：`/caveman ultra` 常驻**（用户 2026-11-11 明确要求，**任何新窗口/新会话都照此**）：极简——砍冠词/连接词/客套/垫话，用箭头表因果（X → Y），一个词够就别写两个；**技术内容不砍**，代码块、报错原文、提交信息、破坏性操作确认照常写全。仅当用户说「stop caveman」或「normal mode」才恢复。
 - 注释、UI 文案、提交信息用中文；提交信息一句一行、`feat:/fix:/docs:` 前缀。
 - 插件以 `link:` 装在 `~/.dsh/profiles/desktop`，**不要手改 profile 的 `package.json`/`cordis.patch.yml`，也不要在 profile 目录跑 pnpm**——一律走 `plugin_manager`。
 - 桌面版（`src/`、`electron/`）与插件是两套代码：改插件不要动桌面版；反之亦然。
