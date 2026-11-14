@@ -8,7 +8,7 @@
 | 路径 | 是什么 | 状态 |
 | --- | --- | --- |
 | `src/` `electron/` `index.html` | 墨灵TeX 桌面版：Electron 33 + Vue 3 + CodeMirror 6 + PDF.js | v2.0.2；远端 `dichi123456/LaTeX-Editor`（本仓库 origin 经 ghproxy 中转） |
-| `dsh-plugin-moling-latex/` | 墨灵TeX 的 **DSH 插件**，**独立 git 仓库** | v0.8.1 **已发布**（自动同步 + 标绿 + 主 tex 判定 + 跳转可见 + 辅助文件进树 + 保存分体/自编 + @引用 chip + 21 个内置模板（**二级弹窗 + 自选存放文件夹**）+ **LaTeX 自动补全**），本地与 `origin/main` 已同步；远端 `dichi123456/dsh-molingTex`（Public，main） |
+| `dsh-plugin-moling-latex/` | 墨灵TeX 的 **DSH 插件**，**独立 git 仓库** | v0.8.2 **已发布**（自动同步 + 标绿 + 主 tex 判定 + 跳转可见 + 辅助文件进树 + 保存分体/自编 + @引用 chip + 21 个内置模板（**二级弹窗 + 自选存放文件夹**）+ **LaTeX 自动补全** + **启动页墨灵 logo**），本地与 `origin/main` 已同步；远端 `dichi123456/dsh-molingTex`（Public，main） |
 
 父仓库 `.gitignore` 已忽略 `dsh-plugin-moling-latex/`，避免把它当嵌套仓库提交。
 插件源码目录本身也是 DSH profile 里 `link:` 安装的目标目录。
@@ -74,13 +74,13 @@ plugin_manager install_bundle  E:\E_个人项目\Latex_APP\dsh-plugin-moling-lat
 - **改动生效规则**：`lib/client.js` 走 HMR，刷新页面即可；`lib/index.js`、`lib/server.js`、`package.json`、`cordis.patch.yml` **必须重开 DSH**。
 - 验收看 `install_bundle` 的 `application`（要 `applied`）+ `warnings`，并用 `cordis_inspect_query` 查 Tool / `Slots.listSubTree(root='sidebar.right.pane.tab')` 看 occupant 是否 `active`。**不要**用 `list_plugins` 日志或页面猜测。
 
-自测（当前基线 **12 + 57 + 350 = 419 项全绿**）：
+自测（当前基线 **12 + 57 + 378 = 447 项全绿**）：
 
 ```
 cd dsh-plugin-moling-latex
 node test/smoke.mjs            # 工具：注册/引擎识别/status/outline/quick/失败路径（12）
 node test/server-smoke.mjs     # 宿主 /moling/api：17 端点 + 白名单 + 读写 + 编译 + PDF + asset + synctex + outline + stat 外部改动探测 + 辅助文件进树 + 模板清单/落地（含二进制与重名换目录）（57）
-node test/client-smoke.mjs     # 浏览器半侧：bundle/槽位/SSR/词法/路径/PDF/编辑器/顶栏分组与统一高度/分组配色/分隔线/开关两态样式/保存分体按钮（手动·自动）/自编/提纲/连接状态/主 tex 判定（main/最近/唯一/根目录/最大）/切换项目关闭旧文件/外部改动自动同步（tree 通道/指示灯/失败可见）/改动行标绿 diff/同步不被标绿拖垮/视口不跳与行号换算/回归（自动打开不被轮询关掉、发送选区、跳转可见）/适应窗口/圆角统一/hook 顺序/模板库（清单/搜索/分类/落地）/LaTeX 自动补全（命令/环境/引用/宏包 + 补全源只造一次）（350）
+node test/client-smoke.mjs     # 浏览器半侧：bundle/槽位/SSR/词法/路径/PDF/编辑器/顶栏分组与统一高度/分组配色/分隔线/开关两态样式/保存分体按钮（手动·自动）/自编/提纲/连接状态/主 tex 判定（main/最近/唯一/根目录/最大）/切换项目关闭旧文件/外部改动自动同步（tree 通道/指示灯/失败可见）/改动行标绿 diff/同步不被标绿拖垮/视口不跳与行号换算/回归（自动打开不被轮询关掉、发送选区、跳转可见）/适应窗口/圆角统一/hook 顺序/模板库（清单/搜索/分类/落地）/LaTeX 自动补全（命令/环境/引用/宏包 + 补全源只造一次）/启动页墨灵 logo（378）
 node test/live-api.mjs         # 对正在运行的 DSH 打真实 HTTP（端口取 DSH_WEB_URL）
 ```
 
