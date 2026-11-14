@@ -46,8 +46,11 @@ ctx.slots.register({ name: 'sidebar.right.pane.tab', key: ID }, Body)
 **模板库（v0.7.0）**：素材在 `lib/templates/`（21 个模板目录 + `index.json`，共 1.1 MB / 50 文件），由 `tools/sync-templates.mjs` 从桌面版 `src/templates/` 同步生成（改模板后重跑；脚本自写 `copyOne` 递归拷贝，**别用 `fs.cpSync`** —— Windows 上覆盖已有文件会报 `Error: , The operation completed successfully.`）。`index.json` 每项 = `{ id,name,category,engine,description,accent,layout,main:'main.tex',files:[相对路径…],bytes }`。
 - `templates` 端点**只回元数据**（不含正文/文件列表）——1.1 MB 塞进首屏会慢，内容由宿主按需读盘；
 - `use-template` 端点 `{root, template}` 落地：主文件统一 `main.tex`，`.cls/.sty/.bib/.bst` 与图片按原相对路径逐字节 `copyFileSync`（`figures/`、`figs/` 子目录会建）；**目标里已有 `main.tex` 就改落 `<root>/<模板id>[-n]/`**，绝不覆盖用户项目；返回 `{template,root,main,files}`；
-- 启动页「模板」区：搜索框 + 分类胶囊（全部/5 类，带计数）+ 卡片网格（`.ml-tpl-grid/.ml-tpl-card`，**不是 `.ml-row`**，所以启动页行数断言不受影响）；空清单与「搜索无结果」各有文案，不空白不崩；
-- 点卡片 `newFromTemplate()`：`api('use-template')` → 引擎跟着模板走（`xelatex`/`pdflatex`）→ `enterRoot(target,{treeOpen:false,autoOpen:false})` → `openTab(target,'main.tex')`；没有目标目录时先提示去「打开文件夹…」，不发请求。
+- **启动页不再罗列模板**（v0.8.1，用户要求）：只留两张 `.ml-card` —— `浏览模板库`（`openTemplates()`）与 `新建中文文档`（ctexart 骨架）。模板清单移到**二级弹窗** `TemplateDialog`（挂在 `Body` 层，启动页与工作台都能弹，`store.templatesOpen` 控制）：
+  - 第一步 `templateStep:'list'`：左侧分类导航 `.ml-tpl-nav`（全部模板 + 5 类，带计数）+ 右侧搜索框 `.ml-tpl-search` + 卡片网格 `.ml-tpl-grid/.ml-tpl-card`（**不是 `.ml-row`**，所以启动页行数断言不受影响）；空清单与「搜索无结果」各有文案；
+  - 第二步 `templateStep:'target'`（标题变「新建文件」）：显示模板名/引擎/文件数 + **存放位置**行；`选择文件夹…` 走 `state.ctx.get('uiWorkspace').pickDirectory()`（取消返回 null → 不动已选目录、不发请求），选中后**先 `api('open-root')` 把目录登记进白名单**（`acceptRoot` 只认已登记目录，少了这步 `use-template` 必被拒）再 `patch({templateTarget})`；`创建` 才调 `newFromTemplate(template, target)`。`返回` 回列表、`Esc` 逐级退、点遮罩关闭；`closeTemplates()` 要清掉 `templateStep/templatePick/templateTarget`，否则下次打开会停在第二步；
+  - 落地 `newFromTemplate(template, targetRoot)`：`api('use-template')` → 引擎跟着模板走（`xelatex`/`pdflatex`）→ `enterRoot(target,{treeOpen:false,autoOpen:false})` → `openTab(target,'main.tex')`；无 target 且无当前项目/最近目录时报「先选一个存放位置」不发请求；`{blank:true}` 走 `newDocument(root)`；
+  - **坑**：`TemplateDialog` 里 Esc 的 `React.useEffect` 必须在 `if (!store.templatesOpen) return null` **之前**，否则打开弹窗时 hook 数变化 → React #310 整块崩（回归断言在 client-smoke 第 27 节）；`.ml-tpl-cats/.ml-tpl-cat` 胶囊样式已随旧启动页模板区一起删掉，分类改用竖排 `.ml-tpl-navitem`。
 
 **外部改动自动同步（大模型改 tex → 编辑区自己刷新）**：面板每 2 秒打一次 **`tree`**（不是专门的 `stat` 端点！`tree` 是文件树本来就在用的通道，一定能通；一次请求同时给出每个文件的 `mtime` 和目录里增删了谁），拿 **`mtime`** 当版本戳比对（**别带 size**：`read-file` 与 `tree` 的口径一旦不同就会互相打架、每 2 秒白重读一次）：
 - 已打开的 tex 变了 → 重新 `read-file` 读进标签（CodeMirror 的 `[tab.text]` effect 会 `setDoc`，光标 clamp 不跳走），状态栏提示「已同步 xxx」；**标签脏（有未保存改动）→ 只红色提醒绝不覆盖**；文件从清单里消失 → **只提示、绝不关标签**（删文件是少见操作，误判一次就会把自动打开/正在看的主 tex 关掉；清单被截断时更不判定）；
